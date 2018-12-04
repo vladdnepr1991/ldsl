@@ -7,9 +7,20 @@ class App extends Component {
   render () {
     return (
       <BrowserRouter>
-        <div className="wrapper container-fluid m-0 p-0">
-          <Header />
+      <div>
+        <Header />
+        <div className="wrapper container-fluid m-0">
           <div className="row screen">
+
+            <div className="col home-screen">
+
+              <div className="home-screen-logo">
+                <span>Dnipro Sky Lab</span>
+              </div>
+            </div>
+          </div>
+
+          {/* <div className="row screen">
             <div className="col">
               screen
             </div>
@@ -25,15 +36,10 @@ class App extends Component {
             <div className="col">
               screen
             </div>
-          </div>
-
-          <div className="row screen">
-            <div className="col">
-              screen
-            </div>
-          </div>
+          </div> */}
 
         </div>
+      </div>
       </BrowserRouter>
     )
   }
