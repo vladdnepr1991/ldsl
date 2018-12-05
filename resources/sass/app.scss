@@ -1,44 +1,32 @@
 @import "/../../node_modules/bootstrap/scss/bootstrap.scss";
 
+html, body, #app {
+    height: 100%;
+}
+
 body {
-    height: 100%;
-    background-color: #f1f1f1;
+    background-color: #fff;
     font-family: 'Play', sans-serif;
-    color: #272727;
-}
-
-.wrapper {
-    height: 100vh;
-}
-
-.screen {
-    display: flex;
-    height: 100%;
+    color: #525252;
 }
 
 .home-screen {
-    position: relative;
     background-size: cover;
     background-repeat: no-repeat;
     background-position: center;
     background-image: url('/images/home-screen.jpg');
 }
 
-.home-screen-logo {
-    display: flex;
-    height: 100%;
-    align-items: center;
-    justify-content: center;
-    font-size: 112px;
-    font-weight: 700;
-    background: url('/images/stars-text.jpg') no-repeat;
-    -webkit-background-clip: text;
-    -webkit-text-fill-color: transparent;
+.page-content-text {
+    font-size: 32px;
+    text-align: justify;
 }
 
-.main-nav {
-    position: absolute;
-    width: 100%;
-    top: 10px;
-    z-index: 1;
+h2 {
+    color: #f4645f;
+}
+
+.site-brand {
+    font-size: 122px;
+    font-weight: 700;
 }

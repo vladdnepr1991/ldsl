@@ -2498,7 +2498,7 @@ var generatePath = function generatePath() {
 /***/ (function(module, exports, __webpack_require__) {
 
 __webpack_require__(29);
-module.exports = __webpack_require__(89);
+module.exports = __webpack_require__(94);
 
 
 /***/ }),
@@ -20857,15 +20857,105 @@ function (_Component) {
   _createClass(App, [{
     key: "render",
     value: function render() {
-      return __WEBPACK_IMPORTED_MODULE_0_react___default.a.createElement(__WEBPACK_IMPORTED_MODULE_2_react_router_dom__["a" /* BrowserRouter */], null, __WEBPACK_IMPORTED_MODULE_0_react___default.a.createElement("div", null, __WEBPACK_IMPORTED_MODULE_0_react___default.a.createElement(__WEBPACK_IMPORTED_MODULE_3__Header_Header__["a" /* default */], null), __WEBPACK_IMPORTED_MODULE_0_react___default.a.createElement("div", {
-        className: "wrapper container-fluid m-0"
+      return __WEBPACK_IMPORTED_MODULE_0_react___default.a.createElement(__WEBPACK_IMPORTED_MODULE_2_react_router_dom__["a" /* BrowserRouter */], null, __WEBPACK_IMPORTED_MODULE_0_react___default.a.createElement("div", {
+        className: "d-fliex h-100"
       }, __WEBPACK_IMPORTED_MODULE_0_react___default.a.createElement("div", {
-        className: "row screen"
+        className: "container flex-column h-100"
       }, __WEBPACK_IMPORTED_MODULE_0_react___default.a.createElement("div", {
-        className: "col home-screen"
+        className: "text-center"
+      }, __WEBPACK_IMPORTED_MODULE_0_react___default.a.createElement("h1", {
+        className: "site-brand"
+      }, "Dnipro Sky Lab")), __WEBPACK_IMPORTED_MODULE_0_react___default.a.createElement("div", {
+        className: "row h-25"
+      }), __WEBPACK_IMPORTED_MODULE_0_react___default.a.createElement("div", {
+        className: "row "
       }, __WEBPACK_IMPORTED_MODULE_0_react___default.a.createElement("div", {
-        className: "home-screen-logo"
-      }, __WEBPACK_IMPORTED_MODULE_0_react___default.a.createElement("span", null, "Dnipro Sky Lab")))))));
+        className: "col"
+      }, __WEBPACK_IMPORTED_MODULE_0_react___default.a.createElement("h2", {
+        className: "display-3"
+      }, "About us")), __WEBPACK_IMPORTED_MODULE_0_react___default.a.createElement("div", {
+        className: "w-100"
+      }), __WEBPACK_IMPORTED_MODULE_0_react___default.a.createElement("div", {
+        className: "col-md-6"
+      }, __WEBPACK_IMPORTED_MODULE_0_react___default.a.createElement("div", {
+        className: "page-content-text"
+      }, __WEBPACK_IMPORTED_MODULE_0_react___default.a.createElement("p", null, "Lorem, ipsum dolor sit amet consectetur adipisicing elit. Voluptates pariatur delectus sit inventore vel, eaque earum, tenetur quisquam aperiam natus tempora at numquam minima architecto vitae modi optio iusto beatae?"))), __WEBPACK_IMPORTED_MODULE_0_react___default.a.createElement("div", {
+        className: "col-md-6 d-flex"
+      }, __WEBPACK_IMPORTED_MODULE_0_react___default.a.createElement("div", {
+        className: "page-content-image"
+      }, __WEBPACK_IMPORTED_MODULE_0_react___default.a.createElement("img", {
+        className: "img-fluid rounded",
+        src: "/images/team-2.jpg"
+      })))), __WEBPACK_IMPORTED_MODULE_0_react___default.a.createElement("div", {
+        className: "row h-25"
+      }), __WEBPACK_IMPORTED_MODULE_0_react___default.a.createElement("div", {
+        className: "row text-right"
+      }, __WEBPACK_IMPORTED_MODULE_0_react___default.a.createElement("div", {
+        className: "col"
+      }, __WEBPACK_IMPORTED_MODULE_0_react___default.a.createElement("h2", {
+        className: "display-3"
+      }, "Projects")), __WEBPACK_IMPORTED_MODULE_0_react___default.a.createElement("div", {
+        className: "w-100"
+      }), __WEBPACK_IMPORTED_MODULE_0_react___default.a.createElement("div", {
+        className: "col-md-6 d-flex"
+      }, __WEBPACK_IMPORTED_MODULE_0_react___default.a.createElement("div", {
+        className: "page-content-image"
+      }, __WEBPACK_IMPORTED_MODULE_0_react___default.a.createElement("img", {
+        className: "img-fluid rounded",
+        src: "/images/rocket-2.jpg"
+      }))), __WEBPACK_IMPORTED_MODULE_0_react___default.a.createElement("div", {
+        className: "col-md-6"
+      }, __WEBPACK_IMPORTED_MODULE_0_react___default.a.createElement("div", {
+        className: "page-content-text"
+      }, __WEBPACK_IMPORTED_MODULE_0_react___default.a.createElement("p", null, "Lorem, ipsum dolor sit amet consectetur adipisicing elit. Voluptates pariatur delectus sit inventore vel, eaque earum, tenetur quisquam aperiam natus tempora at numquam minima architecto vitae modi optio iusto beatae?")))), __WEBPACK_IMPORTED_MODULE_0_react___default.a.createElement("div", {
+        className: "row h-25"
+      }), __WEBPACK_IMPORTED_MODULE_0_react___default.a.createElement("div", {
+        className: "row "
+      }, __WEBPACK_IMPORTED_MODULE_0_react___default.a.createElement("div", {
+        className: "col"
+      }, __WEBPACK_IMPORTED_MODULE_0_react___default.a.createElement("h2", {
+        className: "display-3"
+      }, "Events")), __WEBPACK_IMPORTED_MODULE_0_react___default.a.createElement("div", {
+        className: "w-100"
+      }), __WEBPACK_IMPORTED_MODULE_0_react___default.a.createElement("div", {
+        className: "col-md-6"
+      }, __WEBPACK_IMPORTED_MODULE_0_react___default.a.createElement("div", {
+        className: "page-content-text"
+      }, __WEBPACK_IMPORTED_MODULE_0_react___default.a.createElement("p", null, "Lorem, ipsum dolor sit amet consectetur adipisicing elit. Voluptates pariatur delectus sit inventore vel, eaque earum, tenetur quisquam aperiam natus tempora at numquam minima architecto vitae modi optio iusto beatae?"))), __WEBPACK_IMPORTED_MODULE_0_react___default.a.createElement("div", {
+        className: "col-md-6 d-flex"
+      }, __WEBPACK_IMPORTED_MODULE_0_react___default.a.createElement("div", {
+        className: "page-content-image"
+      }, __WEBPACK_IMPORTED_MODULE_0_react___default.a.createElement("img", {
+        className: "img-fluid rounded",
+        src: "/images/events.jpg"
+      })))), __WEBPACK_IMPORTED_MODULE_0_react___default.a.createElement("div", {
+        className: "row h-25"
+      }), __WEBPACK_IMPORTED_MODULE_0_react___default.a.createElement("div", {
+        className: "row text-right"
+      }, __WEBPACK_IMPORTED_MODULE_0_react___default.a.createElement("div", {
+        className: "col"
+      }, __WEBPACK_IMPORTED_MODULE_0_react___default.a.createElement("h2", {
+        className: "display-3"
+      }, "Expositions")), __WEBPACK_IMPORTED_MODULE_0_react___default.a.createElement("div", {
+        className: "w-100"
+      }), __WEBPACK_IMPORTED_MODULE_0_react___default.a.createElement("div", {
+        className: "col-md-6 d-flex"
+      }, __WEBPACK_IMPORTED_MODULE_0_react___default.a.createElement("div", {
+        className: "page-content-image"
+      }, __WEBPACK_IMPORTED_MODULE_0_react___default.a.createElement("img", {
+        className: "img-fluid rounded",
+        src: "/images/exposition.jpg"
+      }))), __WEBPACK_IMPORTED_MODULE_0_react___default.a.createElement("div", {
+        className: "col-md-6"
+      }, __WEBPACK_IMPORTED_MODULE_0_react___default.a.createElement("div", {
+        className: "page-content-text"
+      }, __WEBPACK_IMPORTED_MODULE_0_react___default.a.createElement("p", null, "Lorem, ipsum dolor sit amet consectetur adipisicing elit. Voluptates pariatur delectus sit inventore vel, eaque earum, tenetur quisquam aperiam natus tempora at numquam minima architecto vitae modi optio iusto beatae?")))), __WEBPACK_IMPORTED_MODULE_0_react___default.a.createElement("div", {
+        className: "row h-25"
+      }), __WEBPACK_IMPORTED_MODULE_0_react___default.a.createElement("div", {
+        className: "row"
+      }, __WEBPACK_IMPORTED_MODULE_0_react___default.a.createElement("div", {
+        className: "col-md-6 offset-md-6 text-right"
+      }, __WEBPACK_IMPORTED_MODULE_0_react___default.a.createElement("address", null, __WEBPACK_IMPORTED_MODULE_0_react___default.a.createElement("p", null, "Phone: +38 (123) 123-45-67"), __WEBPACK_IMPORTED_MODULE_0_react___default.a.createElement("p", null, "E-mail: ma@il.com"), __WEBPACK_IMPORTED_MODULE_0_react___default.a.createElement("p", null, "Facebook: facebook.com")))))));
     }
   }]);
 
@@ -46127,7 +46217,7 @@ module.exports = hoistNonReactStatics;
 "use strict";
 /* harmony import */ var __WEBPACK_IMPORTED_MODULE_0_react__ = __webpack_require__(0);
 /* harmony import */ var __WEBPACK_IMPORTED_MODULE_0_react___default = __webpack_require__.n(__WEBPACK_IMPORTED_MODULE_0_react__);
-/* harmony import */ var __WEBPACK_IMPORTED_MODULE_1__index_scss__ = __webpack_require__(94);
+/* harmony import */ var __WEBPACK_IMPORTED_MODULE_1__index_scss__ = __webpack_require__(89);
 /* harmony import */ var __WEBPACK_IMPORTED_MODULE_1__index_scss___default = __webpack_require__.n(__WEBPACK_IMPORTED_MODULE_1__index_scss__);
 
 
@@ -46148,16 +46238,54 @@ var Header = function Header() {
   }, __WEBPACK_IMPORTED_MODULE_0_react___default.a.createElement("span", null, "\u041C\u0430\u0433\u0430\u0437\u0438\u043D"))));
 };
 
-/* harmony default export */ __webpack_exports__["a"] = (Header);
+/* unused harmony default export */ var _unused_webpack_default_export = (Header);
 
 /***/ }),
 /* 89 */
-/***/ (function(module, exports) {
+/***/ (function(module, exports, __webpack_require__) {
 
-// removed by extract-text-webpack-plugin
+// style-loader: Adds some css to the DOM by adding a <style> tag
+
+// load the styles
+var content = __webpack_require__(90);
+if(typeof content === 'string') content = [[module.i, content, '']];
+// Prepare cssTransformation
+var transform;
+
+var options = {}
+options.transform = transform
+// add the styles to the DOM
+var update = __webpack_require__(92)(content, options);
+if(content.locals) module.exports = content.locals;
+// Hot Module Replacement
+if(false) {
+	// When the styles change, update the <style> tags
+	if(!content.locals) {
+		module.hot.accept("!!../../../../node_modules/css-loader/index.js!../../../../node_modules/sass-loader/lib/loader.js!./index.scss", function() {
+			var newContent = require("!!../../../../node_modules/css-loader/index.js!../../../../node_modules/sass-loader/lib/loader.js!./index.scss");
+			if(typeof newContent === 'string') newContent = [[module.id, newContent, '']];
+			update(newContent);
+		});
+	}
+	// When the module is disposed, remove the <style> tags
+	module.hot.dispose(function() { update(); });
+}
 
 /***/ }),
-/* 90 */,
+/* 90 */
+/***/ (function(module, exports, __webpack_require__) {
+
+exports = module.exports = __webpack_require__(91)(false);
+// imports
+
+
+// module
+exports.push([module.i, ".main-nav {\n  text-align: center;\n  font-size: 22px; }\n\n.main-nav-list {\n  list-style: none;\n  display: inline-block;\n  margin: 10px 0 0 0;\n  padding: 10px; }\n\n.main-nav-list__item {\n  display: inline-block;\n  padding: 5px 15px;\n  text-transform: uppercase;\n  font-weight: 700; }\n  .main-nav-list__item span {\n    cursor: pointer; }\n", ""]);
+
+// exports
+
+
+/***/ }),
 /* 91 */
 /***/ (function(module, exports) {
 
@@ -46695,48 +46823,9 @@ module.exports = function (css) {
 
 /***/ }),
 /* 94 */
-/***/ (function(module, exports, __webpack_require__) {
+/***/ (function(module, exports) {
 
-// style-loader: Adds some css to the DOM by adding a <style> tag
-
-// load the styles
-var content = __webpack_require__(95);
-if(typeof content === 'string') content = [[module.i, content, '']];
-// Prepare cssTransformation
-var transform;
-
-var options = {}
-options.transform = transform
-// add the styles to the DOM
-var update = __webpack_require__(92)(content, options);
-if(content.locals) module.exports = content.locals;
-// Hot Module Replacement
-if(false) {
-	// When the styles change, update the <style> tags
-	if(!content.locals) {
-		module.hot.accept("!!../../../../node_modules/css-loader/index.js!../../../../node_modules/sass-loader/lib/loader.js!./index.scss", function() {
-			var newContent = require("!!../../../../node_modules/css-loader/index.js!../../../../node_modules/sass-loader/lib/loader.js!./index.scss");
-			if(typeof newContent === 'string') newContent = [[module.id, newContent, '']];
-			update(newContent);
-		});
-	}
-	// When the module is disposed, remove the <style> tags
-	module.hot.dispose(function() { update(); });
-}
-
-/***/ }),
-/* 95 */
-/***/ (function(module, exports, __webpack_require__) {
-
-exports = module.exports = __webpack_require__(91)(false);
-// imports
-
-
-// module
-exports.push([module.i, ".main-nav {\n  text-align: center;\n  font-size: 22px; }\n\n.main-nav-list {\n  list-style: none;\n  display: inline-block;\n  margin: 10px 0 0 0;\n  padding: 10px; }\n\n.main-nav-list__item {\n  display: inline-block;\n  padding: 5px 15px;\n  text-transform: uppercase;\n  font-weight: 700; }\n  .main-nav-list__item span {\n    cursor: pointer; }\n", ""]);
-
-// exports
-
+// removed by extract-text-webpack-plugin
 
 /***/ })
 /******/ ]);
