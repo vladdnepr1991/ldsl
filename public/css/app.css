@@ -10478,6 +10478,15 @@ body {
   color: #525252;
 }
 
+.page-section {
+  min-height: 75%;
+  padding: 5% 0;
+}
+
+.page-section:nth-child(even) {
+  background-color: #f7f7f7;
+}
+
 .home-screen {
   min-height: 75%;
   background-size: cover;
