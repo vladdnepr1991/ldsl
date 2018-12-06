@@ -20860,23 +20860,27 @@ function (_Component) {
       return __WEBPACK_IMPORTED_MODULE_0_react___default.a.createElement(__WEBPACK_IMPORTED_MODULE_2_react_router_dom__["a" /* BrowserRouter */], null, __WEBPACK_IMPORTED_MODULE_0_react___default.a.createElement("div", {
         className: "d-fliex h-100"
       }, __WEBPACK_IMPORTED_MODULE_0_react___default.a.createElement("div", {
+        className: "d-flex home-screen flex-column justify-content-center text-center"
+      }, __WEBPACK_IMPORTED_MODULE_0_react___default.a.createElement("div", {
+        className: "home-screen__content"
+      }, __WEBPACK_IMPORTED_MODULE_0_react___default.a.createElement("h1", {
+        className: "brand-name"
+      }, "Dnipro Sky Lab"), __WEBPACK_IMPORTED_MODULE_0_react___default.a.createElement("p", {
+        className: "home-screen__descriptions"
+      }, "\u0406\u043D\u0456\u0446\u0456\u0430\u0442\u0438\u0432\u043D\u0430 \u0433\u0440\u0443\u043F\u0430 \u0442\u0432\u043E\u0440\u0447\u0438\u0445 \u043B\u044E\u0434\u0435\u0439, \u044F\u043A\u0438\u0445 \u043C\u0430\u043D\u0438\u0442\u044C \u043D\u0435\u0431\u043E \u0443 \u0432\u0441\u044C\u043E\u043C\u0443  \u0441\u0432\u043E\u0454\u043C\u0443 \u043F\u0440\u043E\u044F\u0432\u043B\u0435\u043D\u043D\u0456. \u041C\u043E\u0434\u0435\u043B\u044E\u0432\u0430\u043D\u043D\u044F \u0430\u0432\u0456\u0430\u0442\u0435\u0445\u043D\u0456\u043A\u0438, \u0440\u0430\u043A\u0435\u0442\u043D\u043E-\u043A\u043E\u0441\u043C\u0456\u0447\u043D\u043E\u0457 \u0442\u0435\u0445\u043D\u0456\u043A\u0438,  \u043E\u043F\u0442\u0438\u0447\u043D\u0438\u0445 \u043F\u0440\u0438\u043B\u0430\u0434\u0456\u0432, \u0435\u043B\u0435\u043A\u0442\u0440\u043E\u043D\u043D\u0438\u0445 \u0441\u0438\u0441\u0442\u0435\u043C \u2013 \u0446\u0435 \u0449\u0435 \u043D\u0435\u043F\u043E\u0432\u043D\u0438\u0439 \u043F\u0435\u0440\u0435\u043B\u0456\u043A \u0456\u043D\u0442\u0435\u0440\u0435\u0441\u0456\u0432  \u0433\u0440\u0443\u043F\u0438."))), __WEBPACK_IMPORTED_MODULE_0_react___default.a.createElement("div", {
         className: "container flex-column h-100"
       }, __WEBPACK_IMPORTED_MODULE_0_react___default.a.createElement("div", {
-        className: "text-center"
-      }, __WEBPACK_IMPORTED_MODULE_0_react___default.a.createElement("h1", {
-        className: "site-brand"
-      }, "Dnipro Sky Lab")), __WEBPACK_IMPORTED_MODULE_0_react___default.a.createElement("div", {
-        className: "row h-25"
+        className: "divider_50"
       }), __WEBPACK_IMPORTED_MODULE_0_react___default.a.createElement("div", {
-        className: "row "
+        className: "row justify-content-between"
       }, __WEBPACK_IMPORTED_MODULE_0_react___default.a.createElement("div", {
         className: "col"
       }, __WEBPACK_IMPORTED_MODULE_0_react___default.a.createElement("h2", {
-        className: "display-3"
+        className: "display-4"
       }, "About us")), __WEBPACK_IMPORTED_MODULE_0_react___default.a.createElement("div", {
-        className: "w-100"
+        className: "w-100 page-divider"
       }), __WEBPACK_IMPORTED_MODULE_0_react___default.a.createElement("div", {
-        className: "col-md-6"
+        className: "col-md-5"
       }, __WEBPACK_IMPORTED_MODULE_0_react___default.a.createElement("div", {
         className: "page-content-text"
       }, __WEBPACK_IMPORTED_MODULE_0_react___default.a.createElement("p", null, "Lorem, ipsum dolor sit amet consectetur adipisicing elit. Voluptates pariatur delectus sit inventore vel, eaque earum, tenetur quisquam aperiam natus tempora at numquam minima architecto vitae modi optio iusto beatae?"))), __WEBPACK_IMPORTED_MODULE_0_react___default.a.createElement("div", {
@@ -20889,13 +20893,13 @@ function (_Component) {
       })))), __WEBPACK_IMPORTED_MODULE_0_react___default.a.createElement("div", {
         className: "row h-25"
       }), __WEBPACK_IMPORTED_MODULE_0_react___default.a.createElement("div", {
-        className: "row text-right"
+        className: "row justify-content-between text-right"
       }, __WEBPACK_IMPORTED_MODULE_0_react___default.a.createElement("div", {
         className: "col"
       }, __WEBPACK_IMPORTED_MODULE_0_react___default.a.createElement("h2", {
-        className: "display-3"
+        className: "display-4"
       }, "Projects")), __WEBPACK_IMPORTED_MODULE_0_react___default.a.createElement("div", {
-        className: "w-100"
+        className: "w-100 page-divider"
       }), __WEBPACK_IMPORTED_MODULE_0_react___default.a.createElement("div", {
         className: "col-md-6 d-flex"
       }, __WEBPACK_IMPORTED_MODULE_0_react___default.a.createElement("div", {
@@ -20904,21 +20908,21 @@ function (_Component) {
         className: "img-fluid rounded",
         src: "/images/rocket-2.jpg"
       }))), __WEBPACK_IMPORTED_MODULE_0_react___default.a.createElement("div", {
-        className: "col-md-6"
+        className: "col-md-5"
       }, __WEBPACK_IMPORTED_MODULE_0_react___default.a.createElement("div", {
         className: "page-content-text"
       }, __WEBPACK_IMPORTED_MODULE_0_react___default.a.createElement("p", null, "Lorem, ipsum dolor sit amet consectetur adipisicing elit. Voluptates pariatur delectus sit inventore vel, eaque earum, tenetur quisquam aperiam natus tempora at numquam minima architecto vitae modi optio iusto beatae?")))), __WEBPACK_IMPORTED_MODULE_0_react___default.a.createElement("div", {
         className: "row h-25"
       }), __WEBPACK_IMPORTED_MODULE_0_react___default.a.createElement("div", {
-        className: "row "
+        className: "row justify-content-between"
       }, __WEBPACK_IMPORTED_MODULE_0_react___default.a.createElement("div", {
         className: "col"
       }, __WEBPACK_IMPORTED_MODULE_0_react___default.a.createElement("h2", {
-        className: "display-3"
+        className: "display-4"
       }, "Events")), __WEBPACK_IMPORTED_MODULE_0_react___default.a.createElement("div", {
-        className: "w-100"
+        className: "w-100 page-divider"
       }), __WEBPACK_IMPORTED_MODULE_0_react___default.a.createElement("div", {
-        className: "col-md-6"
+        className: "col-md-5"
       }, __WEBPACK_IMPORTED_MODULE_0_react___default.a.createElement("div", {
         className: "page-content-text"
       }, __WEBPACK_IMPORTED_MODULE_0_react___default.a.createElement("p", null, "Lorem, ipsum dolor sit amet consectetur adipisicing elit. Voluptates pariatur delectus sit inventore vel, eaque earum, tenetur quisquam aperiam natus tempora at numquam minima architecto vitae modi optio iusto beatae?"))), __WEBPACK_IMPORTED_MODULE_0_react___default.a.createElement("div", {
@@ -20931,13 +20935,13 @@ function (_Component) {
       })))), __WEBPACK_IMPORTED_MODULE_0_react___default.a.createElement("div", {
         className: "row h-25"
       }), __WEBPACK_IMPORTED_MODULE_0_react___default.a.createElement("div", {
-        className: "row text-right"
+        className: "row justify-content-between text-right"
       }, __WEBPACK_IMPORTED_MODULE_0_react___default.a.createElement("div", {
         className: "col"
       }, __WEBPACK_IMPORTED_MODULE_0_react___default.a.createElement("h2", {
-        className: "display-3"
+        className: "display-4"
       }, "Expositions")), __WEBPACK_IMPORTED_MODULE_0_react___default.a.createElement("div", {
-        className: "w-100"
+        className: "w-100 page-divider"
       }), __WEBPACK_IMPORTED_MODULE_0_react___default.a.createElement("div", {
         className: "col-md-6 d-flex"
       }, __WEBPACK_IMPORTED_MODULE_0_react___default.a.createElement("div", {
@@ -20946,12 +20950,14 @@ function (_Component) {
         className: "img-fluid rounded",
         src: "/images/exposition.jpg"
       }))), __WEBPACK_IMPORTED_MODULE_0_react___default.a.createElement("div", {
-        className: "col-md-6"
+        className: "col-md-5"
       }, __WEBPACK_IMPORTED_MODULE_0_react___default.a.createElement("div", {
         className: "page-content-text"
       }, __WEBPACK_IMPORTED_MODULE_0_react___default.a.createElement("p", null, "Lorem, ipsum dolor sit amet consectetur adipisicing elit. Voluptates pariatur delectus sit inventore vel, eaque earum, tenetur quisquam aperiam natus tempora at numquam minima architecto vitae modi optio iusto beatae?")))), __WEBPACK_IMPORTED_MODULE_0_react___default.a.createElement("div", {
         className: "row h-25"
-      }), __WEBPACK_IMPORTED_MODULE_0_react___default.a.createElement("div", {
+      }, __WEBPACK_IMPORTED_MODULE_0_react___default.a.createElement("div", {
+        className: "page-divider"
+      })), __WEBPACK_IMPORTED_MODULE_0_react___default.a.createElement("div", {
         className: "row"
       }, __WEBPACK_IMPORTED_MODULE_0_react___default.a.createElement("div", {
         className: "col-md-6 offset-md-6 text-right"

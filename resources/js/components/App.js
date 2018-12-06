@@ -9,29 +9,26 @@ class App extends Component {
       <BrowserRouter>
         <div className="d-fliex h-100">
           
-          {/* <div className="d-fliex h-100 home-screen">
-          </div> */}
+          <div className="d-flex home-screen flex-column justify-content-center text-center">
+          <div className="home-screen__content">
+            <h1 className="brand-name">Dnipro Sky Lab</h1>
+            <p className="home-screen__descriptions">Ініціативна група творчих людей, яких манить небо у всьому  своєму проявленні. Моделювання авіатехніки, ракетно-космічної техніки,  оптичних приладів, електронних систем – це ще неповний перелік інтересів  групи.</p>
+          </div>
+          </div>
 
 
           <div className="container flex-column h-100">
-
-            {/* <img className="img-fluid rounded w-100" src="/images/main.jpg"></img> */}
-
-            <div className="text-center">
-              <h1 className="site-brand">Dnipro Sky Lab</h1>
-            </div>
-
-            <div className="row h-25"></div>
+            <div className="divider_50"></div>
 
 
-            <div className="row ">
+            <div className="row justify-content-between">
               <div className="col">
-                <h2 className="display-3">About us</h2>
+                <h2 className="display-4">About us</h2>
               </div>
 
-              <div className="w-100"></div>
+              <div className="w-100 page-divider"></div>
 
-              <div className="col-md-6">
+              <div className="col-md-5">
                 <div className="page-content-text">
                   <p>Lorem, ipsum dolor sit amet consectetur adipisicing elit. Voluptates pariatur delectus sit inventore vel, eaque earum, tenetur quisquam aperiam natus tempora at numquam minima architecto vitae modi optio iusto beatae?</p>
                 </div>
@@ -46,12 +43,12 @@ class App extends Component {
 
             <div className="row h-25"></div>
 
-            <div className="row text-right">
+            <div className="row justify-content-between text-right">
               <div className="col">
-                <h2 className="display-3">Projects</h2>
+                <h2 className="display-4">Projects</h2>
               </div>
 
-              <div className="w-100"></div>
+              <div className="w-100 page-divider"></div>
 
 
               <div className="col-md-6 d-flex">
@@ -60,7 +57,7 @@ class App extends Component {
                 </div>
               </div>        
 
-              <div className="col-md-6">
+              <div className="col-md-5">
                 <div className="page-content-text">
                   <p>Lorem, ipsum dolor sit amet consectetur adipisicing elit. Voluptates pariatur delectus sit inventore vel, eaque earum, tenetur quisquam aperiam natus tempora at numquam minima architecto vitae modi optio iusto beatae?</p>
                 </div>
@@ -69,14 +66,14 @@ class App extends Component {
 
             <div className="row h-25"></div>
 
-            <div className="row ">
+            <div className="row justify-content-between">
               <div className="col">
-                <h2 className="display-3">Events</h2>
+                <h2 className="display-4">Events</h2>
               </div>
 
-              <div className="w-100"></div>
+              <div className="w-100 page-divider"></div>
 
-              <div className="col-md-6">
+              <div className="col-md-5">
                 <div className="page-content-text">
                   <p>Lorem, ipsum dolor sit amet consectetur adipisicing elit. Voluptates pariatur delectus sit inventore vel, eaque earum, tenetur quisquam aperiam natus tempora at numquam minima architecto vitae modi optio iusto beatae?</p>
                 </div>
@@ -91,12 +88,12 @@ class App extends Component {
 
             <div className="row h-25"></div>
 
-            <div className="row text-right">
+            <div className="row justify-content-between text-right">
               <div className="col">
-                <h2 className="display-3">Expositions</h2>
+                <h2 className="display-4">Expositions</h2>
               </div>
 
-              <div className="w-100"></div>
+              <div className="w-100 page-divider"></div>
 
 
               <div className="col-md-6 d-flex">
@@ -105,14 +102,17 @@ class App extends Component {
                 </div>
               </div>        
 
-              <div className="col-md-6">
+              <div className="col-md-5">
                 <div className="page-content-text">
                   <p>Lorem, ipsum dolor sit amet consectetur adipisicing elit. Voluptates pariatur delectus sit inventore vel, eaque earum, tenetur quisquam aperiam natus tempora at numquam minima architecto vitae modi optio iusto beatae?</p>
                 </div>
               </div>
             </div>               
 
-            <div className="row h-25"></div>
+            <div className="row h-25">
+              <div className="page-divider"></div>
+            </div>
+
 
             <div className="row">
               <div className="col-md-6 offset-md-6 text-right">

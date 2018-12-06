@@ -11,22 +11,54 @@ body {
 }
 
 .home-screen {
+    min-height: 75%;
     background-size: cover;
     background-repeat: no-repeat;
     background-position: center;
-    background-image: url('/images/home-screen.jpg');
+    background-image: url('/images/main-4.jpg');
+    color: #fff;
+    font-size: 36px;
 }
 
 .page-content-text {
-    font-size: 32px;
+    font-size: 24px;
     text-align: justify;
 }
 
 h2 {
-    color: #f4645f;
+    color: #044299;
 }
 
-.site-brand {
-    font-size: 122px;
+.page-divider {
+    width: 100% !important;
+    border-bottom: 2px solid #044299;
+    margin: 0 15px 25px 15px;
+}
+
+.brand-name {
+    font-size: 96px;
     font-weight: 700;
+}
+
+.home-screen__content {
+    max-width: 768px;
+    margin: auto;
+}
+
+.home-screen__descriptions {
+    opacity: 0.8;
+}
+
+.divider_50 {
+    height: 50px;
+}
+
+@media screen and (max-width: 480px) {
+    .brand-name {
+        font-size: 48px;
+    }
+
+    .home-screen__descriptions {
+        font-size: 24px;
+    }
 }
