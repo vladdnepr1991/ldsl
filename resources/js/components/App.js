@@ -8,6 +8,8 @@ class App extends Component {
     return (
       <BrowserRouter>
         <div className="d-fliex h-100">
+
+          <Header />
           
           <div className="d-flex home-screen flex-column justify-content-center text-center">
             <div className="home-screen__content">
@@ -16,7 +18,7 @@ class App extends Component {
             </div>
           </div>
 
-          <div className="d-flex w-100 page-section">
+          <div id="about" className="d-flex w-100 page-section">
             <div className="container flex-column h-100">
               <div className="row justify-content-between">
                 <div className="col">
@@ -40,7 +42,7 @@ class App extends Component {
             </div>
           </div>
 
-          <div className="d-flex w-100 page-section">
+          <div id="projects" className="d-flex w-100 page-section">
             <div className="container flex-column h-100">
               <div className="row justify-content-between text-right">
                 <div className="col">
@@ -65,7 +67,7 @@ class App extends Component {
             </div>
           </div>
 
-          <div className="d-flex w-100 page-section">
+          <div id="events" className="d-flex w-100 page-section">
             <div className="container flex-column h-100">
               <div className="row justify-content-between">
                 <div className="col">
@@ -91,7 +93,7 @@ class App extends Component {
             </div>
           </div>
 
-          <div className="d-flex w-100 page-section">
+          <div id="expositions" className="d-flex w-100 page-section">
             <div className="container flex-column h-100">
               <div className="row justify-content-between text-right">
                 <div className="col">
@@ -125,7 +127,7 @@ class App extends Component {
 
             <div className="row">
               <div className="col">
-                <address>
+                <address id="contacts">
                   <p><strong>Phone:</strong> +38 (123) 123-45-67</p>
                   <p><strong>Facebook:</strong> <a href="https://facebook.com" target="_blank">facebook.com</a></p>
                   <p><strong>YouTube:</strong> <a href="https://youtube.com" target="_blank">youtube.com</a></p>
