@@ -19,7 +19,7 @@ body {
     padding: 5% 0;
     
     &:nth-child(odd) {
-        background-color: #f7f7f7;
+        background-color: #f8f9fa;
     }
 }
 
@@ -29,13 +29,13 @@ body {
     background-repeat: no-repeat;
     background-position: center;
     background-image: url('/images/main-4.jpg');
-    margin-top: 73px;
+    margin-top: 56px;
     color: #fff;
     font-size: 36px;
 }
 
 .page-content-text {
-    font-size: 24px;
+    font-size: 20px;
     text-align: justify;
 }
 
@@ -49,22 +49,21 @@ h2 {
     margin: 0 15px 25px 15px;
 }
 
-.brand-name {
-    font-size: 96px;
-    font-weight: 700;
-}
-
 .home-screen__content {
     max-width: 768px;
     margin: auto;
 }
 
 .home-screen__descriptions {
-    opacity: 0.8;
+    opacity: 0.9;
 }
 
 .divider_50 {
     height: 50px;
+}
+
+.contacts {
+    font-size: 14px;
 }
 
 @media screen and (max-width: 480px) {
