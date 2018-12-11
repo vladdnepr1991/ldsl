@@ -1,9 +1,14 @@
 .navbar {
     text-transform: uppercase;
+    background-color: #044299 !important;
 }
 
-.navbar a {
-    color: #044299 !important;
+.navbar-dark a {
+    color: rgba(255, 255, 255, 0.9) !important;
+
+    &:hover {
+        color: rgba(255, 255, 255, 1) !important;
+    }
 }
 
 .navbar > a {

@@ -20963,6 +20963,8 @@ function (_Component) {
       }, __WEBPACK_IMPORTED_MODULE_0_react___default.a.createElement("div", {
         className: "page-content-text"
       }, __WEBPACK_IMPORTED_MODULE_0_react___default.a.createElement("p", null, "Lorem, ipsum dolor sit amet consectetur adipisicing elit. Voluptates pariatur delectus sit inventore vel, eaque earum, tenetur quisquam aperiam natus tempora at numquam minima architecto vitae modi optio iusto beatae?")))))), __WEBPACK_IMPORTED_MODULE_0_react___default.a.createElement("div", {
+        className: "d-flex w-100"
+      }, __WEBPACK_IMPORTED_MODULE_0_react___default.a.createElement("div", {
         className: "container flex-column"
       }, __WEBPACK_IMPORTED_MODULE_0_react___default.a.createElement("div", {
         className: "row h-25"
@@ -20984,7 +20986,7 @@ function (_Component) {
       }, "youtube.com")), __WEBPACK_IMPORTED_MODULE_0_react___default.a.createElement("p", null, __WEBPACK_IMPORTED_MODULE_0_react___default.a.createElement("strong", null, "E-mail:"), " ", __WEBPACK_IMPORTED_MODULE_0_react___default.a.createElement("a", {
         href: "",
         target: "_blank"
-      }, "ma@il.com"))))))));
+      }, "ma@il.com")))))))));
     }
   }]);
 
@@ -46304,7 +46306,7 @@ function (_React$Component) {
         expand: "md",
         fixed: "top",
         color: "light",
-        light: true
+        dark: true
       }, __WEBPACK_IMPORTED_MODULE_0_react___default.a.createElement(__WEBPACK_IMPORTED_MODULE_1_reactstrap__["f" /* NavbarBrand */], {
         href: "/"
       }, "Dnipro Sky Lab"), __WEBPACK_IMPORTED_MODULE_0_react___default.a.createElement(__WEBPACK_IMPORTED_MODULE_1_reactstrap__["g" /* NavbarToggler */], {
@@ -46374,7 +46376,7 @@ exports = module.exports = __webpack_require__(91)(false);
 
 
 // module
-exports.push([module.i, ".navbar {\n  text-transform: uppercase; }\n\n.navbar a {\n  color: #044299 !important; }\n\n.navbar > a {\n  font-weight: 700; }\n", ""]);
+exports.push([module.i, ".navbar {\n  text-transform: uppercase;\n  background-color: #044299 !important; }\n\n.navbar-dark a {\n  color: rgba(255, 255, 255, 0.9) !important; }\n  .navbar-dark a:hover {\n    color: white !important; }\n\n.navbar > a {\n  font-weight: 700; }\n", ""]);
 
 // exports
 

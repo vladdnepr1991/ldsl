@@ -118,23 +118,24 @@ class App extends Component {
           </div>
 
 
-
-          <div className="container flex-column">             
-            <div className="row h-25">
-              <div className="page-divider"></div>
-            </div>
-
-            <div className="row">
-              <div className="col">
-                <address id="contacts" className="contacts">
-                  <p><strong>Phone:</strong> +38 (123) 123-45-67</p>
-                  <p><strong>Facebook:</strong> <a href="https://facebook.com" target="_blank">facebook.com</a></p>
-                  <p><strong>YouTube:</strong> <a href="https://youtube.com" target="_blank">youtube.com</a></p>
-                  <p><strong>E-mail:</strong> <a href="" target="_blank">ma@il.com</a></p>
-                </address>
+          <div className="d-flex w-100">
+            <div className="container flex-column">             
+              <div className="row h-25">
+                <div className="page-divider"></div>
               </div>
+
+              <div className="row">
+                <div className="col">
+                  <address id="contacts" className="contacts">
+                    <p><strong>Phone:</strong> +38 (123) 123-45-67</p>
+                    <p><strong>Facebook:</strong> <a href="https://facebook.com" target="_blank">facebook.com</a></p>
+                    <p><strong>YouTube:</strong> <a href="https://youtube.com" target="_blank">youtube.com</a></p>
+                    <p><strong>E-mail:</strong> <a href="" target="_blank">ma@il.com</a></p>
+                  </address>
+                </div>
+              </div>
+              
             </div>
-            
           </div>
         </div>
       </BrowserRouter>
