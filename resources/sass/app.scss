@@ -1,5 +1,9 @@
 @import "/../../node_modules/bootstrap/scss/bootstrap.scss";
 
+$primary-blue: #044299;
+$primary-gray: #525252;
+$light-gray: #f8f9fa;
+
 html {
     scroll-behavior: smooth;
 }
@@ -11,7 +15,7 @@ html, body, #app {
 body {
     background-color: #fff;
     font-family: 'Play', sans-serif;
-    color: #525252;
+    color: $primary-gray;
 }
 
 .page-section {
@@ -19,7 +23,7 @@ body {
     padding: 5% 0;
     
     &:nth-child(odd) {
-        background-color: #f8f9fa;
+        background-color: $light-gray;
     }
 }
 
@@ -30,7 +34,7 @@ body {
     background-position: center;
     background-image: url('/images/main-4.jpg');
     margin-top: 56px;
-    color: #fff;
+    color: $light-gray;
     font-size: 36px;
 }
 
@@ -40,13 +44,14 @@ body {
 }
 
 h2 {
-    color: #044299;
+    color: $primary-blue;
     text-transform: uppercase;
+    font-weight: bold;
 }
 
 .page-divider {
     width: 100% !important;
-    border-bottom: 2px solid #044299;
+    border-bottom: 2px solid $primary-blue;
     margin: 0 15px 25px 15px;
 }
 
@@ -57,6 +62,7 @@ h2 {
 
 .home-screen__descriptions {
     opacity: 0.9;
+    font-weight: bold;
 }
 
 .divider_50 {
@@ -65,6 +71,30 @@ h2 {
 
 .contacts {
     font-size: 14px;
+    margin-bottom: 0;
+
+    p:last-child {
+        margin-bottom: 0;
+    }
+
+    span {
+        white-space: nowrap;
+    }
+
+    a {
+        color: $light-gray;
+    }
+
+}
+
+.contacts-wrapper {
+    padding: 50px 0;
+    background-color: $primary-blue;
+    color: $light-gray;
+
+    .logo-wrapper {
+        text-align: right;
+    }
 }
 
 @media screen and (max-width: 480px) {
@@ -74,5 +104,14 @@ h2 {
 
     .home-screen__descriptions {
         font-size: 24px;
+    }
+
+    .contacts-wrapper {
+        text-align: center;
+
+        .logo-wrapper {
+            text-align: center;
+            margin-top: 50px;
+        }
     }
 }

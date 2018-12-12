@@ -20877,13 +20877,13 @@ function (_Component) {
         className: "col"
       }, __WEBPACK_IMPORTED_MODULE_0_react___default.a.createElement("h2", {
         className: ""
-      }, "About us")), __WEBPACK_IMPORTED_MODULE_0_react___default.a.createElement("div", {
+      }, "\u041F\u0440\u043E \u043D\u0430\u0441")), __WEBPACK_IMPORTED_MODULE_0_react___default.a.createElement("div", {
         className: "w-100 page-divider"
       }), __WEBPACK_IMPORTED_MODULE_0_react___default.a.createElement("div", {
         className: "col-md-5"
       }, __WEBPACK_IMPORTED_MODULE_0_react___default.a.createElement("div", {
         className: "page-content-text"
-      }, __WEBPACK_IMPORTED_MODULE_0_react___default.a.createElement("p", null, "Lorem, ipsum dolor sit amet consectetur adipisicing elit. Voluptates pariatur delectus sit inventore vel, eaque earum, tenetur quisquam aperiam natus tempora at numquam minima architecto vitae modi optio iusto beatae?"))), __WEBPACK_IMPORTED_MODULE_0_react___default.a.createElement("div", {
+      }, __WEBPACK_IMPORTED_MODULE_0_react___default.a.createElement("p", null, "\u041C\u0438 - \u0433\u0440\u0443\u043F\u0430 \u0435\u043D\u0442\u0443\u0437\u0456\u0430\u0441\u0442\u0456\u0432, \u0430\u043C\u0430\u0442\u043E\u0440\u0456\u0432, \u0456\u043D\u0436\u0435\u043D\u0435\u0440\u0456\u0432, \u043F\u043E\u0454\u0434\u043D\u0430\u043D\u0456 \u0441\u043F\u0456\u043B\u044C\u043D\u043E\u044E \u043C\u0435\u0442\u043E\u044E \u0441\u0442\u0432\u043E\u0440\u044E\u0432\u0430\u0442\u0438 \u0440\u0456\u0437\u043D\u0456 \u043F\u0440\u0438\u0441\u0442\u0440\u043E\u0457 \u0441\u0432\u043E\u0457\u043C\u0438 \u0440\u0443\u043A\u0430\u043C\u0438. \u041F\u043E\u0447\u0438\u043D\u0430\u043B\u043E\u0441\u044F \u0432\u0441\u0435 \u0437\u0456 \u0441\u0442\u0443\u0434\u0435\u043D\u0442\u0441\u044C\u043A\u0438\u0445 \u0440\u043E\u043A\u0456\u0432. \u041A\u043E\u0436\u0435\u043D \u0437\u0430\u0439\u043C\u0430\u0432\u0441\u044F \u0430\u0431\u043E \u043C\u043E\u0434\u0435\u043B\u044E\u0432\u0430\u043D\u043D\u044F\u043C \u0440\u0430\u043A\u0435\u0442 \u0447\u0438 \u043B\u0456\u0442\u0430\u043A\u0456\u0432, \u0430\u0431\u043E \u0432\u0438\u0433\u043E\u0442\u043E\u0432\u043B\u0435\u043D\u043D\u044F\u043C \u044F\u043A\u0438\u0445\u043E\u0441\u044C \u043F\u0440\u0438\u043B\u0430\u0434\u0456\u0432. \u041E\u0434\u043D\u0430\u043A \u0417\u0430\u0440\u0430\u0437 \u043C\u0438 \u043F\u0440\u0430\u0446\u044E\u0454\u043C\u043E \u0432 \u0440\u0430\u043A\u0435\u0442\u043D\u043E-\u043A\u043E\u0441\u043C\u0456\u0447\u043D\u0456\u0439 \u0433\u0430\u043B\u0443\u0437\u0456 \u0442\u0430 \u0432\u0442\u0456\u043B\u044E\u0454\u043C\u043E \u0432 \u0436\u0438\u0442\u0442\u044F \u0441\u0432\u043E\u0457 \u0437\u0430\u0434\u0443\u043C\u0438 \u0432\u0438\u043A\u043E\u0440\u0438\u0441\u0442\u043E\u0432\u0443\u044E\u0447\u0438 \u043D\u043E\u0432\u0456 \u0437\u043D\u0430\u043D\u043D\u044F \u0442\u0430 \u043C\u043E\u0436\u043B\u0438\u0432\u043E\u0441\u0442\u0456."))), __WEBPACK_IMPORTED_MODULE_0_react___default.a.createElement("div", {
         className: "col-md-6 d-flex"
       }, __WEBPACK_IMPORTED_MODULE_0_react___default.a.createElement("div", {
         className: "page-content-image"
@@ -20963,30 +20963,31 @@ function (_Component) {
       }, __WEBPACK_IMPORTED_MODULE_0_react___default.a.createElement("div", {
         className: "page-content-text"
       }, __WEBPACK_IMPORTED_MODULE_0_react___default.a.createElement("p", null, "Lorem, ipsum dolor sit amet consectetur adipisicing elit. Voluptates pariatur delectus sit inventore vel, eaque earum, tenetur quisquam aperiam natus tempora at numquam minima architecto vitae modi optio iusto beatae?")))))), __WEBPACK_IMPORTED_MODULE_0_react___default.a.createElement("div", {
-        className: "d-flex w-100"
+        className: "d-flex w-100 contacts-wrapper"
       }, __WEBPACK_IMPORTED_MODULE_0_react___default.a.createElement("div", {
         className: "container flex-column"
       }, __WEBPACK_IMPORTED_MODULE_0_react___default.a.createElement("div", {
-        className: "row h-25"
-      }, __WEBPACK_IMPORTED_MODULE_0_react___default.a.createElement("div", {
-        className: "page-divider"
-      })), __WEBPACK_IMPORTED_MODULE_0_react___default.a.createElement("div", {
         className: "row"
       }, __WEBPACK_IMPORTED_MODULE_0_react___default.a.createElement("div", {
         className: "col"
       }, __WEBPACK_IMPORTED_MODULE_0_react___default.a.createElement("address", {
         id: "contacts",
         className: "contacts"
-      }, __WEBPACK_IMPORTED_MODULE_0_react___default.a.createElement("p", null, __WEBPACK_IMPORTED_MODULE_0_react___default.a.createElement("strong", null, "Phone:"), " +38 (123) 123-45-67"), __WEBPACK_IMPORTED_MODULE_0_react___default.a.createElement("p", null, __WEBPACK_IMPORTED_MODULE_0_react___default.a.createElement("strong", null, "Facebook:"), " ", __WEBPACK_IMPORTED_MODULE_0_react___default.a.createElement("a", {
-        href: "https://facebook.com",
+      }, __WEBPACK_IMPORTED_MODULE_0_react___default.a.createElement("p", null, __WEBPACK_IMPORTED_MODULE_0_react___default.a.createElement("strong", null, "Facebook:"), " ", __WEBPACK_IMPORTED_MODULE_0_react___default.a.createElement("span", null, __WEBPACK_IMPORTED_MODULE_0_react___default.a.createElement("a", {
+        href: "https://www.facebook.com/groups/DniproSkyLAB",
         target: "_blank"
-      }, "facebook.com")), __WEBPACK_IMPORTED_MODULE_0_react___default.a.createElement("p", null, __WEBPACK_IMPORTED_MODULE_0_react___default.a.createElement("strong", null, "YouTube:"), " ", __WEBPACK_IMPORTED_MODULE_0_react___default.a.createElement("a", {
-        href: "https://youtube.com",
+      }, "www.facebook.com/groups/DniproSkyLAB"))), __WEBPACK_IMPORTED_MODULE_0_react___default.a.createElement("p", null, __WEBPACK_IMPORTED_MODULE_0_react___default.a.createElement("strong", null, "YouTube:"), " ", __WEBPACK_IMPORTED_MODULE_0_react___default.a.createElement("span", null, __WEBPACK_IMPORTED_MODULE_0_react___default.a.createElement("a", {
+        href: "https://www.youtube.com/user/MaxBmp1/featured",
         target: "_blank"
-      }, "youtube.com")), __WEBPACK_IMPORTED_MODULE_0_react___default.a.createElement("p", null, __WEBPACK_IMPORTED_MODULE_0_react___default.a.createElement("strong", null, "E-mail:"), " ", __WEBPACK_IMPORTED_MODULE_0_react___default.a.createElement("a", {
-        href: "",
-        target: "_blank"
-      }, "ma@il.com")))))))));
+      }, "www.youtube.com/user/MaxBmp1/featured"))), __WEBPACK_IMPORTED_MODULE_0_react___default.a.createElement("p", null, __WEBPACK_IMPORTED_MODULE_0_react___default.a.createElement("strong", null, "E-mail:"), " ", __WEBPACK_IMPORTED_MODULE_0_react___default.a.createElement("span", null, __WEBPACK_IMPORTED_MODULE_0_react___default.a.createElement("a", {
+        href: "mailto:Dniproskylab@gmail.com"
+      }, "Dniproskylab@gmail.com"))))), __WEBPACK_IMPORTED_MODULE_0_react___default.a.createElement("div", {
+        className: "col logo-wrapper"
+      }, __WEBPACK_IMPORTED_MODULE_0_react___default.a.createElement("img", {
+        alt: "Dnipro Sky Lab logo",
+        width: "150",
+        src: "/images/logo.png"
+      })))))));
     }
   }]);
 
@@ -46302,9 +46303,16 @@ function (_React$Component) {
   }, {
     key: "render",
     value: function render() {
-      return __WEBPACK_IMPORTED_MODULE_0_react___default.a.createElement("div", null, __WEBPACK_IMPORTED_MODULE_0_react___default.a.createElement(__WEBPACK_IMPORTED_MODULE_1_reactstrap__["e" /* Navbar */], {
+      return __WEBPACK_IMPORTED_MODULE_0_react___default.a.createElement("div", {
+        className: "main-nav"
+      }, __WEBPACK_IMPORTED_MODULE_0_react___default.a.createElement("div", {
+        className: "container"
+      }, __WEBPACK_IMPORTED_MODULE_0_react___default.a.createElement("div", {
+        className: "row"
+      }, __WEBPACK_IMPORTED_MODULE_0_react___default.a.createElement("div", {
+        className: "col"
+      }, __WEBPACK_IMPORTED_MODULE_0_react___default.a.createElement(__WEBPACK_IMPORTED_MODULE_1_reactstrap__["e" /* Navbar */], {
         expand: "md",
-        fixed: "top",
         color: "light",
         dark: true
       }, __WEBPACK_IMPORTED_MODULE_0_react___default.a.createElement(__WEBPACK_IMPORTED_MODULE_1_reactstrap__["f" /* NavbarBrand */], {
@@ -46319,7 +46327,7 @@ function (_React$Component) {
         navbar: true
       }, __WEBPACK_IMPORTED_MODULE_0_react___default.a.createElement(__WEBPACK_IMPORTED_MODULE_1_reactstrap__["c" /* NavItem */], null, __WEBPACK_IMPORTED_MODULE_0_react___default.a.createElement(__WEBPACK_IMPORTED_MODULE_1_reactstrap__["d" /* NavLink */], {
         href: "#about"
-      }, "\u041E \u043D\u0430\u0441")), __WEBPACK_IMPORTED_MODULE_0_react___default.a.createElement(__WEBPACK_IMPORTED_MODULE_1_reactstrap__["c" /* NavItem */], null, __WEBPACK_IMPORTED_MODULE_0_react___default.a.createElement(__WEBPACK_IMPORTED_MODULE_1_reactstrap__["d" /* NavLink */], {
+      }, "\u041F\u0440\u043E \u043D\u0430\u0441")), __WEBPACK_IMPORTED_MODULE_0_react___default.a.createElement(__WEBPACK_IMPORTED_MODULE_1_reactstrap__["c" /* NavItem */], null, __WEBPACK_IMPORTED_MODULE_0_react___default.a.createElement(__WEBPACK_IMPORTED_MODULE_1_reactstrap__["d" /* NavLink */], {
         href: "#projects"
       }, "\u041F\u0440\u043E\u0435\u043A\u0442\u044B")), __WEBPACK_IMPORTED_MODULE_0_react___default.a.createElement(__WEBPACK_IMPORTED_MODULE_1_reactstrap__["c" /* NavItem */], null, __WEBPACK_IMPORTED_MODULE_0_react___default.a.createElement(__WEBPACK_IMPORTED_MODULE_1_reactstrap__["d" /* NavLink */], {
         href: "#events"
@@ -46327,7 +46335,7 @@ function (_React$Component) {
         href: "#expositions"
       }, "\u0412\u044B\u0441\u0442\u0430\u0432\u043A\u0438")), __WEBPACK_IMPORTED_MODULE_0_react___default.a.createElement(__WEBPACK_IMPORTED_MODULE_1_reactstrap__["c" /* NavItem */], null, __WEBPACK_IMPORTED_MODULE_0_react___default.a.createElement(__WEBPACK_IMPORTED_MODULE_1_reactstrap__["d" /* NavLink */], {
         href: "#contacts"
-      }, "\u041A\u043E\u043D\u0442\u0430\u043A\u0442\u044B"))))));
+      }, "\u041A\u043E\u043D\u0442\u0430\u043A\u0442\u044B")))))))));
     }
   }]);
 
@@ -46376,7 +46384,7 @@ exports = module.exports = __webpack_require__(91)(false);
 
 
 // module
-exports.push([module.i, ".navbar {\n  text-transform: uppercase;\n  background-color: #044299 !important; }\n\n.navbar-dark a {\n  color: rgba(255, 255, 255, 0.9) !important; }\n  .navbar-dark a:hover {\n    color: white !important; }\n\n.navbar > a {\n  font-weight: 700; }\n", ""]);
+exports.push([module.i, ".main-nav {\n  position: fixed;\n  top: 0;\n  left: 0;\n  right: 0;\n  background-color: #044299 !important;\n  z-index: 5; }\n  .main-nav .navbar {\n    margin: auto;\n    text-transform: uppercase;\n    background-color: transparent;\n    background-color: #044299 !important;\n    margin-left: -1rem;\n    margin-right: -1rem; }\n  .main-nav .navbar-dark a {\n    color: rgba(255, 255, 255, 0.9) !important; }\n    .main-nav .navbar-dark a:hover {\n      color: white !important; }\n  .main-nav .navbar > a {\n    font-weight: 700; }\n", ""]);
 
 // exports
 

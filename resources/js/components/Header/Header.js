@@ -27,34 +27,40 @@ export default class Header extends React.Component {
   }
   render() {
     return (
-      <div>
-        <Navbar expand="md" fixed="top" color="light" dark>
-          <NavbarBrand href="/">Dnipro Sky Lab</NavbarBrand>
-          <NavbarToggler onClick={this.toggle} />
-          <Collapse isOpen={this.state.isOpen} navbar>
-            <Nav className="ml-auto" navbar>
-				<NavItem>
-                	<NavLink href="#about">О нас</NavLink>
-              	</NavItem>
+      <div className="main-nav">
+        <div className="container">
+          <div className="row">
+            <div className="col">
+              <Navbar expand="md" color="light" dark>
+                <NavbarBrand href="/">Dnipro Sky Lab</NavbarBrand>
+                <NavbarToggler onClick={this.toggle} />
+                <Collapse isOpen={this.state.isOpen} navbar>
+                  <Nav className="ml-auto" navbar>
+              <NavItem>
+                        <NavLink href="#about">Про нас</NavLink>
+                      </NavItem>
 
-				<NavItem>
-                	<NavLink href="#projects">Проекты</NavLink>
-              	</NavItem>
+              <NavItem>
+                        <NavLink href="#projects">Проекты</NavLink>
+                      </NavItem>
 
-				<NavItem>
-                	<NavLink href="#events">Мероприятрия</NavLink>
-              	</NavItem>
+              <NavItem>
+                        <NavLink href="#events">Мероприятрия</NavLink>
+                      </NavItem>
 
-				<NavItem>
-                	<NavLink href="#expositions">Выставки</NavLink>
-              	</NavItem>		
+              <NavItem>
+                        <NavLink href="#expositions">Выставки</NavLink>
+                      </NavItem>		
 
-				<NavItem>
-                	<NavLink href="#contacts">Контакты</NavLink>
-              	</NavItem>              
-            </Nav>
-          </Collapse>
-        </Navbar>
+              <NavItem>
+                        <NavLink href="#contacts">Контакты</NavLink>
+                      </NavItem>              
+                  </Nav>
+                </Collapse>
+              </Navbar>
+            </div>
+          </div>
+        </div>
       </div>
     );
   }

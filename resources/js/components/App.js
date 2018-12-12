@@ -8,7 +8,6 @@ class App extends Component {
     return (
       <BrowserRouter>
         <div className="d-fliex h-100">
-
           <Header />
           
           <div className="d-flex home-screen flex-column justify-content-center text-center">
@@ -21,14 +20,16 @@ class App extends Component {
             <div className="container flex-column h-100">
               <div className="row justify-content-between">
                 <div className="col">
-                  <h2 className="">About us</h2>
+                  <h2 className="">Про нас</h2>
                 </div>
 
                 <div className="w-100 page-divider"></div>
 
                 <div className="col-md-5">
                   <div className="page-content-text">
-                    <p>Lorem, ipsum dolor sit amet consectetur adipisicing elit. Voluptates pariatur delectus sit inventore vel, eaque earum, tenetur quisquam aperiam natus tempora at numquam minima architecto vitae modi optio iusto beatae?</p>
+                    <p>Ми - група ентузіастів, аматорів, інженерів, поєднані спільною метою створювати різні пристрої своїми руками. Починалося все зі студентських років. Кожен займався або моделюванням ракет чи літаків, або виготовленням якихось приладів. Однак 
+Зараз ми працюємо в ракетно-космічній галузі та втілюємо в життя свої задуми використовуючи нові знання та можливості. 
+</p>
                   </div>
                 </div>
 
@@ -118,20 +119,20 @@ class App extends Component {
           </div>
 
 
-          <div className="d-flex w-100">
+          <div className="d-flex w-100 contacts-wrapper">
             <div className="container flex-column">             
-              <div className="row h-25">
-                <div className="page-divider"></div>
-              </div>
-
               <div className="row">
                 <div className="col">
                   <address id="contacts" className="contacts">
-                    <p><strong>Phone:</strong> +38 (123) 123-45-67</p>
-                    <p><strong>Facebook:</strong> <a href="https://facebook.com" target="_blank">facebook.com</a></p>
-                    <p><strong>YouTube:</strong> <a href="https://youtube.com" target="_blank">youtube.com</a></p>
-                    <p><strong>E-mail:</strong> <a href="" target="_blank">ma@il.com</a></p>
+                    {/* <p><strong>Phone:</strong> <span>+38 (123) 123-45-67</span></p> */}
+                    <p><strong>Facebook:</strong> <span><a href="https://www.facebook.com/groups/DniproSkyLAB" target="_blank">www.facebook.com/groups/DniproSkyLAB</a></span></p>
+                    <p><strong>YouTube:</strong> <span><a href="https://www.youtube.com/user/MaxBmp1/featured" target="_blank">www.youtube.com/user/MaxBmp1/featured</a></span></p>
+                    <p><strong>E-mail:</strong> <span><a href="mailto:Dniproskylab@gmail.com">Dniproskylab@gmail.com</a></span></p>
                   </address>
+                </div>
+
+                <div className="col logo-wrapper">
+                  <img alt="Dnipro Sky Lab logo" width="150" src="/images/logo.png" />
                 </div>
               </div>
               
