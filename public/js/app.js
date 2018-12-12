@@ -20890,7 +20890,9 @@ function (_Component) {
       }, __WEBPACK_IMPORTED_MODULE_0_react___default.a.createElement("img", {
         className: "img-fluid rounded",
         src: "/images/team-2.jpg"
-      })))))), __WEBPACK_IMPORTED_MODULE_0_react___default.a.createElement("div", {
+      }))), __WEBPACK_IMPORTED_MODULE_0_react___default.a.createElement("div", {
+        className: "w-100 page-divider page-divider_bottom"
+      })))), __WEBPACK_IMPORTED_MODULE_0_react___default.a.createElement("div", {
         id: "projects",
         className: "d-flex w-100 page-section"
       }, __WEBPACK_IMPORTED_MODULE_0_react___default.a.createElement("div", {
@@ -20914,7 +20916,9 @@ function (_Component) {
         className: "col-md-5"
       }, __WEBPACK_IMPORTED_MODULE_0_react___default.a.createElement("div", {
         className: "page-content-text"
-      }, __WEBPACK_IMPORTED_MODULE_0_react___default.a.createElement("p", null, "Lorem, ipsum dolor sit amet consectetur adipisicing elit. Voluptates pariatur delectus sit inventore vel, eaque earum, tenetur quisquam aperiam natus tempora at numquam minima architecto vitae modi optio iusto beatae?")))))), __WEBPACK_IMPORTED_MODULE_0_react___default.a.createElement("div", {
+      }, __WEBPACK_IMPORTED_MODULE_0_react___default.a.createElement("p", null, "Lorem, ipsum dolor sit amet consectetur adipisicing elit. Voluptates pariatur delectus sit inventore vel, eaque earum, tenetur quisquam aperiam natus tempora at numquam minima architecto vitae modi optio iusto beatae?"))), __WEBPACK_IMPORTED_MODULE_0_react___default.a.createElement("div", {
+        className: "w-100 page-divider page-divider_bottom"
+      })))), __WEBPACK_IMPORTED_MODULE_0_react___default.a.createElement("div", {
         id: "events",
         className: "d-flex w-100 page-section"
       }, __WEBPACK_IMPORTED_MODULE_0_react___default.a.createElement("div", {
@@ -20938,7 +20942,9 @@ function (_Component) {
       }, __WEBPACK_IMPORTED_MODULE_0_react___default.a.createElement("img", {
         className: "img-fluid rounded",
         src: "/images/events.jpg"
-      })))))), __WEBPACK_IMPORTED_MODULE_0_react___default.a.createElement("div", {
+      }))), __WEBPACK_IMPORTED_MODULE_0_react___default.a.createElement("div", {
+        className: "w-100 page-divider page-divider_bottom"
+      })))), __WEBPACK_IMPORTED_MODULE_0_react___default.a.createElement("div", {
         id: "expositions",
         className: "d-flex w-100 page-section"
       }, __WEBPACK_IMPORTED_MODULE_0_react___default.a.createElement("div", {
@@ -20962,7 +20968,9 @@ function (_Component) {
         className: "col-md-5"
       }, __WEBPACK_IMPORTED_MODULE_0_react___default.a.createElement("div", {
         className: "page-content-text"
-      }, __WEBPACK_IMPORTED_MODULE_0_react___default.a.createElement("p", null, "Lorem, ipsum dolor sit amet consectetur adipisicing elit. Voluptates pariatur delectus sit inventore vel, eaque earum, tenetur quisquam aperiam natus tempora at numquam minima architecto vitae modi optio iusto beatae?")))))), __WEBPACK_IMPORTED_MODULE_0_react___default.a.createElement("div", {
+      }, __WEBPACK_IMPORTED_MODULE_0_react___default.a.createElement("p", null, "Lorem, ipsum dolor sit amet consectetur adipisicing elit. Voluptates pariatur delectus sit inventore vel, eaque earum, tenetur quisquam aperiam natus tempora at numquam minima architecto vitae modi optio iusto beatae?"))), __WEBPACK_IMPORTED_MODULE_0_react___default.a.createElement("div", {
+        className: "w-100 page-divider page-divider_bottom"
+      })))), __WEBPACK_IMPORTED_MODULE_0_react___default.a.createElement("div", {
         className: "d-flex w-100 contacts-wrapper"
       }, __WEBPACK_IMPORTED_MODULE_0_react___default.a.createElement("div", {
         className: "container flex-column"
@@ -20973,13 +20981,13 @@ function (_Component) {
       }, __WEBPACK_IMPORTED_MODULE_0_react___default.a.createElement("address", {
         id: "contacts",
         className: "contacts"
-      }, __WEBPACK_IMPORTED_MODULE_0_react___default.a.createElement("p", null, __WEBPACK_IMPORTED_MODULE_0_react___default.a.createElement("strong", null, "Facebook:"), " ", __WEBPACK_IMPORTED_MODULE_0_react___default.a.createElement("span", null, __WEBPACK_IMPORTED_MODULE_0_react___default.a.createElement("a", {
+      }, __WEBPACK_IMPORTED_MODULE_0_react___default.a.createElement("p", null, __WEBPACK_IMPORTED_MODULE_0_react___default.a.createElement("strong", null, __WEBPACK_IMPORTED_MODULE_0_react___default.a.createElement("span", null, __WEBPACK_IMPORTED_MODULE_0_react___default.a.createElement("a", {
         href: "https://www.facebook.com/groups/DniproSkyLAB",
         target: "_blank"
-      }, "www.facebook.com/groups/DniproSkyLAB"))), __WEBPACK_IMPORTED_MODULE_0_react___default.a.createElement("p", null, __WEBPACK_IMPORTED_MODULE_0_react___default.a.createElement("strong", null, "YouTube:"), " ", __WEBPACK_IMPORTED_MODULE_0_react___default.a.createElement("span", null, __WEBPACK_IMPORTED_MODULE_0_react___default.a.createElement("a", {
+      }, "Facebook")))), __WEBPACK_IMPORTED_MODULE_0_react___default.a.createElement("p", null, __WEBPACK_IMPORTED_MODULE_0_react___default.a.createElement("strong", null, __WEBPACK_IMPORTED_MODULE_0_react___default.a.createElement("span", null, __WEBPACK_IMPORTED_MODULE_0_react___default.a.createElement("a", {
         href: "https://www.youtube.com/user/MaxBmp1/featured",
         target: "_blank"
-      }, "www.youtube.com/user/MaxBmp1/featured"))), __WEBPACK_IMPORTED_MODULE_0_react___default.a.createElement("p", null, __WEBPACK_IMPORTED_MODULE_0_react___default.a.createElement("strong", null, "E-mail:"), " ", __WEBPACK_IMPORTED_MODULE_0_react___default.a.createElement("span", null, __WEBPACK_IMPORTED_MODULE_0_react___default.a.createElement("a", {
+      }, "YouTube")))), __WEBPACK_IMPORTED_MODULE_0_react___default.a.createElement("p", null, __WEBPACK_IMPORTED_MODULE_0_react___default.a.createElement("span", null, __WEBPACK_IMPORTED_MODULE_0_react___default.a.createElement("a", {
         href: "mailto:Dniproskylab@gmail.com"
       }, "Dniproskylab@gmail.com"))))), __WEBPACK_IMPORTED_MODULE_0_react___default.a.createElement("div", {
         className: "col logo-wrapper"

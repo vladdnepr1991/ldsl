@@ -10477,14 +10477,14 @@ body,
 }
 
 body {
-  background-color: #f1f1f1;
+  background-color: #f7f7f7;
   font-family: 'Play', sans-serif;
   color: #525252;
 }
 
 .page-section {
   min-height: 75%;
-  padding: 5% 0;
+  margin: 140px 0;
 }
 
 .home-screen {
@@ -10494,7 +10494,7 @@ body {
   background-position: center;
   background-image: url("/images/main-4.jpg");
   margin-top: 56px;
-  color: #f1f1f1;
+  color: #f7f7f7;
   font-size: 36px;
 }
 
@@ -10512,7 +10512,11 @@ h2 {
 .page-divider {
   width: 100% !important;
   border-bottom: 3px solid #044299;
-  margin: 0 15px 25px 15px;
+  margin: 0 15px 45px 15px;
+}
+
+.page-divider.page-divider_bottom {
+  padding-top: 45px;
 }
 
 .home-screen__content {
@@ -10543,13 +10547,13 @@ h2 {
 }
 
 .contacts a {
-  color: #f1f1f1;
+  color: #f7f7f7;
 }
 
 .contacts-wrapper {
   padding: 50px 0;
   background-color: #044299;
-  color: #f1f1f1;
+  color: #f7f7f7;
 }
 
 .contacts-wrapper .logo-wrapper {
@@ -10572,6 +10576,10 @@ h2 {
   .contacts-wrapper .logo-wrapper {
     text-align: center;
     margin-top: 50px;
+  }
+
+  .page-section {
+    margin: 50px 0;
   }
 }
 

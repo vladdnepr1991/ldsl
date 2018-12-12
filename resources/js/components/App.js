@@ -38,6 +38,8 @@ class App extends Component {
                     <img className="img-fluid rounded" src="/images/team-2.jpg"></img>
                   </div>
                 </div>
+
+                <div className="w-100 page-divider page-divider_bottom"></div>
               </div>
             </div>
           </div>
@@ -63,6 +65,8 @@ class App extends Component {
                     <p>Lorem, ipsum dolor sit amet consectetur adipisicing elit. Voluptates pariatur delectus sit inventore vel, eaque earum, tenetur quisquam aperiam natus tempora at numquam minima architecto vitae modi optio iusto beatae?</p>
                   </div>
                 </div>
+
+                <div className="w-100 page-divider page-divider_bottom"></div>
               </div>  
             </div>
           </div>
@@ -89,6 +93,8 @@ class App extends Component {
                     <img className="img-fluid rounded" src="/images/events.jpg"></img>
                   </div>
                 </div>
+
+                <div className="w-100 page-divider page-divider_bottom"></div>
               </div>
             </div>
           </div>
@@ -114,6 +120,8 @@ class App extends Component {
                     <p>Lorem, ipsum dolor sit amet consectetur adipisicing elit. Voluptates pariatur delectus sit inventore vel, eaque earum, tenetur quisquam aperiam natus tempora at numquam minima architecto vitae modi optio iusto beatae?</p>
                   </div>
                 </div>
+
+                <div className="w-100 page-divider page-divider_bottom"></div>
               </div>  
             </div>          
           </div>
@@ -125,9 +133,9 @@ class App extends Component {
                 <div className="col">
                   <address id="contacts" className="contacts">
                     {/* <p><strong>Phone:</strong> <span>+38 (123) 123-45-67</span></p> */}
-                    <p><strong>Facebook:</strong> <span><a href="https://www.facebook.com/groups/DniproSkyLAB" target="_blank">www.facebook.com/groups/DniproSkyLAB</a></span></p>
-                    <p><strong>YouTube:</strong> <span><a href="https://www.youtube.com/user/MaxBmp1/featured" target="_blank">www.youtube.com/user/MaxBmp1/featured</a></span></p>
-                    <p><strong>E-mail:</strong> <span><a href="mailto:Dniproskylab@gmail.com">Dniproskylab@gmail.com</a></span></p>
+                    <p><strong><span><a href="https://www.facebook.com/groups/DniproSkyLAB" target="_blank">Facebook</a></span></strong></p>
+                    <p><strong><span><a href="https://www.youtube.com/user/MaxBmp1/featured" target="_blank">YouTube</a></span></strong></p>
+                    <p><span><a href="mailto:Dniproskylab@gmail.com">Dniproskylab@gmail.com</a></span></p>
                   </address>
                 </div>
 
