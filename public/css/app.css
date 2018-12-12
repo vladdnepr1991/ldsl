@@ -10477,7 +10477,7 @@ body,
 }
 
 body {
-  background-color: #fff;
+  background-color: #f1f1f1;
   font-family: 'Play', sans-serif;
   color: #525252;
 }
@@ -10487,10 +10487,6 @@ body {
   padding: 5% 0;
 }
 
-.page-section:nth-child(odd) {
-  background-color: #f8f9fa;
-}
-
 .home-screen {
   min-height: 75%;
   background-size: cover;
@@ -10498,7 +10494,7 @@ body {
   background-position: center;
   background-image: url("/images/main-4.jpg");
   margin-top: 56px;
-  color: #f8f9fa;
+  color: #f1f1f1;
   font-size: 36px;
 }
 
@@ -10515,7 +10511,7 @@ h2 {
 
 .page-divider {
   width: 100% !important;
-  border-bottom: 2px solid #044299;
+  border-bottom: 3px solid #044299;
   margin: 0 15px 25px 15px;
 }
 
@@ -10547,13 +10543,13 @@ h2 {
 }
 
 .contacts a {
-  color: #f8f9fa;
+  color: #f1f1f1;
 }
 
 .contacts-wrapper {
   padding: 50px 0;
   background-color: #044299;
-  color: #f8f9fa;
+  color: #f1f1f1;
 }
 
 .contacts-wrapper .logo-wrapper {

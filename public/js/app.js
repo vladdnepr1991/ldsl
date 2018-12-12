@@ -46384,7 +46384,7 @@ exports = module.exports = __webpack_require__(91)(false);
 
 
 // module
-exports.push([module.i, ".main-nav {\n  position: fixed;\n  top: 0;\n  left: 0;\n  right: 0;\n  background-color: #044299 !important;\n  z-index: 5; }\n  .main-nav .navbar {\n    margin: auto;\n    text-transform: uppercase;\n    background-color: transparent;\n    background-color: #044299 !important;\n    margin-left: -1rem;\n    margin-right: -1rem; }\n  .main-nav .navbar-dark a {\n    color: rgba(255, 255, 255, 0.9) !important; }\n    .main-nav .navbar-dark a:hover {\n      color: white !important; }\n  .main-nav .navbar > a {\n    font-weight: 700; }\n", ""]);
+exports.push([module.i, ".main-nav {\n  position: fixed;\n  top: 0;\n  left: 0;\n  right: 0;\n  background-color: #044299 !important;\n  z-index: 5;\n  font-weight: bold; }\n  .main-nav .navbar {\n    margin: auto;\n    text-transform: uppercase;\n    background-color: transparent;\n    background-color: #044299 !important;\n    margin-left: -1rem;\n    margin-right: -1rem; }\n  .main-nav .navbar-dark a {\n    color: rgba(255, 255, 255, 0.9) !important; }\n    .main-nav .navbar-dark a:hover {\n      color: white !important; }\n  .main-nav .navbar > a {\n    font-weight: bolder; }\n", ""]);
 
 // exports
 

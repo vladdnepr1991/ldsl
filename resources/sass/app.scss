@@ -2,7 +2,7 @@
 
 $primary-blue: #044299;
 $primary-gray: #525252;
-$light-gray: #f8f9fa;
+$light-gray: #f1f1f1;
 
 html {
     scroll-behavior: smooth;
@@ -13,7 +13,7 @@ html, body, #app {
 }
 
 body {
-    background-color: #fff;
+    background-color: $light-gray;
     font-family: 'Play', sans-serif;
     color: $primary-gray;
 }
@@ -21,10 +21,6 @@ body {
 .page-section {
     min-height: 75%;
     padding: 5% 0;
-    
-    &:nth-child(odd) {
-        background-color: $light-gray;
-    }
 }
 
 .home-screen {
@@ -51,7 +47,7 @@ h2 {
 
 .page-divider {
     width: 100% !important;
-    border-bottom: 2px solid $primary-blue;
+    border-bottom: 3px solid $primary-blue;
     margin: 0 15px 25px 15px;
 }
 
