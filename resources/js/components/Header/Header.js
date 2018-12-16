@@ -32,28 +32,28 @@ export default class Header extends React.Component {
           <div className="row">
             <div className="col">
               <Navbar expand="md" color="light" dark>
-                <NavbarBrand href="/">Dnipro Sky Lab</NavbarBrand>
+                <NavbarBrand href="/"> <img className="nav-brand" src="/images/logo_brand.png"></img> </NavbarBrand>
                 <NavbarToggler onClick={this.toggle} />
                 <Collapse isOpen={this.state.isOpen} navbar>
                   <Nav className="ml-auto" navbar>
               <NavItem>
-                        <NavLink href="#about">Про нас</NavLink>
+                        <NavLink href="#about">Команда</NavLink>
                       </NavItem>
 
               <NavItem>
-                        <NavLink href="#projects">Проекты</NavLink>
+                        <NavLink href="#projects">Проекти</NavLink>
                       </NavItem>
 
               <NavItem>
-                        <NavLink href="#events">Мероприятрия</NavLink>
+                        <NavLink href="#events">Події</NavLink>
                       </NavItem>
 
               <NavItem>
-                        <NavLink href="#expositions">Выставки</NavLink>
+                        <NavLink href="#expositions">Виставки</NavLink>
                       </NavItem>		
 
               <NavItem>
-                        <NavLink href="#contacts">Контакты</NavLink>
+                        <NavLink href="#contacts">Контакти</NavLink>
                       </NavItem>              
                   </Nav>
                 </Collapse>

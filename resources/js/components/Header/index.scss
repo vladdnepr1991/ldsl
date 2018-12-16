@@ -7,8 +7,6 @@
     z-index: 5;
     font-weight: bold;
 
-
-
     .navbar {
         margin: auto;
         text-transform: uppercase;
@@ -28,5 +26,17 @@
     
     .navbar > a {
         font-weight: bolder;
+    }
+
+    .nav-brand {
+        max-width: 300px;
+    }
+}
+
+@media screen and (max-width: 320px) {
+    .main-nav {
+        .nav-brand {
+            max-width: 200px;
+        }
     }
 }

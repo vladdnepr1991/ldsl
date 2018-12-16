@@ -10483,8 +10483,8 @@ body {
 }
 
 .page-section {
-  min-height: 75%;
-  margin: 140px 0;
+  margin: 125px 0;
+  padding: 75px 0;
 }
 
 .home-screen {
@@ -10557,6 +10557,43 @@ h2 {
 }
 
 .contacts-wrapper .logo-wrapper {
+  text-align: right;
+}
+
+.section-nav {
+  list-style: none;
+  margin: 0;
+  margin-top: 50px;
+  padding: 0;
+  font-size: 18px;
+  text-transform: uppercase;
+  text-align: left;
+  line-height: 1;
+}
+
+.section-nav .section-nav__link {
+  padding-right: 20px;
+}
+
+.section-nav li {
+  display: table;
+  width: 100%;
+}
+
+.section-nav li:not(:last-child) {
+  margin-bottom: 20px;
+}
+
+.section-nav a {
+  display: table-row;
+  width: 100%;
+}
+
+.section-nav a span {
+  display: table-cell;
+}
+
+.section-nav .section-nav-arrow {
   text-align: right;
 }
 

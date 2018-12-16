@@ -20,7 +20,7 @@ class App extends Component {
             <div className="container flex-column h-100">
               <div className="row justify-content-between">
                 <div className="col">
-                  <h2 className="">Про нас</h2>
+                  <h2 className="">Команда</h2>
                 </div>
 
                 <div className="w-100 page-divider"></div>
@@ -48,7 +48,7 @@ class App extends Component {
             <div className="container flex-column h-100">
               <div className="row justify-content-between text-right">
                 <div className="col">
-                  <h2 className="">Projects</h2>
+                  <h2 className="">Проекти</h2>
                 </div>
 
                 <div className="w-100 page-divider"></div>
@@ -64,6 +64,14 @@ class App extends Component {
                   <div className="page-content-text">
                     <p>Lorem, ipsum dolor sit amet consectetur adipisicing elit. Voluptates pariatur delectus sit inventore vel, eaque earum, tenetur quisquam aperiam natus tempora at numquam minima architecto vitae modi optio iusto beatae?</p>
                   </div>
+
+                  <ul className="section-nav">
+                    <li><a href=""><span className="section-nav__link">Модель-копія ОТРК “Точка-У” в масштабі 1:8</span><span className="section-nav-arrow"><i className="fas fa-arrow-right"></i></span></a></li>
+                    <li><a href=""><span className="section-nav__link">Модель-копія ракети 8К14 в масштабі 1:8, що літає на воді</span><span className="section-nav-arrow"><i className="fas fa-arrow-right"></i></span></a></li>
+                    <li><a href=""><span className="section-nav__link">Твердопаливні багаторазові ракетні двигуни</span><span className="section-nav-arrow"><i className="fas fa-arrow-right"></i></span></a></li>
+                    <li><a href=""><span className="section-nav__link">Тяговимірювальний вогневий стенд</span><span className="section-nav-arrow"><i className="fas fa-arrow-right"></i></span></a></li>
+                    <li><a href=""><span className="section-nav__link">Модель водяної ракети ”Дана”</span><span className="section-nav-arrow"><i className="fas fa-arrow-right"></i></span></a></li>
+                  </ul>
                 </div>
 
                 <div className="w-100 page-divider page-divider_bottom"></div>
@@ -75,7 +83,7 @@ class App extends Component {
             <div className="container flex-column h-100">
               <div className="row justify-content-between">
                 <div className="col">
-                  <h2 className="">Events</h2>
+                  <h2 className="">Події</h2>
                 </div>
 
                 <div className="w-100 page-divider"></div>
@@ -103,7 +111,7 @@ class App extends Component {
             <div className="container flex-column h-100">
               <div className="row justify-content-between text-right">
                 <div className="col">
-                  <h2 className="">Expositions</h2>
+                  <h2 className="">Виставки</h2>
                 </div>
 
                 <div className="w-100 page-divider"></div>
