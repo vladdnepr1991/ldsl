@@ -25,12 +25,12 @@ body {
 }
 
 .home-screen {
-    min-height: 75%;
     background-size: cover;
     background-repeat: no-repeat;
     background-position: center;
     background-image: url('/images/main-4.jpg');
     margin-top: 56px;
+    padding: 10% 0;
     color: $light-gray;
     font-size: 36px;
 }
