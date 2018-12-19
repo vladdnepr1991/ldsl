@@ -5,7 +5,7 @@ import { Link } from 'react-router-dom';
 export default class Main extends React.Component {
   render() {
     return (
-      <div className="d-fliex h-100">
+      <div className="d-flex flex-column">
       
       <div className="d-flex home-screen flex-column justify-content-center text-center">
         <div className="home-screen__content">
@@ -14,7 +14,7 @@ export default class Main extends React.Component {
       </div>
 
       <div id="about" className="d-flex w-100 page-section">
-        <div className="container flex-column h-100">
+        <div className="container flex-column ">
           <div className="row justify-content-between">
             <div className="col">
               <h2 className="">Команда</h2>
@@ -42,7 +42,7 @@ export default class Main extends React.Component {
       </div>
 
       <div id="projects" className="d-flex w-100 page-section">
-        <div className="container flex-column h-100">
+        <div className="container flex-column ">
           <div className="row justify-content-between text-right">
             <div className="col">
               <h2 className="">Проекти</h2>
@@ -80,7 +80,7 @@ export default class Main extends React.Component {
       </div>
 
       <div id="events" className="d-flex w-100 page-section">
-        <div className="container flex-column h-100">
+        <div className="container flex-column ">
           <div className="row justify-content-between">
             <div className="col">
               <h2 className="">Події</h2>
@@ -108,7 +108,7 @@ export default class Main extends React.Component {
       </div>
 
       <div id="expositions" className="d-flex w-100 page-section">
-        <div className="container flex-column h-100">
+        <div className="container flex-column ">
           <div className="row justify-content-between text-right">
             <div className="col">
               <h2 className="">Виставки</h2>

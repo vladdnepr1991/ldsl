@@ -20863,7 +20863,7 @@ function (_Component) {
     key: "render",
     value: function render() {
       return __WEBPACK_IMPORTED_MODULE_0_react___default.a.createElement(__WEBPACK_IMPORTED_MODULE_2_react_router_dom__["a" /* BrowserRouter */], null, __WEBPACK_IMPORTED_MODULE_0_react___default.a.createElement("div", {
-        className: "d-fliex"
+        className: "d-flex flex-column"
       }, __WEBPACK_IMPORTED_MODULE_0_react___default.a.createElement(__WEBPACK_IMPORTED_MODULE_3__Header_Header__["a" /* default */], null), __WEBPACK_IMPORTED_MODULE_0_react___default.a.createElement(__WEBPACK_IMPORTED_MODULE_2_react_router_dom__["d" /* Switch */], null, __WEBPACK_IMPORTED_MODULE_0_react___default.a.createElement(__WEBPACK_IMPORTED_MODULE_2_react_router_dom__["c" /* Route */], {
         exact: true,
         path: "/",
@@ -56867,7 +56867,7 @@ function (_React$Component) {
     key: "render",
     value: function render() {
       return __WEBPACK_IMPORTED_MODULE_0_react___default.a.createElement("div", {
-        className: "d-fliex h-100"
+        className: "d-flex flex-column"
       }, __WEBPACK_IMPORTED_MODULE_0_react___default.a.createElement("div", {
         className: "d-flex home-screen flex-column justify-content-center text-center"
       }, __WEBPACK_IMPORTED_MODULE_0_react___default.a.createElement("div", {
@@ -56878,7 +56878,7 @@ function (_React$Component) {
         id: "about",
         className: "d-flex w-100 page-section"
       }, __WEBPACK_IMPORTED_MODULE_0_react___default.a.createElement("div", {
-        className: "container flex-column h-100"
+        className: "container flex-column "
       }, __WEBPACK_IMPORTED_MODULE_0_react___default.a.createElement("div", {
         className: "row justify-content-between"
       }, __WEBPACK_IMPORTED_MODULE_0_react___default.a.createElement("div", {
@@ -56904,7 +56904,7 @@ function (_React$Component) {
         id: "projects",
         className: "d-flex w-100 page-section"
       }, __WEBPACK_IMPORTED_MODULE_0_react___default.a.createElement("div", {
-        className: "container flex-column h-100"
+        className: "container flex-column "
       }, __WEBPACK_IMPORTED_MODULE_0_react___default.a.createElement("div", {
         className: "row justify-content-between text-right"
       }, __WEBPACK_IMPORTED_MODULE_0_react___default.a.createElement("div", {
@@ -56974,7 +56974,7 @@ function (_React$Component) {
         id: "events",
         className: "d-flex w-100 page-section"
       }, __WEBPACK_IMPORTED_MODULE_0_react___default.a.createElement("div", {
-        className: "container flex-column h-100"
+        className: "container flex-column "
       }, __WEBPACK_IMPORTED_MODULE_0_react___default.a.createElement("div", {
         className: "row justify-content-between"
       }, __WEBPACK_IMPORTED_MODULE_0_react___default.a.createElement("div", {
@@ -57000,7 +57000,7 @@ function (_React$Component) {
         id: "expositions",
         className: "d-flex w-100 page-section"
       }, __WEBPACK_IMPORTED_MODULE_0_react___default.a.createElement("div", {
-        className: "container flex-column h-100"
+        className: "container flex-column "
       }, __WEBPACK_IMPORTED_MODULE_0_react___default.a.createElement("div", {
         className: "row justify-content-between text-right"
       }, __WEBPACK_IMPORTED_MODULE_0_react___default.a.createElement("div", {
@@ -57074,7 +57074,7 @@ function (_React$Component) {
     key: "render",
     value: function render() {
       return __WEBPACK_IMPORTED_MODULE_0_react___default.a.createElement("div", {
-        className: "d-fliex h-100"
+        className: "d-flex"
       }, __WEBPACK_IMPORTED_MODULE_0_react___default.a.createElement("h1", null, "Projects"));
     }
   }]);

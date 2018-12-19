@@ -10480,6 +10480,7 @@ body {
   background-color: #f7f7f7;
   font-family: 'Play', sans-serif;
   color: #525252;
+  padding-top: 66px;
 }
 
 .page-section {
@@ -10488,12 +10489,11 @@ body {
 }
 
 .home-screen {
+  min-height: 75%;
   background-size: cover;
   background-repeat: no-repeat;
   background-position: center;
   background-image: url("/images/main-4.jpg");
-  margin-top: 56px;
-  padding: 10% 0;
   color: #f7f7f7;
   font-size: 36px;
 }
@@ -10598,6 +10598,10 @@ h2 {
 }
 
 @media screen and (max-width: 480px) {
+  body {
+    padding-top: 56px;
+  }
+
   .brand-name {
     font-size: 48px;
   }

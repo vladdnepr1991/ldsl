@@ -9,7 +9,7 @@ class App extends Component {
   render () {
     return (
       <BrowserRouter>
-        <div className="d-fliex">
+        <div className="d-flex flex-column">
           <Header />
           
           <Switch >
