@@ -9,10 +9,10 @@ class App extends Component {
   render () {
     return (
       <BrowserRouter>
-        <div className="d-flex flex-column">
+        <div className="d-flex flex-column main-content">
           <Header />
           
-          <Switch >
+          <Switch>
             <Route exact path="/" component={Main} />
             <Route path="/projects" component={Projects} />
           </Switch>

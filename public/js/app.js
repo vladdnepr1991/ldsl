@@ -20863,7 +20863,7 @@ function (_Component) {
     key: "render",
     value: function render() {
       return __WEBPACK_IMPORTED_MODULE_0_react___default.a.createElement(__WEBPACK_IMPORTED_MODULE_2_react_router_dom__["a" /* BrowserRouter */], null, __WEBPACK_IMPORTED_MODULE_0_react___default.a.createElement("div", {
-        className: "d-flex flex-column"
+        className: "d-flex flex-column main-content"
       }, __WEBPACK_IMPORTED_MODULE_0_react___default.a.createElement(__WEBPACK_IMPORTED_MODULE_3__Header_Header__["a" /* default */], null), __WEBPACK_IMPORTED_MODULE_0_react___default.a.createElement(__WEBPACK_IMPORTED_MODULE_2_react_router_dom__["d" /* Switch */], null, __WEBPACK_IMPORTED_MODULE_0_react___default.a.createElement(__WEBPACK_IMPORTED_MODULE_2_react_router_dom__["c" /* Route */], {
         exact: true,
         path: "/",
@@ -46220,32 +46220,32 @@ function (_React$Component) {
         className: "row"
       }, __WEBPACK_IMPORTED_MODULE_0_react___default.a.createElement("div", {
         className: "col"
-      }, __WEBPACK_IMPORTED_MODULE_0_react___default.a.createElement(__WEBPACK_IMPORTED_MODULE_1_reactstrap__["e" /* Navbar */], {
+      }, __WEBPACK_IMPORTED_MODULE_0_react___default.a.createElement(__WEBPACK_IMPORTED_MODULE_1_reactstrap__["l" /* Navbar */], {
         expand: "md",
         color: "light",
         dark: true
-      }, __WEBPACK_IMPORTED_MODULE_0_react___default.a.createElement(__WEBPACK_IMPORTED_MODULE_1_reactstrap__["f" /* NavbarBrand */], {
+      }, __WEBPACK_IMPORTED_MODULE_0_react___default.a.createElement(__WEBPACK_IMPORTED_MODULE_1_reactstrap__["m" /* NavbarBrand */], {
         href: "/"
       }, " ", __WEBPACK_IMPORTED_MODULE_0_react___default.a.createElement("img", {
         className: "nav-brand",
         src: "/images/logo_brand.png"
-      }), " "), __WEBPACK_IMPORTED_MODULE_0_react___default.a.createElement(__WEBPACK_IMPORTED_MODULE_1_reactstrap__["g" /* NavbarToggler */], {
+      }), " "), __WEBPACK_IMPORTED_MODULE_0_react___default.a.createElement(__WEBPACK_IMPORTED_MODULE_1_reactstrap__["n" /* NavbarToggler */], {
         onClick: this.toggle
-      }), __WEBPACK_IMPORTED_MODULE_0_react___default.a.createElement(__WEBPACK_IMPORTED_MODULE_1_reactstrap__["a" /* Collapse */], {
+      }), __WEBPACK_IMPORTED_MODULE_0_react___default.a.createElement(__WEBPACK_IMPORTED_MODULE_1_reactstrap__["h" /* Collapse */], {
         isOpen: this.state.isOpen,
         navbar: true
-      }, __WEBPACK_IMPORTED_MODULE_0_react___default.a.createElement(__WEBPACK_IMPORTED_MODULE_1_reactstrap__["b" /* Nav */], {
+      }, __WEBPACK_IMPORTED_MODULE_0_react___default.a.createElement(__WEBPACK_IMPORTED_MODULE_1_reactstrap__["i" /* Nav */], {
         className: "ml-auto",
         navbar: true
-      }, __WEBPACK_IMPORTED_MODULE_0_react___default.a.createElement(__WEBPACK_IMPORTED_MODULE_1_reactstrap__["c" /* NavItem */], null, __WEBPACK_IMPORTED_MODULE_0_react___default.a.createElement(__WEBPACK_IMPORTED_MODULE_1_reactstrap__["d" /* NavLink */], {
+      }, __WEBPACK_IMPORTED_MODULE_0_react___default.a.createElement(__WEBPACK_IMPORTED_MODULE_1_reactstrap__["j" /* NavItem */], null, __WEBPACK_IMPORTED_MODULE_0_react___default.a.createElement(__WEBPACK_IMPORTED_MODULE_1_reactstrap__["k" /* NavLink */], {
         href: "#about"
-      }, "\u041A\u043E\u043C\u0430\u043D\u0434\u0430")), __WEBPACK_IMPORTED_MODULE_0_react___default.a.createElement(__WEBPACK_IMPORTED_MODULE_1_reactstrap__["c" /* NavItem */], null, __WEBPACK_IMPORTED_MODULE_0_react___default.a.createElement(__WEBPACK_IMPORTED_MODULE_1_reactstrap__["d" /* NavLink */], {
+      }, "\u041A\u043E\u043C\u0430\u043D\u0434\u0430")), __WEBPACK_IMPORTED_MODULE_0_react___default.a.createElement(__WEBPACK_IMPORTED_MODULE_1_reactstrap__["j" /* NavItem */], null, __WEBPACK_IMPORTED_MODULE_0_react___default.a.createElement(__WEBPACK_IMPORTED_MODULE_1_reactstrap__["k" /* NavLink */], {
         href: "#projects"
-      }, "\u041F\u0440\u043E\u0435\u043A\u0442\u0438")), __WEBPACK_IMPORTED_MODULE_0_react___default.a.createElement(__WEBPACK_IMPORTED_MODULE_1_reactstrap__["c" /* NavItem */], null, __WEBPACK_IMPORTED_MODULE_0_react___default.a.createElement(__WEBPACK_IMPORTED_MODULE_1_reactstrap__["d" /* NavLink */], {
+      }, "\u041F\u0440\u043E\u0435\u043A\u0442\u0438")), __WEBPACK_IMPORTED_MODULE_0_react___default.a.createElement(__WEBPACK_IMPORTED_MODULE_1_reactstrap__["j" /* NavItem */], null, __WEBPACK_IMPORTED_MODULE_0_react___default.a.createElement(__WEBPACK_IMPORTED_MODULE_1_reactstrap__["k" /* NavLink */], {
         href: "#events"
-      }, "\u041F\u043E\u0434\u0456\u0457")), __WEBPACK_IMPORTED_MODULE_0_react___default.a.createElement(__WEBPACK_IMPORTED_MODULE_1_reactstrap__["c" /* NavItem */], null, __WEBPACK_IMPORTED_MODULE_0_react___default.a.createElement(__WEBPACK_IMPORTED_MODULE_1_reactstrap__["d" /* NavLink */], {
+      }, "\u041F\u043E\u0434\u0456\u0457")), __WEBPACK_IMPORTED_MODULE_0_react___default.a.createElement(__WEBPACK_IMPORTED_MODULE_1_reactstrap__["j" /* NavItem */], null, __WEBPACK_IMPORTED_MODULE_0_react___default.a.createElement(__WEBPACK_IMPORTED_MODULE_1_reactstrap__["k" /* NavLink */], {
         href: "#expositions"
-      }, "\u0412\u0438\u0441\u0442\u0430\u0432\u043A\u0438")), __WEBPACK_IMPORTED_MODULE_0_react___default.a.createElement(__WEBPACK_IMPORTED_MODULE_1_reactstrap__["c" /* NavItem */], null, __WEBPACK_IMPORTED_MODULE_0_react___default.a.createElement(__WEBPACK_IMPORTED_MODULE_1_reactstrap__["d" /* NavLink */], {
+      }, "\u0412\u0438\u0441\u0442\u0430\u0432\u043A\u0438")), __WEBPACK_IMPORTED_MODULE_0_react___default.a.createElement(__WEBPACK_IMPORTED_MODULE_1_reactstrap__["j" /* NavItem */], null, __WEBPACK_IMPORTED_MODULE_0_react___default.a.createElement(__WEBPACK_IMPORTED_MODULE_1_reactstrap__["k" /* NavLink */], {
         href: "#contacts"
       }, "\u041A\u043E\u043D\u0442\u0430\u043A\u0442\u0438")))))))));
     }
@@ -49435,16 +49435,16 @@ Popper.Defaults = Defaults;
 /* unused harmony export Container */
 /* unused harmony export Row */
 /* unused harmony export Col */
-/* harmony export (binding) */ __webpack_require__.d(__webpack_exports__, "e", function() { return Navbar; });
-/* harmony export (binding) */ __webpack_require__.d(__webpack_exports__, "f", function() { return NavbarBrand; });
-/* harmony export (binding) */ __webpack_require__.d(__webpack_exports__, "g", function() { return NavbarToggler; });
-/* harmony export (binding) */ __webpack_require__.d(__webpack_exports__, "b", function() { return Nav; });
-/* harmony export (binding) */ __webpack_require__.d(__webpack_exports__, "c", function() { return NavItem; });
+/* harmony export (binding) */ __webpack_require__.d(__webpack_exports__, "l", function() { return Navbar; });
+/* harmony export (binding) */ __webpack_require__.d(__webpack_exports__, "m", function() { return NavbarBrand; });
+/* harmony export (binding) */ __webpack_require__.d(__webpack_exports__, "n", function() { return NavbarToggler; });
+/* harmony export (binding) */ __webpack_require__.d(__webpack_exports__, "i", function() { return Nav; });
+/* harmony export (binding) */ __webpack_require__.d(__webpack_exports__, "j", function() { return NavItem; });
 /* unused harmony export NavDropdown */
-/* harmony export (binding) */ __webpack_require__.d(__webpack_exports__, "d", function() { return NavLink; });
+/* harmony export (binding) */ __webpack_require__.d(__webpack_exports__, "k", function() { return NavLink; });
 /* unused harmony export Breadcrumb */
 /* unused harmony export BreadcrumbItem */
-/* unused harmony export Button */
+/* harmony export (binding) */ __webpack_require__.d(__webpack_exports__, "a", function() { return Button; });
 /* unused harmony export ButtonDropdown */
 /* unused harmony export ButtonGroup */
 /* unused harmony export ButtonToolbar */
@@ -49454,16 +49454,16 @@ Popper.Defaults = Defaults;
 /* unused harmony export DropdownToggle */
 /* unused harmony export Fade */
 /* unused harmony export Badge */
-/* unused harmony export Card */
+/* harmony export (binding) */ __webpack_require__.d(__webpack_exports__, "b", function() { return Card; });
 /* unused harmony export CardLink */
 /* unused harmony export CardGroup */
 /* unused harmony export CardDeck */
 /* unused harmony export CardColumns */
-/* unused harmony export CardBody */
+/* harmony export (binding) */ __webpack_require__.d(__webpack_exports__, "c", function() { return CardBody; });
 /* unused harmony export CardBlock */
 /* unused harmony export CardFooter */
 /* unused harmony export CardHeader */
-/* unused harmony export CardImg */
+/* harmony export (binding) */ __webpack_require__.d(__webpack_exports__, "d", function() { return CardImg; });
 /* unused harmony export CardImgOverlay */
 /* unused harmony export Carousel */
 /* unused harmony export UncontrolledCarousel */
@@ -49471,9 +49471,9 @@ Popper.Defaults = Defaults;
 /* unused harmony export CarouselItem */
 /* unused harmony export CarouselIndicators */
 /* unused harmony export CarouselCaption */
-/* unused harmony export CardSubtitle */
-/* unused harmony export CardText */
-/* unused harmony export CardTitle */
+/* harmony export (binding) */ __webpack_require__.d(__webpack_exports__, "e", function() { return CardSubtitle; });
+/* harmony export (binding) */ __webpack_require__.d(__webpack_exports__, "f", function() { return CardText; });
+/* harmony export (binding) */ __webpack_require__.d(__webpack_exports__, "g", function() { return CardTitle; });
 /* unused harmony export Popover */
 /* unused harmony export PopoverContent */
 /* unused harmony export PopoverBody */
@@ -49508,7 +49508,7 @@ Popper.Defaults = Defaults;
 /* unused harmony export TabContent */
 /* unused harmony export TabPane */
 /* unused harmony export Jumbotron */
-/* harmony export (binding) */ __webpack_require__.d(__webpack_exports__, "a", function() { return Collapse; });
+/* harmony export (binding) */ __webpack_require__.d(__webpack_exports__, "h", function() { return Collapse; });
 /* unused harmony export ListGroupItem */
 /* unused harmony export ListGroupItemText */
 /* unused harmony export ListGroupItemHeading */
@@ -56867,7 +56867,7 @@ function (_React$Component) {
     key: "render",
     value: function render() {
       return __WEBPACK_IMPORTED_MODULE_0_react___default.a.createElement("div", {
-        className: "d-flex flex-column"
+        className: "d-flex flex-column flex-grow-1"
       }, __WEBPACK_IMPORTED_MODULE_0_react___default.a.createElement("div", {
         className: "d-flex home-screen flex-column justify-content-center text-center"
       }, __WEBPACK_IMPORTED_MODULE_0_react___default.a.createElement("div", {
@@ -56891,7 +56891,9 @@ function (_React$Component) {
         className: "col-md-5"
       }, __WEBPACK_IMPORTED_MODULE_0_react___default.a.createElement("div", {
         className: "page-content-text"
-      }, __WEBPACK_IMPORTED_MODULE_0_react___default.a.createElement("p", null, "\u041C\u0438 - \u0433\u0440\u0443\u043F\u0430 \u0435\u043D\u0442\u0443\u0437\u0456\u0430\u0441\u0442\u0456\u0432, \u0430\u043C\u0430\u0442\u043E\u0440\u0456\u0432, \u0456\u043D\u0436\u0435\u043D\u0435\u0440\u0456\u0432, \u043F\u043E\u0454\u0434\u043D\u0430\u043D\u0456 \u0441\u043F\u0456\u043B\u044C\u043D\u043E\u044E \u043C\u0435\u0442\u043E\u044E \u0441\u0442\u0432\u043E\u0440\u044E\u0432\u0430\u0442\u0438 \u0440\u0456\u0437\u043D\u0456 \u043F\u0440\u0438\u0441\u0442\u0440\u043E\u0457 \u0441\u0432\u043E\u0457\u043C\u0438 \u0440\u0443\u043A\u0430\u043C\u0438. \u041F\u043E\u0447\u0438\u043D\u0430\u043B\u043E\u0441\u044F \u0432\u0441\u0435 \u0437\u0456 \u0441\u0442\u0443\u0434\u0435\u043D\u0442\u0441\u044C\u043A\u0438\u0445 \u0440\u043E\u043A\u0456\u0432. \u041A\u043E\u0436\u0435\u043D \u0437\u0430\u0439\u043C\u0430\u0432\u0441\u044F \u0430\u0431\u043E \u043C\u043E\u0434\u0435\u043B\u044E\u0432\u0430\u043D\u043D\u044F\u043C \u0440\u0430\u043A\u0435\u0442 \u0447\u0438 \u043B\u0456\u0442\u0430\u043A\u0456\u0432, \u0430\u0431\u043E \u0432\u0438\u0433\u043E\u0442\u043E\u0432\u043B\u0435\u043D\u043D\u044F\u043C \u044F\u043A\u0438\u0445\u043E\u0441\u044C \u043F\u0440\u0438\u043B\u0430\u0434\u0456\u0432. \u041E\u0434\u043D\u0430\u043A \u0417\u0430\u0440\u0430\u0437 \u043C\u0438 \u043F\u0440\u0430\u0446\u044E\u0454\u043C\u043E \u0432 \u0440\u0430\u043A\u0435\u0442\u043D\u043E-\u043A\u043E\u0441\u043C\u0456\u0447\u043D\u0456\u0439 \u0433\u0430\u043B\u0443\u0437\u0456 \u0442\u0430 \u0432\u0442\u0456\u043B\u044E\u0454\u043C\u043E \u0432 \u0436\u0438\u0442\u0442\u044F \u0441\u0432\u043E\u0457 \u0437\u0430\u0434\u0443\u043C\u0438 \u0432\u0438\u043A\u043E\u0440\u0438\u0441\u0442\u043E\u0432\u0443\u044E\u0447\u0438 \u043D\u043E\u0432\u0456 \u0437\u043D\u0430\u043D\u043D\u044F \u0442\u0430 \u043C\u043E\u0436\u043B\u0438\u0432\u043E\u0441\u0442\u0456."))), __WEBPACK_IMPORTED_MODULE_0_react___default.a.createElement("div", {
+      }, __WEBPACK_IMPORTED_MODULE_0_react___default.a.createElement("p", {
+        className: "lead"
+      }, "\u041C\u0438 - \u0433\u0440\u0443\u043F\u0430 \u0435\u043D\u0442\u0443\u0437\u0456\u0430\u0441\u0442\u0456\u0432, \u0430\u043C\u0430\u0442\u043E\u0440\u0456\u0432, \u0456\u043D\u0436\u0435\u043D\u0435\u0440\u0456\u0432, \u043F\u043E\u0454\u0434\u043D\u0430\u043D\u0456 \u0441\u043F\u0456\u043B\u044C\u043D\u043E\u044E \u043C\u0435\u0442\u043E\u044E \u0441\u0442\u0432\u043E\u0440\u044E\u0432\u0430\u0442\u0438 \u0440\u0456\u0437\u043D\u0456 \u043F\u0440\u0438\u0441\u0442\u0440\u043E\u0457 \u0441\u0432\u043E\u0457\u043C\u0438 \u0440\u0443\u043A\u0430\u043C\u0438. \u041F\u043E\u0447\u0438\u043D\u0430\u043B\u043E\u0441\u044F \u0432\u0441\u0435 \u0437\u0456 \u0441\u0442\u0443\u0434\u0435\u043D\u0442\u0441\u044C\u043A\u0438\u0445 \u0440\u043E\u043A\u0456\u0432. \u041A\u043E\u0436\u0435\u043D \u0437\u0430\u0439\u043C\u0430\u0432\u0441\u044F \u0430\u0431\u043E \u043C\u043E\u0434\u0435\u043B\u044E\u0432\u0430\u043D\u043D\u044F\u043C \u0440\u0430\u043A\u0435\u0442 \u0447\u0438 \u043B\u0456\u0442\u0430\u043A\u0456\u0432, \u0430\u0431\u043E \u0432\u0438\u0433\u043E\u0442\u043E\u0432\u043B\u0435\u043D\u043D\u044F\u043C \u044F\u043A\u0438\u0445\u043E\u0441\u044C \u043F\u0440\u0438\u043B\u0430\u0434\u0456\u0432. \u041E\u0434\u043D\u0430\u043A \u0417\u0430\u0440\u0430\u0437 \u043C\u0438 \u043F\u0440\u0430\u0446\u044E\u0454\u043C\u043E \u0432 \u0440\u0430\u043A\u0435\u0442\u043D\u043E-\u043A\u043E\u0441\u043C\u0456\u0447\u043D\u0456\u0439 \u0433\u0430\u043B\u0443\u0437\u0456 \u0442\u0430 \u0432\u0442\u0456\u043B\u044E\u0454\u043C\u043E \u0432 \u0436\u0438\u0442\u0442\u044F \u0441\u0432\u043E\u0457 \u0437\u0430\u0434\u0443\u043C\u0438 \u0432\u0438\u043A\u043E\u0440\u0438\u0441\u0442\u043E\u0432\u0443\u044E\u0447\u0438 \u043D\u043E\u0432\u0456 \u0437\u043D\u0430\u043D\u043D\u044F \u0442\u0430 \u043C\u043E\u0436\u043B\u0438\u0432\u043E\u0441\u0442\u0456."))), __WEBPACK_IMPORTED_MODULE_0_react___default.a.createElement("div", {
         className: "col-md-6 d-flex"
       }, __WEBPACK_IMPORTED_MODULE_0_react___default.a.createElement("div", {
         className: "page-content-image"
@@ -57039,6 +57041,9 @@ function (_React$Component) {
 /* harmony export (binding) */ __webpack_require__.d(__webpack_exports__, "a", function() { return Projects; });
 /* harmony import */ var __WEBPACK_IMPORTED_MODULE_0_react__ = __webpack_require__(0);
 /* harmony import */ var __WEBPACK_IMPORTED_MODULE_0_react___default = __webpack_require__.n(__WEBPACK_IMPORTED_MODULE_0_react__);
+/* harmony import */ var __WEBPACK_IMPORTED_MODULE_1_reactstrap__ = __webpack_require__(99);
+/* harmony import */ var __WEBPACK_IMPORTED_MODULE_2__style_scss__ = __webpack_require__(112);
+/* harmony import */ var __WEBPACK_IMPORTED_MODULE_2__style_scss___default = __webpack_require__.n(__WEBPACK_IMPORTED_MODULE_2__style_scss__);
 function _typeof(obj) { if (typeof Symbol === "function" && typeof Symbol.iterator === "symbol") { _typeof = function _typeof(obj) { return typeof obj; }; } else { _typeof = function _typeof(obj) { return obj && typeof Symbol === "function" && obj.constructor === Symbol && obj !== Symbol.prototype ? "symbol" : typeof obj; }; } return _typeof(obj); }
 
 function _classCallCheck(instance, Constructor) { if (!(instance instanceof Constructor)) { throw new TypeError("Cannot call a class as a function"); } }
@@ -57059,6 +57064,8 @@ function _setPrototypeOf(o, p) { _setPrototypeOf = Object.setPrototypeOf || func
 
 
 
+
+
 var Projects =
 /*#__PURE__*/
 function (_React$Component) {
@@ -57074,14 +57081,123 @@ function (_React$Component) {
     key: "render",
     value: function render() {
       return __WEBPACK_IMPORTED_MODULE_0_react___default.a.createElement("div", {
-        className: "d-flex"
-      }, __WEBPACK_IMPORTED_MODULE_0_react___default.a.createElement("h1", null, "Projects"));
+        className: "d-flex flex-grow-1"
+      }, __WEBPACK_IMPORTED_MODULE_0_react___default.a.createElement("div", {
+        className: "page-section"
+      }, __WEBPACK_IMPORTED_MODULE_0_react___default.a.createElement("div", {
+        className: "container "
+      }, __WEBPACK_IMPORTED_MODULE_0_react___default.a.createElement("div", {
+        className: "row"
+      }, __WEBPACK_IMPORTED_MODULE_0_react___default.a.createElement("div", {
+        className: "col"
+      }, __WEBPACK_IMPORTED_MODULE_0_react___default.a.createElement("h1", null, "\u041F\u0420\u041E\u0415\u041A\u0422\u0418"), __WEBPACK_IMPORTED_MODULE_0_react___default.a.createElement("p", null, "\u0412\u0441\u0456 \u043F\u0440\u043E\u0435\u043A\u0442\u0438 \u0441\u0442\u0432\u043E\u0440\u044E\u0432\u0430\u043B\u0438\u0441\u044F \u043D\u0430\u043C\u0438 \u0432\u0456\u0434 \u0441\u0430\u043C\u043E\u0433\u043E \u043F\u043E\u0447\u0430\u0442\u043A\u0443 \u0434\u043E \u043A\u0456\u043D\u0446\u044F \u0437 \u043C\u0435\u0442\u043E\u044E \u043E\u0432\u043E\u043B\u043E\u0434\u0456\u043D\u043D\u044F\u043C \u043D\u043E\u0432\u0438\u043C\u0438 \u043D\u0430\u0432\u0438\u043A\u0430\u043C\u0438, \u0442\u0435\u0445\u043D\u043E\u043B\u043E\u0433\u0456\u044F\u043C\u0438, \u0430 \u0442\u0430\u043A\u043E\u0436 \u201C\u0431\u043E \u043C\u0435\u043D\u0456 \u0442\u0430\u043A \u0445\u043E\u0447\u0435\u0442\u044C\u0441\u044F\u201D)). \u0412\u0441\u044F \u0456\u043D\u0444\u043E\u0440\u043C\u0430\u0446\u0456\u044F \u0432\u0438\u043A\u043B\u0430\u0434\u0435\u043D\u0430 \u0442\u0456\u043B\u044C\u043A\u0438 \u0434\u043B\u044F \u043E\u0437\u043D\u0430\u0439\u043E\u043C\u043B\u0435\u043D\u043D\u044F. \u041C\u0438 \u043D\u0435 \u043D\u0435\u0441\u0435\u043C\u043E \u043D\u0456\u044F\u043A\u043E\u0457 \u0432\u0456\u0434\u043F\u043E\u0432\u0456\u0434\u0430\u043B\u044C\u043D\u043E\u0441\u0442\u0456 \u0437\u0430 \u0432\u0438\u043A\u043E\u0440\u0438\u0441\u0442\u0430\u043D\u043D\u044F \u0442\u0430 \u0440\u043E\u0437\u043F\u043E\u0432\u0441\u044E\u0434\u0436\u0435\u043D\u043D\u044F \u0457\u0457 \u0456\u043D\u0448\u0438\u043C\u0438 \u043E\u0441\u043E\u0431\u0430\u043C\u0438."))), __WEBPACK_IMPORTED_MODULE_0_react___default.a.createElement("div", {
+        className: "row"
+      }, __WEBPACK_IMPORTED_MODULE_0_react___default.a.createElement("div", {
+        className: "col-md-4"
+      }, __WEBPACK_IMPORTED_MODULE_0_react___default.a.createElement(__WEBPACK_IMPORTED_MODULE_1_reactstrap__["b" /* Card */], {
+        className: "inline-card"
+      }, __WEBPACK_IMPORTED_MODULE_0_react___default.a.createElement(__WEBPACK_IMPORTED_MODULE_1_reactstrap__["d" /* CardImg */], {
+        top: true,
+        width: "100%",
+        src: "/images/engine.jpg",
+        alt: "Card image cap"
+      }), __WEBPACK_IMPORTED_MODULE_0_react___default.a.createElement(__WEBPACK_IMPORTED_MODULE_1_reactstrap__["c" /* CardBody */], null, __WEBPACK_IMPORTED_MODULE_0_react___default.a.createElement(__WEBPACK_IMPORTED_MODULE_1_reactstrap__["g" /* CardTitle */], null, "\u041C\u043E\u0434\u0435\u043B\u044C-\u043A\u043E\u043F\u0456\u044F \u041E\u0422\u0420\u041A \u201C\u0422\u043E\u0447\u043A\u0430-\u0423\u201D \u0432 \u043C\u0430\u0441\u0448\u0442\u0430\u0431\u0456 1:8"), __WEBPACK_IMPORTED_MODULE_0_react___default.a.createElement(__WEBPACK_IMPORTED_MODULE_1_reactstrap__["e" /* CardSubtitle */], null, "Rocket"), __WEBPACK_IMPORTED_MODULE_0_react___default.a.createElement(__WEBPACK_IMPORTED_MODULE_1_reactstrap__["f" /* CardText */], null, "\u0425\u043E\u0442\u0456\u043B\u043E\u0441\u044F \u0432\u0456\u0434\u0442\u0432\u043E\u0440\u0438\u0442\u0438 \u0446\u044E \u0440\u0430\u043A\u0435\u0442\u0443, \u0431\u043E \u0432\u043E\u043D\u0430 \u0454\u0434\u0438\u043D\u0430, \u0449\u043E \u043B\u0438\u0448\u0438\u043B\u0430\u0441\u044F \u0432 \u0423\u043A\u0440\u0430\u0457\u043D\u0456 \u043D\u0430 \u043E\u0437\u0431\u0440\u043E\u0454\u043D\u043D\u0456. \u041E\u043A\u0440\u0456\u043C \u0442\u043E\u0433\u043E \u0432\u043E\u043D\u0430 \u0442\u0432\u0435\u0440\u0434\u043E\u043F\u0430\u043B\u0438\u0432\u043D\u0430, \u043E\u0434\u043D\u043E\u0441\u0442\u0443\u043F\u0435\u043D\u0435\u0432\u0430, \u0456, \u0432\u0456\u0434\u043F\u043E\u0432\u0456\u0434\u043D\u043E, \u043C\u043E\u0436\u043D\u0430  \u043D\u0430\u0439\u0431\u0456\u043B\u044C\u0448 \u0442\u043E\u0447\u043D\u043E \u0432\u0456\u0434\u0442\u0432\u043E\u0440\u0438\u0442\u0438 \u0457\u0457 \u043F\u043E\u043B\u0456\u0442."), __WEBPACK_IMPORTED_MODULE_0_react___default.a.createElement(__WEBPACK_IMPORTED_MODULE_1_reactstrap__["a" /* Button */], null, "Button")))), __WEBPACK_IMPORTED_MODULE_0_react___default.a.createElement("div", {
+        className: "col-md-4"
+      }, __WEBPACK_IMPORTED_MODULE_0_react___default.a.createElement(__WEBPACK_IMPORTED_MODULE_1_reactstrap__["b" /* Card */], {
+        className: "inline-card"
+      }, __WEBPACK_IMPORTED_MODULE_0_react___default.a.createElement(__WEBPACK_IMPORTED_MODULE_1_reactstrap__["d" /* CardImg */], {
+        top: true,
+        width: "100%",
+        src: "/images/engine.jpg",
+        alt: "Card image cap"
+      }), __WEBPACK_IMPORTED_MODULE_0_react___default.a.createElement(__WEBPACK_IMPORTED_MODULE_1_reactstrap__["c" /* CardBody */], null, __WEBPACK_IMPORTED_MODULE_0_react___default.a.createElement(__WEBPACK_IMPORTED_MODULE_1_reactstrap__["g" /* CardTitle */], null, "\u041C\u043E\u0434\u0435\u043B\u044C-\u043A\u043E\u043F\u0456\u044F \u041E\u0422\u0420\u041A \u201C\u0422\u043E\u0447\u043A\u0430-\u0423\u201D \u0432 \u043C\u0430\u0441\u0448\u0442\u0430\u0431\u0456 1:8"), __WEBPACK_IMPORTED_MODULE_0_react___default.a.createElement(__WEBPACK_IMPORTED_MODULE_1_reactstrap__["e" /* CardSubtitle */], null, "Rocket"), __WEBPACK_IMPORTED_MODULE_0_react___default.a.createElement(__WEBPACK_IMPORTED_MODULE_1_reactstrap__["f" /* CardText */], null, "\u0425\u043E\u0442\u0456\u043B\u043E\u0441\u044F \u0432\u0456\u0434\u0442\u0432\u043E\u0440\u0438\u0442\u0438 \u0446\u044E \u0440\u0430\u043A\u0435\u0442\u0443, \u0431\u043E \u0432\u043E\u043D\u0430 \u0454\u0434\u0438\u043D\u0430, \u0449\u043E \u043B\u0438\u0448\u0438\u043B\u0430\u0441\u044F \u0432 \u0423\u043A\u0440\u0430\u0457\u043D\u0456 \u043D\u0430 \u043E\u0437\u0431\u0440\u043E\u0454\u043D\u043D\u0456. \u041E\u043A\u0440\u0456\u043C \u0442\u043E\u0433\u043E \u0432\u043E\u043D\u0430 \u0442\u0432\u0435\u0440\u0434\u043E\u043F\u0430\u043B\u0438\u0432\u043D\u0430, \u043E\u0434\u043D\u043E\u0441\u0442\u0443\u043F\u0435\u043D\u0435\u0432\u0430, \u0456, \u0432\u0456\u0434\u043F\u043E\u0432\u0456\u0434\u043D\u043E, \u043C\u043E\u0436\u043D\u0430  \u043D\u0430\u0439\u0431\u0456\u043B\u044C\u0448 \u0442\u043E\u0447\u043D\u043E \u0432\u0456\u0434\u0442\u0432\u043E\u0440\u0438\u0442\u0438 \u0457\u0457 \u043F\u043E\u043B\u0456\u0442."), __WEBPACK_IMPORTED_MODULE_0_react___default.a.createElement(__WEBPACK_IMPORTED_MODULE_1_reactstrap__["a" /* Button */], null, "Button")))), __WEBPACK_IMPORTED_MODULE_0_react___default.a.createElement("div", {
+        className: "col-md-4"
+      }, __WEBPACK_IMPORTED_MODULE_0_react___default.a.createElement(__WEBPACK_IMPORTED_MODULE_1_reactstrap__["b" /* Card */], {
+        className: "inline-card"
+      }, __WEBPACK_IMPORTED_MODULE_0_react___default.a.createElement(__WEBPACK_IMPORTED_MODULE_1_reactstrap__["d" /* CardImg */], {
+        top: true,
+        width: "100%",
+        src: "/images/engine.jpg",
+        alt: "Card image cap"
+      }), __WEBPACK_IMPORTED_MODULE_0_react___default.a.createElement(__WEBPACK_IMPORTED_MODULE_1_reactstrap__["c" /* CardBody */], null, __WEBPACK_IMPORTED_MODULE_0_react___default.a.createElement(__WEBPACK_IMPORTED_MODULE_1_reactstrap__["g" /* CardTitle */], null, "\u041C\u043E\u0434\u0435\u043B\u044C-\u043A\u043E\u043F\u0456\u044F \u041E\u0422\u0420\u041A \u201C\u0422\u043E\u0447\u043A\u0430-\u0423\u201D \u0432 \u043C\u0430\u0441\u0448\u0442\u0430\u0431\u0456 1:8"), __WEBPACK_IMPORTED_MODULE_0_react___default.a.createElement(__WEBPACK_IMPORTED_MODULE_1_reactstrap__["e" /* CardSubtitle */], null, "Rocket"), __WEBPACK_IMPORTED_MODULE_0_react___default.a.createElement(__WEBPACK_IMPORTED_MODULE_1_reactstrap__["f" /* CardText */], null, "\u0425\u043E\u0442\u0456\u043B\u043E\u0441\u044F \u0432\u0456\u0434\u0442\u0432\u043E\u0440\u0438\u0442\u0438 \u0446\u044E \u0440\u0430\u043A\u0435\u0442\u0443, \u0431\u043E \u0432\u043E\u043D\u0430 \u0454\u0434\u0438\u043D\u0430, \u0449\u043E \u043B\u0438\u0448\u0438\u043B\u0430\u0441\u044F \u0432 \u0423\u043A\u0440\u0430\u0457\u043D\u0456 \u043D\u0430 \u043E\u0437\u0431\u0440\u043E\u0454\u043D\u043D\u0456. \u041E\u043A\u0440\u0456\u043C \u0442\u043E\u0433\u043E \u0432\u043E\u043D\u0430 \u0442\u0432\u0435\u0440\u0434\u043E\u043F\u0430\u043B\u0438\u0432\u043D\u0430, \u043E\u0434\u043D\u043E\u0441\u0442\u0443\u043F\u0435\u043D\u0435\u0432\u0430, \u0456, \u0432\u0456\u0434\u043F\u043E\u0432\u0456\u0434\u043D\u043E, \u043C\u043E\u0436\u043D\u0430  \u043D\u0430\u0439\u0431\u0456\u043B\u044C\u0448 \u0442\u043E\u0447\u043D\u043E \u0432\u0456\u0434\u0442\u0432\u043E\u0440\u0438\u0442\u0438 \u0457\u0457 \u043F\u043E\u043B\u0456\u0442."), __WEBPACK_IMPORTED_MODULE_0_react___default.a.createElement(__WEBPACK_IMPORTED_MODULE_1_reactstrap__["a" /* Button */], null, "Button")))), __WEBPACK_IMPORTED_MODULE_0_react___default.a.createElement("div", {
+        className: "col-md-4"
+      }, __WEBPACK_IMPORTED_MODULE_0_react___default.a.createElement(__WEBPACK_IMPORTED_MODULE_1_reactstrap__["b" /* Card */], {
+        className: "inline-card"
+      }, __WEBPACK_IMPORTED_MODULE_0_react___default.a.createElement(__WEBPACK_IMPORTED_MODULE_1_reactstrap__["d" /* CardImg */], {
+        top: true,
+        width: "100%",
+        src: "/images/engine.jpg",
+        alt: "Card image cap"
+      }), __WEBPACK_IMPORTED_MODULE_0_react___default.a.createElement(__WEBPACK_IMPORTED_MODULE_1_reactstrap__["c" /* CardBody */], null, __WEBPACK_IMPORTED_MODULE_0_react___default.a.createElement(__WEBPACK_IMPORTED_MODULE_1_reactstrap__["g" /* CardTitle */], null, "\u041C\u043E\u0434\u0435\u043B\u044C-\u043A\u043E\u043F\u0456\u044F \u041E\u0422\u0420\u041A \u201C\u0422\u043E\u0447\u043A\u0430-\u0423\u201D \u0432 \u043C\u0430\u0441\u0448\u0442\u0430\u0431\u0456 1:8"), __WEBPACK_IMPORTED_MODULE_0_react___default.a.createElement(__WEBPACK_IMPORTED_MODULE_1_reactstrap__["e" /* CardSubtitle */], null, "Rocket"), __WEBPACK_IMPORTED_MODULE_0_react___default.a.createElement(__WEBPACK_IMPORTED_MODULE_1_reactstrap__["f" /* CardText */], null, "\u0425\u043E\u0442\u0456\u043B\u043E\u0441\u044F \u0432\u0456\u0434\u0442\u0432\u043E\u0440\u0438\u0442\u0438 \u0446\u044E \u0440\u0430\u043A\u0435\u0442\u0443, \u0431\u043E \u0432\u043E\u043D\u0430 \u0454\u0434\u0438\u043D\u0430, \u0449\u043E \u043B\u0438\u0448\u0438\u043B\u0430\u0441\u044F \u0432 \u0423\u043A\u0440\u0430\u0457\u043D\u0456 \u043D\u0430 \u043E\u0437\u0431\u0440\u043E\u0454\u043D\u043D\u0456. \u041E\u043A\u0440\u0456\u043C \u0442\u043E\u0433\u043E \u0432\u043E\u043D\u0430 \u0442\u0432\u0435\u0440\u0434\u043E\u043F\u0430\u043B\u0438\u0432\u043D\u0430, \u043E\u0434\u043D\u043E\u0441\u0442\u0443\u043F\u0435\u043D\u0435\u0432\u0430, \u0456, \u0432\u0456\u0434\u043F\u043E\u0432\u0456\u0434\u043D\u043E, \u043C\u043E\u0436\u043D\u0430  \u043D\u0430\u0439\u0431\u0456\u043B\u044C\u0448 \u0442\u043E\u0447\u043D\u043E \u0432\u0456\u0434\u0442\u0432\u043E\u0440\u0438\u0442\u0438 \u0457\u0457 \u043F\u043E\u043B\u0456\u0442."), __WEBPACK_IMPORTED_MODULE_0_react___default.a.createElement(__WEBPACK_IMPORTED_MODULE_1_reactstrap__["a" /* Button */], null, "Button")))), __WEBPACK_IMPORTED_MODULE_0_react___default.a.createElement("div", {
+        className: "col-md-4"
+      }, __WEBPACK_IMPORTED_MODULE_0_react___default.a.createElement(__WEBPACK_IMPORTED_MODULE_1_reactstrap__["b" /* Card */], {
+        className: "inline-card"
+      }, __WEBPACK_IMPORTED_MODULE_0_react___default.a.createElement(__WEBPACK_IMPORTED_MODULE_1_reactstrap__["d" /* CardImg */], {
+        top: true,
+        width: "100%",
+        src: "/images/engine.jpg",
+        alt: "Card image cap"
+      }), __WEBPACK_IMPORTED_MODULE_0_react___default.a.createElement(__WEBPACK_IMPORTED_MODULE_1_reactstrap__["c" /* CardBody */], null, __WEBPACK_IMPORTED_MODULE_0_react___default.a.createElement(__WEBPACK_IMPORTED_MODULE_1_reactstrap__["g" /* CardTitle */], null, "\u041C\u043E\u0434\u0435\u043B\u044C-\u043A\u043E\u043F\u0456\u044F \u041E\u0422\u0420\u041A \u201C\u0422\u043E\u0447\u043A\u0430-\u0423\u201D \u0432 \u043C\u0430\u0441\u0448\u0442\u0430\u0431\u0456 1:8"), __WEBPACK_IMPORTED_MODULE_0_react___default.a.createElement(__WEBPACK_IMPORTED_MODULE_1_reactstrap__["e" /* CardSubtitle */], null, "Rocket"), __WEBPACK_IMPORTED_MODULE_0_react___default.a.createElement(__WEBPACK_IMPORTED_MODULE_1_reactstrap__["f" /* CardText */], null, "\u0425\u043E\u0442\u0456\u043B\u043E\u0441\u044F \u0432\u0456\u0434\u0442\u0432\u043E\u0440\u0438\u0442\u0438 \u0446\u044E \u0440\u0430\u043A\u0435\u0442\u0443, \u0431\u043E \u0432\u043E\u043D\u0430 \u0454\u0434\u0438\u043D\u0430, \u0449\u043E \u043B\u0438\u0448\u0438\u043B\u0430\u0441\u044F \u0432 \u0423\u043A\u0440\u0430\u0457\u043D\u0456 \u043D\u0430 \u043E\u0437\u0431\u0440\u043E\u0454\u043D\u043D\u0456. \u041E\u043A\u0440\u0456\u043C \u0442\u043E\u0433\u043E \u0432\u043E\u043D\u0430 \u0442\u0432\u0435\u0440\u0434\u043E\u043F\u0430\u043B\u0438\u0432\u043D\u0430, \u043E\u0434\u043D\u043E\u0441\u0442\u0443\u043F\u0435\u043D\u0435\u0432\u0430, \u0456, \u0432\u0456\u0434\u043F\u043E\u0432\u0456\u0434\u043D\u043E, \u043C\u043E\u0436\u043D\u0430  \u043D\u0430\u0439\u0431\u0456\u043B\u044C\u0448 \u0442\u043E\u0447\u043D\u043E \u0432\u0456\u0434\u0442\u0432\u043E\u0440\u0438\u0442\u0438 \u0457\u0457 \u043F\u043E\u043B\u0456\u0442."), __WEBPACK_IMPORTED_MODULE_0_react___default.a.createElement(__WEBPACK_IMPORTED_MODULE_1_reactstrap__["a" /* Button */], null, "Button")))), __WEBPACK_IMPORTED_MODULE_0_react___default.a.createElement("div", {
+        className: "col-md-4"
+      }, __WEBPACK_IMPORTED_MODULE_0_react___default.a.createElement(__WEBPACK_IMPORTED_MODULE_1_reactstrap__["b" /* Card */], {
+        className: "inline-card"
+      }, __WEBPACK_IMPORTED_MODULE_0_react___default.a.createElement(__WEBPACK_IMPORTED_MODULE_1_reactstrap__["d" /* CardImg */], {
+        top: true,
+        width: "100%",
+        src: "/images/engine.jpg",
+        alt: "Card image cap"
+      }), __WEBPACK_IMPORTED_MODULE_0_react___default.a.createElement(__WEBPACK_IMPORTED_MODULE_1_reactstrap__["c" /* CardBody */], null, __WEBPACK_IMPORTED_MODULE_0_react___default.a.createElement(__WEBPACK_IMPORTED_MODULE_1_reactstrap__["g" /* CardTitle */], null, "\u041C\u043E\u0434\u0435\u043B\u044C-\u043A\u043E\u043F\u0456\u044F \u041E\u0422\u0420\u041A \u201C\u0422\u043E\u0447\u043A\u0430-\u0423\u201D \u0432 \u043C\u0430\u0441\u0448\u0442\u0430\u0431\u0456 1:8"), __WEBPACK_IMPORTED_MODULE_0_react___default.a.createElement(__WEBPACK_IMPORTED_MODULE_1_reactstrap__["e" /* CardSubtitle */], null, "Rocket"), __WEBPACK_IMPORTED_MODULE_0_react___default.a.createElement(__WEBPACK_IMPORTED_MODULE_1_reactstrap__["f" /* CardText */], null, "\u0425\u043E\u0442\u0456\u043B\u043E\u0441\u044F \u0432\u0456\u0434\u0442\u0432\u043E\u0440\u0438\u0442\u0438 \u0446\u044E \u0440\u0430\u043A\u0435\u0442\u0443, \u0431\u043E \u0432\u043E\u043D\u0430 \u0454\u0434\u0438\u043D\u0430, \u0449\u043E \u043B\u0438\u0448\u0438\u043B\u0430\u0441\u044F \u0432 \u0423\u043A\u0440\u0430\u0457\u043D\u0456 \u043D\u0430 \u043E\u0437\u0431\u0440\u043E\u0454\u043D\u043D\u0456. \u041E\u043A\u0440\u0456\u043C \u0442\u043E\u0433\u043E \u0432\u043E\u043D\u0430 \u0442\u0432\u0435\u0440\u0434\u043E\u043F\u0430\u043B\u0438\u0432\u043D\u0430, \u043E\u0434\u043D\u043E\u0441\u0442\u0443\u043F\u0435\u043D\u0435\u0432\u0430, \u0456, \u0432\u0456\u0434\u043F\u043E\u0432\u0456\u0434\u043D\u043E, \u043C\u043E\u0436\u043D\u0430  \u043D\u0430\u0439\u0431\u0456\u043B\u044C\u0448 \u0442\u043E\u0447\u043D\u043E \u0432\u0456\u0434\u0442\u0432\u043E\u0440\u0438\u0442\u0438 \u0457\u0457 \u043F\u043E\u043B\u0456\u0442."), __WEBPACK_IMPORTED_MODULE_0_react___default.a.createElement(__WEBPACK_IMPORTED_MODULE_1_reactstrap__["a" /* Button */], null, "Button"))))))));
     }
   }]);
 
   return Projects;
 }(__WEBPACK_IMPORTED_MODULE_0_react___default.a.Component);
 
+
+
+/***/ }),
+/* 112 */
+/***/ (function(module, exports, __webpack_require__) {
+
+// style-loader: Adds some css to the DOM by adding a <style> tag
+
+// load the styles
+var content = __webpack_require__(113);
+if(typeof content === 'string') content = [[module.i, content, '']];
+// Prepare cssTransformation
+var transform;
+
+var options = {}
+options.transform = transform
+// add the styles to the DOM
+var update = __webpack_require__(92)(content, options);
+if(content.locals) module.exports = content.locals;
+// Hot Module Replacement
+if(false) {
+	// When the styles change, update the <style> tags
+	if(!content.locals) {
+		module.hot.accept("!!../../../../node_modules/css-loader/index.js!../../../../node_modules/sass-loader/lib/loader.js!./style.scss", function() {
+			var newContent = require("!!../../../../node_modules/css-loader/index.js!../../../../node_modules/sass-loader/lib/loader.js!./style.scss");
+			if(typeof newContent === 'string') newContent = [[module.id, newContent, '']];
+			update(newContent);
+		});
+	}
+	// When the module is disposed, remove the <style> tags
+	module.hot.dispose(function() { update(); });
+}
+
+/***/ }),
+/* 113 */
+/***/ (function(module, exports, __webpack_require__) {
+
+exports = module.exports = __webpack_require__(91)(false);
+// imports
+
+
+// module
+exports.push([module.i, ".inline-card {\n  margin: 20px 0; }\n", ""]);
+
+// exports
 
 
 /***/ })

@@ -5,7 +5,7 @@ import { Link } from 'react-router-dom';
 export default class Main extends React.Component {
   render() {
     return (
-      <div className="d-flex flex-column">
+      <div className="d-flex flex-column flex-grow-1">
       
       <div className="d-flex home-screen flex-column justify-content-center text-center">
         <div className="home-screen__content">
@@ -24,7 +24,7 @@ export default class Main extends React.Component {
 
             <div className="col-md-5">
               <div className="page-content-text">
-                <p>Ми - група ентузіастів, аматорів, інженерів, поєднані спільною метою створювати різні пристрої своїми руками. Починалося все зі студентських років. Кожен займався або моделюванням ракет чи літаків, або виготовленням якихось приладів. Однак 
+                <p className="lead">Ми - група ентузіастів, аматорів, інженерів, поєднані спільною метою створювати різні пристрої своїми руками. Починалося все зі студентських років. Кожен займався або моделюванням ракет чи літаків, або виготовленням якихось приладів. Однак 
 Зараз ми працюємо в ракетно-космічній галузі та втілюємо в життя свої задуми використовуючи нові знання та можливості. 
 </p>
               </div>

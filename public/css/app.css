@@ -10483,13 +10483,17 @@ body {
   padding-top: 66px;
 }
 
+.main-content {
+  min-height: 100%;
+}
+
 .page-section {
-  margin: 125px 0;
+  margin: 25px auto;
   padding: 75px 0;
 }
 
 .home-screen {
-  min-height: 75%;
+  min-height: 75vh;
   background-size: cover;
   background-repeat: no-repeat;
   background-position: center;
@@ -10581,7 +10585,7 @@ h2 {
 }
 
 .section-nav li:not(:last-child) {
-  margin-bottom: 20px;
+  margin-bottom: 25px;
 }
 
 .section-nav a {
