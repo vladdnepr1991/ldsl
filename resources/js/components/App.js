@@ -4,6 +4,8 @@ import { BrowserRouter, Route, Switch, Redirect } from 'react-router-dom';
 import Header from './Header/Header'
 import Main from './main';
 import Projects from './projects';
+import Admin from './admin';
+import CreateProject from './admin/projects/create';
 import NotFound from './not-found';
 
 class App extends Component {
@@ -15,6 +17,8 @@ class App extends Component {
           
           <Switch>
             <Route exact path="/" component={Main} />
+            <Route path="/admin" component={Admin} />
+            <Route path="/projects/create" component={CreateProject} />
             {/* <Route exact path="/projects" component={Projects} /> */}
             <Route component={NotFound} />
           </Switch>
