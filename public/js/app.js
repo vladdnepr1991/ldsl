@@ -60,7 +60,7 @@
 /******/ 	__webpack_require__.p = "/";
 /******/
 /******/ 	// Load entry module and return exports
-/******/ 	return __webpack_require__(__webpack_require__.s = 34);
+/******/ 	return __webpack_require__(__webpack_require__.s = 95);
 /******/ })
 /************************************************************************/
 /******/ ([
@@ -73,12 +73,5625 @@
 if (false) {
   module.exports = require('./cjs/react.production.min.js');
 } else {
-  module.exports = __webpack_require__(60);
+  module.exports = __webpack_require__(120);
 }
 
 
 /***/ }),
 /* 1 */
+/***/ (function(module, exports, __webpack_require__) {
+
+/**
+ *  Copyright (c) 2014-2015, Facebook, Inc.
+ *  All rights reserved.
+ *
+ *  This source code is licensed under the BSD-style license found in the
+ *  LICENSE file in the root directory of this source tree. An additional grant
+ *  of patent rights can be found in the PATENTS file in the same directory.
+ */
+
+(function (global, factory) {
+   true ? module.exports = factory() :
+  typeof define === 'function' && define.amd ? define(factory) :
+  global.Immutable = factory();
+}(this, function () { 'use strict';var SLICE$0 = Array.prototype.slice;
+
+  function createClass(ctor, superClass) {
+    if (superClass) {
+      ctor.prototype = Object.create(superClass.prototype);
+    }
+    ctor.prototype.constructor = ctor;
+  }
+
+  function Iterable(value) {
+      return isIterable(value) ? value : Seq(value);
+    }
+
+
+  createClass(KeyedIterable, Iterable);
+    function KeyedIterable(value) {
+      return isKeyed(value) ? value : KeyedSeq(value);
+    }
+
+
+  createClass(IndexedIterable, Iterable);
+    function IndexedIterable(value) {
+      return isIndexed(value) ? value : IndexedSeq(value);
+    }
+
+
+  createClass(SetIterable, Iterable);
+    function SetIterable(value) {
+      return isIterable(value) && !isAssociative(value) ? value : SetSeq(value);
+    }
+
+
+
+  function isIterable(maybeIterable) {
+    return !!(maybeIterable && maybeIterable[IS_ITERABLE_SENTINEL]);
+  }
+
+  function isKeyed(maybeKeyed) {
+    return !!(maybeKeyed && maybeKeyed[IS_KEYED_SENTINEL]);
+  }
+
+  function isIndexed(maybeIndexed) {
+    return !!(maybeIndexed && maybeIndexed[IS_INDEXED_SENTINEL]);
+  }
+
+  function isAssociative(maybeAssociative) {
+    return isKeyed(maybeAssociative) || isIndexed(maybeAssociative);
+  }
+
+  function isOrdered(maybeOrdered) {
+    return !!(maybeOrdered && maybeOrdered[IS_ORDERED_SENTINEL]);
+  }
+
+  Iterable.isIterable = isIterable;
+  Iterable.isKeyed = isKeyed;
+  Iterable.isIndexed = isIndexed;
+  Iterable.isAssociative = isAssociative;
+  Iterable.isOrdered = isOrdered;
+
+  Iterable.Keyed = KeyedIterable;
+  Iterable.Indexed = IndexedIterable;
+  Iterable.Set = SetIterable;
+
+
+  var IS_ITERABLE_SENTINEL = '@@__IMMUTABLE_ITERABLE__@@';
+  var IS_KEYED_SENTINEL = '@@__IMMUTABLE_KEYED__@@';
+  var IS_INDEXED_SENTINEL = '@@__IMMUTABLE_INDEXED__@@';
+  var IS_ORDERED_SENTINEL = '@@__IMMUTABLE_ORDERED__@@';
+
+  // Used for setting prototype methods that IE8 chokes on.
+  var DELETE = 'delete';
+
+  // Constants describing the size of trie nodes.
+  var SHIFT = 5; // Resulted in best performance after ______?
+  var SIZE = 1 << SHIFT;
+  var MASK = SIZE - 1;
+
+  // A consistent shared value representing "not set" which equals nothing other
+  // than itself, and nothing that could be provided externally.
+  var NOT_SET = {};
+
+  // Boolean references, Rough equivalent of `bool &`.
+  var CHANGE_LENGTH = { value: false };
+  var DID_ALTER = { value: false };
+
+  function MakeRef(ref) {
+    ref.value = false;
+    return ref;
+  }
+
+  function SetRef(ref) {
+    ref && (ref.value = true);
+  }
+
+  // A function which returns a value representing an "owner" for transient writes
+  // to tries. The return value will only ever equal itself, and will not equal
+  // the return of any subsequent call of this function.
+  function OwnerID() {}
+
+  // http://jsperf.com/copy-array-inline
+  function arrCopy(arr, offset) {
+    offset = offset || 0;
+    var len = Math.max(0, arr.length - offset);
+    var newArr = new Array(len);
+    for (var ii = 0; ii < len; ii++) {
+      newArr[ii] = arr[ii + offset];
+    }
+    return newArr;
+  }
+
+  function ensureSize(iter) {
+    if (iter.size === undefined) {
+      iter.size = iter.__iterate(returnTrue);
+    }
+    return iter.size;
+  }
+
+  function wrapIndex(iter, index) {
+    // This implements "is array index" which the ECMAString spec defines as:
+    //
+    //     A String property name P is an array index if and only if
+    //     ToString(ToUint32(P)) is equal to P and ToUint32(P) is not equal
+    //     to 2^32−1.
+    //
+    // http://www.ecma-international.org/ecma-262/6.0/#sec-array-exotic-objects
+    if (typeof index !== 'number') {
+      var uint32Index = index >>> 0; // N >>> 0 is shorthand for ToUint32
+      if ('' + uint32Index !== index || uint32Index === 4294967295) {
+        return NaN;
+      }
+      index = uint32Index;
+    }
+    return index < 0 ? ensureSize(iter) + index : index;
+  }
+
+  function returnTrue() {
+    return true;
+  }
+
+  function wholeSlice(begin, end, size) {
+    return (begin === 0 || (size !== undefined && begin <= -size)) &&
+      (end === undefined || (size !== undefined && end >= size));
+  }
+
+  function resolveBegin(begin, size) {
+    return resolveIndex(begin, size, 0);
+  }
+
+  function resolveEnd(end, size) {
+    return resolveIndex(end, size, size);
+  }
+
+  function resolveIndex(index, size, defaultIndex) {
+    return index === undefined ?
+      defaultIndex :
+      index < 0 ?
+        Math.max(0, size + index) :
+        size === undefined ?
+          index :
+          Math.min(size, index);
+  }
+
+  /* global Symbol */
+
+  var ITERATE_KEYS = 0;
+  var ITERATE_VALUES = 1;
+  var ITERATE_ENTRIES = 2;
+
+  var REAL_ITERATOR_SYMBOL = typeof Symbol === 'function' && Symbol.iterator;
+  var FAUX_ITERATOR_SYMBOL = '@@iterator';
+
+  var ITERATOR_SYMBOL = REAL_ITERATOR_SYMBOL || FAUX_ITERATOR_SYMBOL;
+
+
+  function Iterator(next) {
+      this.next = next;
+    }
+
+    Iterator.prototype.toString = function() {
+      return '[Iterator]';
+    };
+
+
+  Iterator.KEYS = ITERATE_KEYS;
+  Iterator.VALUES = ITERATE_VALUES;
+  Iterator.ENTRIES = ITERATE_ENTRIES;
+
+  Iterator.prototype.inspect =
+  Iterator.prototype.toSource = function () { return this.toString(); }
+  Iterator.prototype[ITERATOR_SYMBOL] = function () {
+    return this;
+  };
+
+
+  function iteratorValue(type, k, v, iteratorResult) {
+    var value = type === 0 ? k : type === 1 ? v : [k, v];
+    iteratorResult ? (iteratorResult.value = value) : (iteratorResult = {
+      value: value, done: false
+    });
+    return iteratorResult;
+  }
+
+  function iteratorDone() {
+    return { value: undefined, done: true };
+  }
+
+  function hasIterator(maybeIterable) {
+    return !!getIteratorFn(maybeIterable);
+  }
+
+  function isIterator(maybeIterator) {
+    return maybeIterator && typeof maybeIterator.next === 'function';
+  }
+
+  function getIterator(iterable) {
+    var iteratorFn = getIteratorFn(iterable);
+    return iteratorFn && iteratorFn.call(iterable);
+  }
+
+  function getIteratorFn(iterable) {
+    var iteratorFn = iterable && (
+      (REAL_ITERATOR_SYMBOL && iterable[REAL_ITERATOR_SYMBOL]) ||
+      iterable[FAUX_ITERATOR_SYMBOL]
+    );
+    if (typeof iteratorFn === 'function') {
+      return iteratorFn;
+    }
+  }
+
+  function isArrayLike(value) {
+    return value && typeof value.length === 'number';
+  }
+
+  createClass(Seq, Iterable);
+    function Seq(value) {
+      return value === null || value === undefined ? emptySequence() :
+        isIterable(value) ? value.toSeq() : seqFromValue(value);
+    }
+
+    Seq.of = function(/*...values*/) {
+      return Seq(arguments);
+    };
+
+    Seq.prototype.toSeq = function() {
+      return this;
+    };
+
+    Seq.prototype.toString = function() {
+      return this.__toString('Seq {', '}');
+    };
+
+    Seq.prototype.cacheResult = function() {
+      if (!this._cache && this.__iterateUncached) {
+        this._cache = this.entrySeq().toArray();
+        this.size = this._cache.length;
+      }
+      return this;
+    };
+
+    // abstract __iterateUncached(fn, reverse)
+
+    Seq.prototype.__iterate = function(fn, reverse) {
+      return seqIterate(this, fn, reverse, true);
+    };
+
+    // abstract __iteratorUncached(type, reverse)
+
+    Seq.prototype.__iterator = function(type, reverse) {
+      return seqIterator(this, type, reverse, true);
+    };
+
+
+
+  createClass(KeyedSeq, Seq);
+    function KeyedSeq(value) {
+      return value === null || value === undefined ?
+        emptySequence().toKeyedSeq() :
+        isIterable(value) ?
+          (isKeyed(value) ? value.toSeq() : value.fromEntrySeq()) :
+          keyedSeqFromValue(value);
+    }
+
+    KeyedSeq.prototype.toKeyedSeq = function() {
+      return this;
+    };
+
+
+
+  createClass(IndexedSeq, Seq);
+    function IndexedSeq(value) {
+      return value === null || value === undefined ? emptySequence() :
+        !isIterable(value) ? indexedSeqFromValue(value) :
+        isKeyed(value) ? value.entrySeq() : value.toIndexedSeq();
+    }
+
+    IndexedSeq.of = function(/*...values*/) {
+      return IndexedSeq(arguments);
+    };
+
+    IndexedSeq.prototype.toIndexedSeq = function() {
+      return this;
+    };
+
+    IndexedSeq.prototype.toString = function() {
+      return this.__toString('Seq [', ']');
+    };
+
+    IndexedSeq.prototype.__iterate = function(fn, reverse) {
+      return seqIterate(this, fn, reverse, false);
+    };
+
+    IndexedSeq.prototype.__iterator = function(type, reverse) {
+      return seqIterator(this, type, reverse, false);
+    };
+
+
+
+  createClass(SetSeq, Seq);
+    function SetSeq(value) {
+      return (
+        value === null || value === undefined ? emptySequence() :
+        !isIterable(value) ? indexedSeqFromValue(value) :
+        isKeyed(value) ? value.entrySeq() : value
+      ).toSetSeq();
+    }
+
+    SetSeq.of = function(/*...values*/) {
+      return SetSeq(arguments);
+    };
+
+    SetSeq.prototype.toSetSeq = function() {
+      return this;
+    };
+
+
+
+  Seq.isSeq = isSeq;
+  Seq.Keyed = KeyedSeq;
+  Seq.Set = SetSeq;
+  Seq.Indexed = IndexedSeq;
+
+  var IS_SEQ_SENTINEL = '@@__IMMUTABLE_SEQ__@@';
+
+  Seq.prototype[IS_SEQ_SENTINEL] = true;
+
+
+
+  createClass(ArraySeq, IndexedSeq);
+    function ArraySeq(array) {
+      this._array = array;
+      this.size = array.length;
+    }
+
+    ArraySeq.prototype.get = function(index, notSetValue) {
+      return this.has(index) ? this._array[wrapIndex(this, index)] : notSetValue;
+    };
+
+    ArraySeq.prototype.__iterate = function(fn, reverse) {
+      var array = this._array;
+      var maxIndex = array.length - 1;
+      for (var ii = 0; ii <= maxIndex; ii++) {
+        if (fn(array[reverse ? maxIndex - ii : ii], ii, this) === false) {
+          return ii + 1;
+        }
+      }
+      return ii;
+    };
+
+    ArraySeq.prototype.__iterator = function(type, reverse) {
+      var array = this._array;
+      var maxIndex = array.length - 1;
+      var ii = 0;
+      return new Iterator(function() 
+        {return ii > maxIndex ?
+          iteratorDone() :
+          iteratorValue(type, ii, array[reverse ? maxIndex - ii++ : ii++])}
+      );
+    };
+
+
+
+  createClass(ObjectSeq, KeyedSeq);
+    function ObjectSeq(object) {
+      var keys = Object.keys(object);
+      this._object = object;
+      this._keys = keys;
+      this.size = keys.length;
+    }
+
+    ObjectSeq.prototype.get = function(key, notSetValue) {
+      if (notSetValue !== undefined && !this.has(key)) {
+        return notSetValue;
+      }
+      return this._object[key];
+    };
+
+    ObjectSeq.prototype.has = function(key) {
+      return this._object.hasOwnProperty(key);
+    };
+
+    ObjectSeq.prototype.__iterate = function(fn, reverse) {
+      var object = this._object;
+      var keys = this._keys;
+      var maxIndex = keys.length - 1;
+      for (var ii = 0; ii <= maxIndex; ii++) {
+        var key = keys[reverse ? maxIndex - ii : ii];
+        if (fn(object[key], key, this) === false) {
+          return ii + 1;
+        }
+      }
+      return ii;
+    };
+
+    ObjectSeq.prototype.__iterator = function(type, reverse) {
+      var object = this._object;
+      var keys = this._keys;
+      var maxIndex = keys.length - 1;
+      var ii = 0;
+      return new Iterator(function()  {
+        var key = keys[reverse ? maxIndex - ii : ii];
+        return ii++ > maxIndex ?
+          iteratorDone() :
+          iteratorValue(type, key, object[key]);
+      });
+    };
+
+  ObjectSeq.prototype[IS_ORDERED_SENTINEL] = true;
+
+
+  createClass(IterableSeq, IndexedSeq);
+    function IterableSeq(iterable) {
+      this._iterable = iterable;
+      this.size = iterable.length || iterable.size;
+    }
+
+    IterableSeq.prototype.__iterateUncached = function(fn, reverse) {
+      if (reverse) {
+        return this.cacheResult().__iterate(fn, reverse);
+      }
+      var iterable = this._iterable;
+      var iterator = getIterator(iterable);
+      var iterations = 0;
+      if (isIterator(iterator)) {
+        var step;
+        while (!(step = iterator.next()).done) {
+          if (fn(step.value, iterations++, this) === false) {
+            break;
+          }
+        }
+      }
+      return iterations;
+    };
+
+    IterableSeq.prototype.__iteratorUncached = function(type, reverse) {
+      if (reverse) {
+        return this.cacheResult().__iterator(type, reverse);
+      }
+      var iterable = this._iterable;
+      var iterator = getIterator(iterable);
+      if (!isIterator(iterator)) {
+        return new Iterator(iteratorDone);
+      }
+      var iterations = 0;
+      return new Iterator(function()  {
+        var step = iterator.next();
+        return step.done ? step : iteratorValue(type, iterations++, step.value);
+      });
+    };
+
+
+
+  createClass(IteratorSeq, IndexedSeq);
+    function IteratorSeq(iterator) {
+      this._iterator = iterator;
+      this._iteratorCache = [];
+    }
+
+    IteratorSeq.prototype.__iterateUncached = function(fn, reverse) {
+      if (reverse) {
+        return this.cacheResult().__iterate(fn, reverse);
+      }
+      var iterator = this._iterator;
+      var cache = this._iteratorCache;
+      var iterations = 0;
+      while (iterations < cache.length) {
+        if (fn(cache[iterations], iterations++, this) === false) {
+          return iterations;
+        }
+      }
+      var step;
+      while (!(step = iterator.next()).done) {
+        var val = step.value;
+        cache[iterations] = val;
+        if (fn(val, iterations++, this) === false) {
+          break;
+        }
+      }
+      return iterations;
+    };
+
+    IteratorSeq.prototype.__iteratorUncached = function(type, reverse) {
+      if (reverse) {
+        return this.cacheResult().__iterator(type, reverse);
+      }
+      var iterator = this._iterator;
+      var cache = this._iteratorCache;
+      var iterations = 0;
+      return new Iterator(function()  {
+        if (iterations >= cache.length) {
+          var step = iterator.next();
+          if (step.done) {
+            return step;
+          }
+          cache[iterations] = step.value;
+        }
+        return iteratorValue(type, iterations, cache[iterations++]);
+      });
+    };
+
+
+
+
+  // # pragma Helper functions
+
+  function isSeq(maybeSeq) {
+    return !!(maybeSeq && maybeSeq[IS_SEQ_SENTINEL]);
+  }
+
+  var EMPTY_SEQ;
+
+  function emptySequence() {
+    return EMPTY_SEQ || (EMPTY_SEQ = new ArraySeq([]));
+  }
+
+  function keyedSeqFromValue(value) {
+    var seq =
+      Array.isArray(value) ? new ArraySeq(value).fromEntrySeq() :
+      isIterator(value) ? new IteratorSeq(value).fromEntrySeq() :
+      hasIterator(value) ? new IterableSeq(value).fromEntrySeq() :
+      typeof value === 'object' ? new ObjectSeq(value) :
+      undefined;
+    if (!seq) {
+      throw new TypeError(
+        'Expected Array or iterable object of [k, v] entries, '+
+        'or keyed object: ' + value
+      );
+    }
+    return seq;
+  }
+
+  function indexedSeqFromValue(value) {
+    var seq = maybeIndexedSeqFromValue(value);
+    if (!seq) {
+      throw new TypeError(
+        'Expected Array or iterable object of values: ' + value
+      );
+    }
+    return seq;
+  }
+
+  function seqFromValue(value) {
+    var seq = maybeIndexedSeqFromValue(value) ||
+      (typeof value === 'object' && new ObjectSeq(value));
+    if (!seq) {
+      throw new TypeError(
+        'Expected Array or iterable object of values, or keyed object: ' + value
+      );
+    }
+    return seq;
+  }
+
+  function maybeIndexedSeqFromValue(value) {
+    return (
+      isArrayLike(value) ? new ArraySeq(value) :
+      isIterator(value) ? new IteratorSeq(value) :
+      hasIterator(value) ? new IterableSeq(value) :
+      undefined
+    );
+  }
+
+  function seqIterate(seq, fn, reverse, useKeys) {
+    var cache = seq._cache;
+    if (cache) {
+      var maxIndex = cache.length - 1;
+      for (var ii = 0; ii <= maxIndex; ii++) {
+        var entry = cache[reverse ? maxIndex - ii : ii];
+        if (fn(entry[1], useKeys ? entry[0] : ii, seq) === false) {
+          return ii + 1;
+        }
+      }
+      return ii;
+    }
+    return seq.__iterateUncached(fn, reverse);
+  }
+
+  function seqIterator(seq, type, reverse, useKeys) {
+    var cache = seq._cache;
+    if (cache) {
+      var maxIndex = cache.length - 1;
+      var ii = 0;
+      return new Iterator(function()  {
+        var entry = cache[reverse ? maxIndex - ii : ii];
+        return ii++ > maxIndex ?
+          iteratorDone() :
+          iteratorValue(type, useKeys ? entry[0] : ii - 1, entry[1]);
+      });
+    }
+    return seq.__iteratorUncached(type, reverse);
+  }
+
+  function fromJS(json, converter) {
+    return converter ?
+      fromJSWith(converter, json, '', {'': json}) :
+      fromJSDefault(json);
+  }
+
+  function fromJSWith(converter, json, key, parentJSON) {
+    if (Array.isArray(json)) {
+      return converter.call(parentJSON, key, IndexedSeq(json).map(function(v, k)  {return fromJSWith(converter, v, k, json)}));
+    }
+    if (isPlainObj(json)) {
+      return converter.call(parentJSON, key, KeyedSeq(json).map(function(v, k)  {return fromJSWith(converter, v, k, json)}));
+    }
+    return json;
+  }
+
+  function fromJSDefault(json) {
+    if (Array.isArray(json)) {
+      return IndexedSeq(json).map(fromJSDefault).toList();
+    }
+    if (isPlainObj(json)) {
+      return KeyedSeq(json).map(fromJSDefault).toMap();
+    }
+    return json;
+  }
+
+  function isPlainObj(value) {
+    return value && (value.constructor === Object || value.constructor === undefined);
+  }
+
+  /**
+   * An extension of the "same-value" algorithm as [described for use by ES6 Map
+   * and Set](https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Global_Objects/Map#Key_equality)
+   *
+   * NaN is considered the same as NaN, however -0 and 0 are considered the same
+   * value, which is different from the algorithm described by
+   * [`Object.is`](https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Global_Objects/Object/is).
+   *
+   * This is extended further to allow Objects to describe the values they
+   * represent, by way of `valueOf` or `equals` (and `hashCode`).
+   *
+   * Note: because of this extension, the key equality of Immutable.Map and the
+   * value equality of Immutable.Set will differ from ES6 Map and Set.
+   *
+   * ### Defining custom values
+   *
+   * The easiest way to describe the value an object represents is by implementing
+   * `valueOf`. For example, `Date` represents a value by returning a unix
+   * timestamp for `valueOf`:
+   *
+   *     var date1 = new Date(1234567890000); // Fri Feb 13 2009 ...
+   *     var date2 = new Date(1234567890000);
+   *     date1.valueOf(); // 1234567890000
+   *     assert( date1 !== date2 );
+   *     assert( Immutable.is( date1, date2 ) );
+   *
+   * Note: overriding `valueOf` may have other implications if you use this object
+   * where JavaScript expects a primitive, such as implicit string coercion.
+   *
+   * For more complex types, especially collections, implementing `valueOf` may
+   * not be performant. An alternative is to implement `equals` and `hashCode`.
+   *
+   * `equals` takes another object, presumably of similar type, and returns true
+   * if the it is equal. Equality is symmetrical, so the same result should be
+   * returned if this and the argument are flipped.
+   *
+   *     assert( a.equals(b) === b.equals(a) );
+   *
+   * `hashCode` returns a 32bit integer number representing the object which will
+   * be used to determine how to store the value object in a Map or Set. You must
+   * provide both or neither methods, one must not exist without the other.
+   *
+   * Also, an important relationship between these methods must be upheld: if two
+   * values are equal, they *must* return the same hashCode. If the values are not
+   * equal, they might have the same hashCode; this is called a hash collision,
+   * and while undesirable for performance reasons, it is acceptable.
+   *
+   *     if (a.equals(b)) {
+   *       assert( a.hashCode() === b.hashCode() );
+   *     }
+   *
+   * All Immutable collections implement `equals` and `hashCode`.
+   *
+   */
+  function is(valueA, valueB) {
+    if (valueA === valueB || (valueA !== valueA && valueB !== valueB)) {
+      return true;
+    }
+    if (!valueA || !valueB) {
+      return false;
+    }
+    if (typeof valueA.valueOf === 'function' &&
+        typeof valueB.valueOf === 'function') {
+      valueA = valueA.valueOf();
+      valueB = valueB.valueOf();
+      if (valueA === valueB || (valueA !== valueA && valueB !== valueB)) {
+        return true;
+      }
+      if (!valueA || !valueB) {
+        return false;
+      }
+    }
+    if (typeof valueA.equals === 'function' &&
+        typeof valueB.equals === 'function' &&
+        valueA.equals(valueB)) {
+      return true;
+    }
+    return false;
+  }
+
+  function deepEqual(a, b) {
+    if (a === b) {
+      return true;
+    }
+
+    if (
+      !isIterable(b) ||
+      a.size !== undefined && b.size !== undefined && a.size !== b.size ||
+      a.__hash !== undefined && b.__hash !== undefined && a.__hash !== b.__hash ||
+      isKeyed(a) !== isKeyed(b) ||
+      isIndexed(a) !== isIndexed(b) ||
+      isOrdered(a) !== isOrdered(b)
+    ) {
+      return false;
+    }
+
+    if (a.size === 0 && b.size === 0) {
+      return true;
+    }
+
+    var notAssociative = !isAssociative(a);
+
+    if (isOrdered(a)) {
+      var entries = a.entries();
+      return b.every(function(v, k)  {
+        var entry = entries.next().value;
+        return entry && is(entry[1], v) && (notAssociative || is(entry[0], k));
+      }) && entries.next().done;
+    }
+
+    var flipped = false;
+
+    if (a.size === undefined) {
+      if (b.size === undefined) {
+        if (typeof a.cacheResult === 'function') {
+          a.cacheResult();
+        }
+      } else {
+        flipped = true;
+        var _ = a;
+        a = b;
+        b = _;
+      }
+    }
+
+    var allEqual = true;
+    var bSize = b.__iterate(function(v, k)  {
+      if (notAssociative ? !a.has(v) :
+          flipped ? !is(v, a.get(k, NOT_SET)) : !is(a.get(k, NOT_SET), v)) {
+        allEqual = false;
+        return false;
+      }
+    });
+
+    return allEqual && a.size === bSize;
+  }
+
+  createClass(Repeat, IndexedSeq);
+
+    function Repeat(value, times) {
+      if (!(this instanceof Repeat)) {
+        return new Repeat(value, times);
+      }
+      this._value = value;
+      this.size = times === undefined ? Infinity : Math.max(0, times);
+      if (this.size === 0) {
+        if (EMPTY_REPEAT) {
+          return EMPTY_REPEAT;
+        }
+        EMPTY_REPEAT = this;
+      }
+    }
+
+    Repeat.prototype.toString = function() {
+      if (this.size === 0) {
+        return 'Repeat []';
+      }
+      return 'Repeat [ ' + this._value + ' ' + this.size + ' times ]';
+    };
+
+    Repeat.prototype.get = function(index, notSetValue) {
+      return this.has(index) ? this._value : notSetValue;
+    };
+
+    Repeat.prototype.includes = function(searchValue) {
+      return is(this._value, searchValue);
+    };
+
+    Repeat.prototype.slice = function(begin, end) {
+      var size = this.size;
+      return wholeSlice(begin, end, size) ? this :
+        new Repeat(this._value, resolveEnd(end, size) - resolveBegin(begin, size));
+    };
+
+    Repeat.prototype.reverse = function() {
+      return this;
+    };
+
+    Repeat.prototype.indexOf = function(searchValue) {
+      if (is(this._value, searchValue)) {
+        return 0;
+      }
+      return -1;
+    };
+
+    Repeat.prototype.lastIndexOf = function(searchValue) {
+      if (is(this._value, searchValue)) {
+        return this.size;
+      }
+      return -1;
+    };
+
+    Repeat.prototype.__iterate = function(fn, reverse) {
+      for (var ii = 0; ii < this.size; ii++) {
+        if (fn(this._value, ii, this) === false) {
+          return ii + 1;
+        }
+      }
+      return ii;
+    };
+
+    Repeat.prototype.__iterator = function(type, reverse) {var this$0 = this;
+      var ii = 0;
+      return new Iterator(function() 
+        {return ii < this$0.size ? iteratorValue(type, ii++, this$0._value) : iteratorDone()}
+      );
+    };
+
+    Repeat.prototype.equals = function(other) {
+      return other instanceof Repeat ?
+        is(this._value, other._value) :
+        deepEqual(other);
+    };
+
+
+  var EMPTY_REPEAT;
+
+  function invariant(condition, error) {
+    if (!condition) throw new Error(error);
+  }
+
+  createClass(Range, IndexedSeq);
+
+    function Range(start, end, step) {
+      if (!(this instanceof Range)) {
+        return new Range(start, end, step);
+      }
+      invariant(step !== 0, 'Cannot step a Range by 0');
+      start = start || 0;
+      if (end === undefined) {
+        end = Infinity;
+      }
+      step = step === undefined ? 1 : Math.abs(step);
+      if (end < start) {
+        step = -step;
+      }
+      this._start = start;
+      this._end = end;
+      this._step = step;
+      this.size = Math.max(0, Math.ceil((end - start) / step - 1) + 1);
+      if (this.size === 0) {
+        if (EMPTY_RANGE) {
+          return EMPTY_RANGE;
+        }
+        EMPTY_RANGE = this;
+      }
+    }
+
+    Range.prototype.toString = function() {
+      if (this.size === 0) {
+        return 'Range []';
+      }
+      return 'Range [ ' +
+        this._start + '...' + this._end +
+        (this._step > 1 ? ' by ' + this._step : '') +
+      ' ]';
+    };
+
+    Range.prototype.get = function(index, notSetValue) {
+      return this.has(index) ?
+        this._start + wrapIndex(this, index) * this._step :
+        notSetValue;
+    };
+
+    Range.prototype.includes = function(searchValue) {
+      var possibleIndex = (searchValue - this._start) / this._step;
+      return possibleIndex >= 0 &&
+        possibleIndex < this.size &&
+        possibleIndex === Math.floor(possibleIndex);
+    };
+
+    Range.prototype.slice = function(begin, end) {
+      if (wholeSlice(begin, end, this.size)) {
+        return this;
+      }
+      begin = resolveBegin(begin, this.size);
+      end = resolveEnd(end, this.size);
+      if (end <= begin) {
+        return new Range(0, 0);
+      }
+      return new Range(this.get(begin, this._end), this.get(end, this._end), this._step);
+    };
+
+    Range.prototype.indexOf = function(searchValue) {
+      var offsetValue = searchValue - this._start;
+      if (offsetValue % this._step === 0) {
+        var index = offsetValue / this._step;
+        if (index >= 0 && index < this.size) {
+          return index
+        }
+      }
+      return -1;
+    };
+
+    Range.prototype.lastIndexOf = function(searchValue) {
+      return this.indexOf(searchValue);
+    };
+
+    Range.prototype.__iterate = function(fn, reverse) {
+      var maxIndex = this.size - 1;
+      var step = this._step;
+      var value = reverse ? this._start + maxIndex * step : this._start;
+      for (var ii = 0; ii <= maxIndex; ii++) {
+        if (fn(value, ii, this) === false) {
+          return ii + 1;
+        }
+        value += reverse ? -step : step;
+      }
+      return ii;
+    };
+
+    Range.prototype.__iterator = function(type, reverse) {
+      var maxIndex = this.size - 1;
+      var step = this._step;
+      var value = reverse ? this._start + maxIndex * step : this._start;
+      var ii = 0;
+      return new Iterator(function()  {
+        var v = value;
+        value += reverse ? -step : step;
+        return ii > maxIndex ? iteratorDone() : iteratorValue(type, ii++, v);
+      });
+    };
+
+    Range.prototype.equals = function(other) {
+      return other instanceof Range ?
+        this._start === other._start &&
+        this._end === other._end &&
+        this._step === other._step :
+        deepEqual(this, other);
+    };
+
+
+  var EMPTY_RANGE;
+
+  createClass(Collection, Iterable);
+    function Collection() {
+      throw TypeError('Abstract');
+    }
+
+
+  createClass(KeyedCollection, Collection);function KeyedCollection() {}
+
+  createClass(IndexedCollection, Collection);function IndexedCollection() {}
+
+  createClass(SetCollection, Collection);function SetCollection() {}
+
+
+  Collection.Keyed = KeyedCollection;
+  Collection.Indexed = IndexedCollection;
+  Collection.Set = SetCollection;
+
+  var imul =
+    typeof Math.imul === 'function' && Math.imul(0xffffffff, 2) === -2 ?
+    Math.imul :
+    function imul(a, b) {
+      a = a | 0; // int
+      b = b | 0; // int
+      var c = a & 0xffff;
+      var d = b & 0xffff;
+      // Shift by 0 fixes the sign on the high part.
+      return (c * d) + ((((a >>> 16) * d + c * (b >>> 16)) << 16) >>> 0) | 0; // int
+    };
+
+  // v8 has an optimization for storing 31-bit signed numbers.
+  // Values which have either 00 or 11 as the high order bits qualify.
+  // This function drops the highest order bit in a signed number, maintaining
+  // the sign bit.
+  function smi(i32) {
+    return ((i32 >>> 1) & 0x40000000) | (i32 & 0xBFFFFFFF);
+  }
+
+  function hash(o) {
+    if (o === false || o === null || o === undefined) {
+      return 0;
+    }
+    if (typeof o.valueOf === 'function') {
+      o = o.valueOf();
+      if (o === false || o === null || o === undefined) {
+        return 0;
+      }
+    }
+    if (o === true) {
+      return 1;
+    }
+    var type = typeof o;
+    if (type === 'number') {
+      var h = o | 0;
+      if (h !== o) {
+        h ^= o * 0xFFFFFFFF;
+      }
+      while (o > 0xFFFFFFFF) {
+        o /= 0xFFFFFFFF;
+        h ^= o;
+      }
+      return smi(h);
+    }
+    if (type === 'string') {
+      return o.length > STRING_HASH_CACHE_MIN_STRLEN ? cachedHashString(o) : hashString(o);
+    }
+    if (typeof o.hashCode === 'function') {
+      return o.hashCode();
+    }
+    if (type === 'object') {
+      return hashJSObj(o);
+    }
+    if (typeof o.toString === 'function') {
+      return hashString(o.toString());
+    }
+    throw new Error('Value type ' + type + ' cannot be hashed.');
+  }
+
+  function cachedHashString(string) {
+    var hash = stringHashCache[string];
+    if (hash === undefined) {
+      hash = hashString(string);
+      if (STRING_HASH_CACHE_SIZE === STRING_HASH_CACHE_MAX_SIZE) {
+        STRING_HASH_CACHE_SIZE = 0;
+        stringHashCache = {};
+      }
+      STRING_HASH_CACHE_SIZE++;
+      stringHashCache[string] = hash;
+    }
+    return hash;
+  }
+
+  // http://jsperf.com/hashing-strings
+  function hashString(string) {
+    // This is the hash from JVM
+    // The hash code for a string is computed as
+    // s[0] * 31 ^ (n - 1) + s[1] * 31 ^ (n - 2) + ... + s[n - 1],
+    // where s[i] is the ith character of the string and n is the length of
+    // the string. We "mod" the result to make it between 0 (inclusive) and 2^31
+    // (exclusive) by dropping high bits.
+    var hash = 0;
+    for (var ii = 0; ii < string.length; ii++) {
+      hash = 31 * hash + string.charCodeAt(ii) | 0;
+    }
+    return smi(hash);
+  }
+
+  function hashJSObj(obj) {
+    var hash;
+    if (usingWeakMap) {
+      hash = weakMap.get(obj);
+      if (hash !== undefined) {
+        return hash;
+      }
+    }
+
+    hash = obj[UID_HASH_KEY];
+    if (hash !== undefined) {
+      return hash;
+    }
+
+    if (!canDefineProperty) {
+      hash = obj.propertyIsEnumerable && obj.propertyIsEnumerable[UID_HASH_KEY];
+      if (hash !== undefined) {
+        return hash;
+      }
+
+      hash = getIENodeHash(obj);
+      if (hash !== undefined) {
+        return hash;
+      }
+    }
+
+    hash = ++objHashUID;
+    if (objHashUID & 0x40000000) {
+      objHashUID = 0;
+    }
+
+    if (usingWeakMap) {
+      weakMap.set(obj, hash);
+    } else if (isExtensible !== undefined && isExtensible(obj) === false) {
+      throw new Error('Non-extensible objects are not allowed as keys.');
+    } else if (canDefineProperty) {
+      Object.defineProperty(obj, UID_HASH_KEY, {
+        'enumerable': false,
+        'configurable': false,
+        'writable': false,
+        'value': hash
+      });
+    } else if (obj.propertyIsEnumerable !== undefined &&
+               obj.propertyIsEnumerable === obj.constructor.prototype.propertyIsEnumerable) {
+      // Since we can't define a non-enumerable property on the object
+      // we'll hijack one of the less-used non-enumerable properties to
+      // save our hash on it. Since this is a function it will not show up in
+      // `JSON.stringify` which is what we want.
+      obj.propertyIsEnumerable = function() {
+        return this.constructor.prototype.propertyIsEnumerable.apply(this, arguments);
+      };
+      obj.propertyIsEnumerable[UID_HASH_KEY] = hash;
+    } else if (obj.nodeType !== undefined) {
+      // At this point we couldn't get the IE `uniqueID` to use as a hash
+      // and we couldn't use a non-enumerable property to exploit the
+      // dontEnum bug so we simply add the `UID_HASH_KEY` on the node
+      // itself.
+      obj[UID_HASH_KEY] = hash;
+    } else {
+      throw new Error('Unable to set a non-enumerable property on object.');
+    }
+
+    return hash;
+  }
+
+  // Get references to ES5 object methods.
+  var isExtensible = Object.isExtensible;
+
+  // True if Object.defineProperty works as expected. IE8 fails this test.
+  var canDefineProperty = (function() {
+    try {
+      Object.defineProperty({}, '@', {});
+      return true;
+    } catch (e) {
+      return false;
+    }
+  }());
+
+  // IE has a `uniqueID` property on DOM nodes. We can construct the hash from it
+  // and avoid memory leaks from the IE cloneNode bug.
+  function getIENodeHash(node) {
+    if (node && node.nodeType > 0) {
+      switch (node.nodeType) {
+        case 1: // Element
+          return node.uniqueID;
+        case 9: // Document
+          return node.documentElement && node.documentElement.uniqueID;
+      }
+    }
+  }
+
+  // If possible, use a WeakMap.
+  var usingWeakMap = typeof WeakMap === 'function';
+  var weakMap;
+  if (usingWeakMap) {
+    weakMap = new WeakMap();
+  }
+
+  var objHashUID = 0;
+
+  var UID_HASH_KEY = '__immutablehash__';
+  if (typeof Symbol === 'function') {
+    UID_HASH_KEY = Symbol(UID_HASH_KEY);
+  }
+
+  var STRING_HASH_CACHE_MIN_STRLEN = 16;
+  var STRING_HASH_CACHE_MAX_SIZE = 255;
+  var STRING_HASH_CACHE_SIZE = 0;
+  var stringHashCache = {};
+
+  function assertNotInfinite(size) {
+    invariant(
+      size !== Infinity,
+      'Cannot perform this action with an infinite size.'
+    );
+  }
+
+  createClass(Map, KeyedCollection);
+
+    // @pragma Construction
+
+    function Map(value) {
+      return value === null || value === undefined ? emptyMap() :
+        isMap(value) && !isOrdered(value) ? value :
+        emptyMap().withMutations(function(map ) {
+          var iter = KeyedIterable(value);
+          assertNotInfinite(iter.size);
+          iter.forEach(function(v, k)  {return map.set(k, v)});
+        });
+    }
+
+    Map.prototype.toString = function() {
+      return this.__toString('Map {', '}');
+    };
+
+    // @pragma Access
+
+    Map.prototype.get = function(k, notSetValue) {
+      return this._root ?
+        this._root.get(0, undefined, k, notSetValue) :
+        notSetValue;
+    };
+
+    // @pragma Modification
+
+    Map.prototype.set = function(k, v) {
+      return updateMap(this, k, v);
+    };
+
+    Map.prototype.setIn = function(keyPath, v) {
+      return this.updateIn(keyPath, NOT_SET, function()  {return v});
+    };
+
+    Map.prototype.remove = function(k) {
+      return updateMap(this, k, NOT_SET);
+    };
+
+    Map.prototype.deleteIn = function(keyPath) {
+      return this.updateIn(keyPath, function()  {return NOT_SET});
+    };
+
+    Map.prototype.update = function(k, notSetValue, updater) {
+      return arguments.length === 1 ?
+        k(this) :
+        this.updateIn([k], notSetValue, updater);
+    };
+
+    Map.prototype.updateIn = function(keyPath, notSetValue, updater) {
+      if (!updater) {
+        updater = notSetValue;
+        notSetValue = undefined;
+      }
+      var updatedValue = updateInDeepMap(
+        this,
+        forceIterator(keyPath),
+        notSetValue,
+        updater
+      );
+      return updatedValue === NOT_SET ? undefined : updatedValue;
+    };
+
+    Map.prototype.clear = function() {
+      if (this.size === 0) {
+        return this;
+      }
+      if (this.__ownerID) {
+        this.size = 0;
+        this._root = null;
+        this.__hash = undefined;
+        this.__altered = true;
+        return this;
+      }
+      return emptyMap();
+    };
+
+    // @pragma Composition
+
+    Map.prototype.merge = function(/*...iters*/) {
+      return mergeIntoMapWith(this, undefined, arguments);
+    };
+
+    Map.prototype.mergeWith = function(merger) {var iters = SLICE$0.call(arguments, 1);
+      return mergeIntoMapWith(this, merger, iters);
+    };
+
+    Map.prototype.mergeIn = function(keyPath) {var iters = SLICE$0.call(arguments, 1);
+      return this.updateIn(
+        keyPath,
+        emptyMap(),
+        function(m ) {return typeof m.merge === 'function' ?
+          m.merge.apply(m, iters) :
+          iters[iters.length - 1]}
+      );
+    };
+
+    Map.prototype.mergeDeep = function(/*...iters*/) {
+      return mergeIntoMapWith(this, deepMerger, arguments);
+    };
+
+    Map.prototype.mergeDeepWith = function(merger) {var iters = SLICE$0.call(arguments, 1);
+      return mergeIntoMapWith(this, deepMergerWith(merger), iters);
+    };
+
+    Map.prototype.mergeDeepIn = function(keyPath) {var iters = SLICE$0.call(arguments, 1);
+      return this.updateIn(
+        keyPath,
+        emptyMap(),
+        function(m ) {return typeof m.mergeDeep === 'function' ?
+          m.mergeDeep.apply(m, iters) :
+          iters[iters.length - 1]}
+      );
+    };
+
+    Map.prototype.sort = function(comparator) {
+      // Late binding
+      return OrderedMap(sortFactory(this, comparator));
+    };
+
+    Map.prototype.sortBy = function(mapper, comparator) {
+      // Late binding
+      return OrderedMap(sortFactory(this, comparator, mapper));
+    };
+
+    // @pragma Mutability
+
+    Map.prototype.withMutations = function(fn) {
+      var mutable = this.asMutable();
+      fn(mutable);
+      return mutable.wasAltered() ? mutable.__ensureOwner(this.__ownerID) : this;
+    };
+
+    Map.prototype.asMutable = function() {
+      return this.__ownerID ? this : this.__ensureOwner(new OwnerID());
+    };
+
+    Map.prototype.asImmutable = function() {
+      return this.__ensureOwner();
+    };
+
+    Map.prototype.wasAltered = function() {
+      return this.__altered;
+    };
+
+    Map.prototype.__iterator = function(type, reverse) {
+      return new MapIterator(this, type, reverse);
+    };
+
+    Map.prototype.__iterate = function(fn, reverse) {var this$0 = this;
+      var iterations = 0;
+      this._root && this._root.iterate(function(entry ) {
+        iterations++;
+        return fn(entry[1], entry[0], this$0);
+      }, reverse);
+      return iterations;
+    };
+
+    Map.prototype.__ensureOwner = function(ownerID) {
+      if (ownerID === this.__ownerID) {
+        return this;
+      }
+      if (!ownerID) {
+        this.__ownerID = ownerID;
+        this.__altered = false;
+        return this;
+      }
+      return makeMap(this.size, this._root, ownerID, this.__hash);
+    };
+
+
+  function isMap(maybeMap) {
+    return !!(maybeMap && maybeMap[IS_MAP_SENTINEL]);
+  }
+
+  Map.isMap = isMap;
+
+  var IS_MAP_SENTINEL = '@@__IMMUTABLE_MAP__@@';
+
+  var MapPrototype = Map.prototype;
+  MapPrototype[IS_MAP_SENTINEL] = true;
+  MapPrototype[DELETE] = MapPrototype.remove;
+  MapPrototype.removeIn = MapPrototype.deleteIn;
+
+
+  // #pragma Trie Nodes
+
+
+
+    function ArrayMapNode(ownerID, entries) {
+      this.ownerID = ownerID;
+      this.entries = entries;
+    }
+
+    ArrayMapNode.prototype.get = function(shift, keyHash, key, notSetValue) {
+      var entries = this.entries;
+      for (var ii = 0, len = entries.length; ii < len; ii++) {
+        if (is(key, entries[ii][0])) {
+          return entries[ii][1];
+        }
+      }
+      return notSetValue;
+    };
+
+    ArrayMapNode.prototype.update = function(ownerID, shift, keyHash, key, value, didChangeSize, didAlter) {
+      var removed = value === NOT_SET;
+
+      var entries = this.entries;
+      var idx = 0;
+      for (var len = entries.length; idx < len; idx++) {
+        if (is(key, entries[idx][0])) {
+          break;
+        }
+      }
+      var exists = idx < len;
+
+      if (exists ? entries[idx][1] === value : removed) {
+        return this;
+      }
+
+      SetRef(didAlter);
+      (removed || !exists) && SetRef(didChangeSize);
+
+      if (removed && entries.length === 1) {
+        return; // undefined
+      }
+
+      if (!exists && !removed && entries.length >= MAX_ARRAY_MAP_SIZE) {
+        return createNodes(ownerID, entries, key, value);
+      }
+
+      var isEditable = ownerID && ownerID === this.ownerID;
+      var newEntries = isEditable ? entries : arrCopy(entries);
+
+      if (exists) {
+        if (removed) {
+          idx === len - 1 ? newEntries.pop() : (newEntries[idx] = newEntries.pop());
+        } else {
+          newEntries[idx] = [key, value];
+        }
+      } else {
+        newEntries.push([key, value]);
+      }
+
+      if (isEditable) {
+        this.entries = newEntries;
+        return this;
+      }
+
+      return new ArrayMapNode(ownerID, newEntries);
+    };
+
+
+
+
+    function BitmapIndexedNode(ownerID, bitmap, nodes) {
+      this.ownerID = ownerID;
+      this.bitmap = bitmap;
+      this.nodes = nodes;
+    }
+
+    BitmapIndexedNode.prototype.get = function(shift, keyHash, key, notSetValue) {
+      if (keyHash === undefined) {
+        keyHash = hash(key);
+      }
+      var bit = (1 << ((shift === 0 ? keyHash : keyHash >>> shift) & MASK));
+      var bitmap = this.bitmap;
+      return (bitmap & bit) === 0 ? notSetValue :
+        this.nodes[popCount(bitmap & (bit - 1))].get(shift + SHIFT, keyHash, key, notSetValue);
+    };
+
+    BitmapIndexedNode.prototype.update = function(ownerID, shift, keyHash, key, value, didChangeSize, didAlter) {
+      if (keyHash === undefined) {
+        keyHash = hash(key);
+      }
+      var keyHashFrag = (shift === 0 ? keyHash : keyHash >>> shift) & MASK;
+      var bit = 1 << keyHashFrag;
+      var bitmap = this.bitmap;
+      var exists = (bitmap & bit) !== 0;
+
+      if (!exists && value === NOT_SET) {
+        return this;
+      }
+
+      var idx = popCount(bitmap & (bit - 1));
+      var nodes = this.nodes;
+      var node = exists ? nodes[idx] : undefined;
+      var newNode = updateNode(node, ownerID, shift + SHIFT, keyHash, key, value, didChangeSize, didAlter);
+
+      if (newNode === node) {
+        return this;
+      }
+
+      if (!exists && newNode && nodes.length >= MAX_BITMAP_INDEXED_SIZE) {
+        return expandNodes(ownerID, nodes, bitmap, keyHashFrag, newNode);
+      }
+
+      if (exists && !newNode && nodes.length === 2 && isLeafNode(nodes[idx ^ 1])) {
+        return nodes[idx ^ 1];
+      }
+
+      if (exists && newNode && nodes.length === 1 && isLeafNode(newNode)) {
+        return newNode;
+      }
+
+      var isEditable = ownerID && ownerID === this.ownerID;
+      var newBitmap = exists ? newNode ? bitmap : bitmap ^ bit : bitmap | bit;
+      var newNodes = exists ? newNode ?
+        setIn(nodes, idx, newNode, isEditable) :
+        spliceOut(nodes, idx, isEditable) :
+        spliceIn(nodes, idx, newNode, isEditable);
+
+      if (isEditable) {
+        this.bitmap = newBitmap;
+        this.nodes = newNodes;
+        return this;
+      }
+
+      return new BitmapIndexedNode(ownerID, newBitmap, newNodes);
+    };
+
+
+
+
+    function HashArrayMapNode(ownerID, count, nodes) {
+      this.ownerID = ownerID;
+      this.count = count;
+      this.nodes = nodes;
+    }
+
+    HashArrayMapNode.prototype.get = function(shift, keyHash, key, notSetValue) {
+      if (keyHash === undefined) {
+        keyHash = hash(key);
+      }
+      var idx = (shift === 0 ? keyHash : keyHash >>> shift) & MASK;
+      var node = this.nodes[idx];
+      return node ? node.get(shift + SHIFT, keyHash, key, notSetValue) : notSetValue;
+    };
+
+    HashArrayMapNode.prototype.update = function(ownerID, shift, keyHash, key, value, didChangeSize, didAlter) {
+      if (keyHash === undefined) {
+        keyHash = hash(key);
+      }
+      var idx = (shift === 0 ? keyHash : keyHash >>> shift) & MASK;
+      var removed = value === NOT_SET;
+      var nodes = this.nodes;
+      var node = nodes[idx];
+
+      if (removed && !node) {
+        return this;
+      }
+
+      var newNode = updateNode(node, ownerID, shift + SHIFT, keyHash, key, value, didChangeSize, didAlter);
+      if (newNode === node) {
+        return this;
+      }
+
+      var newCount = this.count;
+      if (!node) {
+        newCount++;
+      } else if (!newNode) {
+        newCount--;
+        if (newCount < MIN_HASH_ARRAY_MAP_SIZE) {
+          return packNodes(ownerID, nodes, newCount, idx);
+        }
+      }
+
+      var isEditable = ownerID && ownerID === this.ownerID;
+      var newNodes = setIn(nodes, idx, newNode, isEditable);
+
+      if (isEditable) {
+        this.count = newCount;
+        this.nodes = newNodes;
+        return this;
+      }
+
+      return new HashArrayMapNode(ownerID, newCount, newNodes);
+    };
+
+
+
+
+    function HashCollisionNode(ownerID, keyHash, entries) {
+      this.ownerID = ownerID;
+      this.keyHash = keyHash;
+      this.entries = entries;
+    }
+
+    HashCollisionNode.prototype.get = function(shift, keyHash, key, notSetValue) {
+      var entries = this.entries;
+      for (var ii = 0, len = entries.length; ii < len; ii++) {
+        if (is(key, entries[ii][0])) {
+          return entries[ii][1];
+        }
+      }
+      return notSetValue;
+    };
+
+    HashCollisionNode.prototype.update = function(ownerID, shift, keyHash, key, value, didChangeSize, didAlter) {
+      if (keyHash === undefined) {
+        keyHash = hash(key);
+      }
+
+      var removed = value === NOT_SET;
+
+      if (keyHash !== this.keyHash) {
+        if (removed) {
+          return this;
+        }
+        SetRef(didAlter);
+        SetRef(didChangeSize);
+        return mergeIntoNode(this, ownerID, shift, keyHash, [key, value]);
+      }
+
+      var entries = this.entries;
+      var idx = 0;
+      for (var len = entries.length; idx < len; idx++) {
+        if (is(key, entries[idx][0])) {
+          break;
+        }
+      }
+      var exists = idx < len;
+
+      if (exists ? entries[idx][1] === value : removed) {
+        return this;
+      }
+
+      SetRef(didAlter);
+      (removed || !exists) && SetRef(didChangeSize);
+
+      if (removed && len === 2) {
+        return new ValueNode(ownerID, this.keyHash, entries[idx ^ 1]);
+      }
+
+      var isEditable = ownerID && ownerID === this.ownerID;
+      var newEntries = isEditable ? entries : arrCopy(entries);
+
+      if (exists) {
+        if (removed) {
+          idx === len - 1 ? newEntries.pop() : (newEntries[idx] = newEntries.pop());
+        } else {
+          newEntries[idx] = [key, value];
+        }
+      } else {
+        newEntries.push([key, value]);
+      }
+
+      if (isEditable) {
+        this.entries = newEntries;
+        return this;
+      }
+
+      return new HashCollisionNode(ownerID, this.keyHash, newEntries);
+    };
+
+
+
+
+    function ValueNode(ownerID, keyHash, entry) {
+      this.ownerID = ownerID;
+      this.keyHash = keyHash;
+      this.entry = entry;
+    }
+
+    ValueNode.prototype.get = function(shift, keyHash, key, notSetValue) {
+      return is(key, this.entry[0]) ? this.entry[1] : notSetValue;
+    };
+
+    ValueNode.prototype.update = function(ownerID, shift, keyHash, key, value, didChangeSize, didAlter) {
+      var removed = value === NOT_SET;
+      var keyMatch = is(key, this.entry[0]);
+      if (keyMatch ? value === this.entry[1] : removed) {
+        return this;
+      }
+
+      SetRef(didAlter);
+
+      if (removed) {
+        SetRef(didChangeSize);
+        return; // undefined
+      }
+
+      if (keyMatch) {
+        if (ownerID && ownerID === this.ownerID) {
+          this.entry[1] = value;
+          return this;
+        }
+        return new ValueNode(ownerID, this.keyHash, [key, value]);
+      }
+
+      SetRef(didChangeSize);
+      return mergeIntoNode(this, ownerID, shift, hash(key), [key, value]);
+    };
+
+
+
+  // #pragma Iterators
+
+  ArrayMapNode.prototype.iterate =
+  HashCollisionNode.prototype.iterate = function (fn, reverse) {
+    var entries = this.entries;
+    for (var ii = 0, maxIndex = entries.length - 1; ii <= maxIndex; ii++) {
+      if (fn(entries[reverse ? maxIndex - ii : ii]) === false) {
+        return false;
+      }
+    }
+  }
+
+  BitmapIndexedNode.prototype.iterate =
+  HashArrayMapNode.prototype.iterate = function (fn, reverse) {
+    var nodes = this.nodes;
+    for (var ii = 0, maxIndex = nodes.length - 1; ii <= maxIndex; ii++) {
+      var node = nodes[reverse ? maxIndex - ii : ii];
+      if (node && node.iterate(fn, reverse) === false) {
+        return false;
+      }
+    }
+  }
+
+  ValueNode.prototype.iterate = function (fn, reverse) {
+    return fn(this.entry);
+  }
+
+  createClass(MapIterator, Iterator);
+
+    function MapIterator(map, type, reverse) {
+      this._type = type;
+      this._reverse = reverse;
+      this._stack = map._root && mapIteratorFrame(map._root);
+    }
+
+    MapIterator.prototype.next = function() {
+      var type = this._type;
+      var stack = this._stack;
+      while (stack) {
+        var node = stack.node;
+        var index = stack.index++;
+        var maxIndex;
+        if (node.entry) {
+          if (index === 0) {
+            return mapIteratorValue(type, node.entry);
+          }
+        } else if (node.entries) {
+          maxIndex = node.entries.length - 1;
+          if (index <= maxIndex) {
+            return mapIteratorValue(type, node.entries[this._reverse ? maxIndex - index : index]);
+          }
+        } else {
+          maxIndex = node.nodes.length - 1;
+          if (index <= maxIndex) {
+            var subNode = node.nodes[this._reverse ? maxIndex - index : index];
+            if (subNode) {
+              if (subNode.entry) {
+                return mapIteratorValue(type, subNode.entry);
+              }
+              stack = this._stack = mapIteratorFrame(subNode, stack);
+            }
+            continue;
+          }
+        }
+        stack = this._stack = this._stack.__prev;
+      }
+      return iteratorDone();
+    };
+
+
+  function mapIteratorValue(type, entry) {
+    return iteratorValue(type, entry[0], entry[1]);
+  }
+
+  function mapIteratorFrame(node, prev) {
+    return {
+      node: node,
+      index: 0,
+      __prev: prev
+    };
+  }
+
+  function makeMap(size, root, ownerID, hash) {
+    var map = Object.create(MapPrototype);
+    map.size = size;
+    map._root = root;
+    map.__ownerID = ownerID;
+    map.__hash = hash;
+    map.__altered = false;
+    return map;
+  }
+
+  var EMPTY_MAP;
+  function emptyMap() {
+    return EMPTY_MAP || (EMPTY_MAP = makeMap(0));
+  }
+
+  function updateMap(map, k, v) {
+    var newRoot;
+    var newSize;
+    if (!map._root) {
+      if (v === NOT_SET) {
+        return map;
+      }
+      newSize = 1;
+      newRoot = new ArrayMapNode(map.__ownerID, [[k, v]]);
+    } else {
+      var didChangeSize = MakeRef(CHANGE_LENGTH);
+      var didAlter = MakeRef(DID_ALTER);
+      newRoot = updateNode(map._root, map.__ownerID, 0, undefined, k, v, didChangeSize, didAlter);
+      if (!didAlter.value) {
+        return map;
+      }
+      newSize = map.size + (didChangeSize.value ? v === NOT_SET ? -1 : 1 : 0);
+    }
+    if (map.__ownerID) {
+      map.size = newSize;
+      map._root = newRoot;
+      map.__hash = undefined;
+      map.__altered = true;
+      return map;
+    }
+    return newRoot ? makeMap(newSize, newRoot) : emptyMap();
+  }
+
+  function updateNode(node, ownerID, shift, keyHash, key, value, didChangeSize, didAlter) {
+    if (!node) {
+      if (value === NOT_SET) {
+        return node;
+      }
+      SetRef(didAlter);
+      SetRef(didChangeSize);
+      return new ValueNode(ownerID, keyHash, [key, value]);
+    }
+    return node.update(ownerID, shift, keyHash, key, value, didChangeSize, didAlter);
+  }
+
+  function isLeafNode(node) {
+    return node.constructor === ValueNode || node.constructor === HashCollisionNode;
+  }
+
+  function mergeIntoNode(node, ownerID, shift, keyHash, entry) {
+    if (node.keyHash === keyHash) {
+      return new HashCollisionNode(ownerID, keyHash, [node.entry, entry]);
+    }
+
+    var idx1 = (shift === 0 ? node.keyHash : node.keyHash >>> shift) & MASK;
+    var idx2 = (shift === 0 ? keyHash : keyHash >>> shift) & MASK;
+
+    var newNode;
+    var nodes = idx1 === idx2 ?
+      [mergeIntoNode(node, ownerID, shift + SHIFT, keyHash, entry)] :
+      ((newNode = new ValueNode(ownerID, keyHash, entry)), idx1 < idx2 ? [node, newNode] : [newNode, node]);
+
+    return new BitmapIndexedNode(ownerID, (1 << idx1) | (1 << idx2), nodes);
+  }
+
+  function createNodes(ownerID, entries, key, value) {
+    if (!ownerID) {
+      ownerID = new OwnerID();
+    }
+    var node = new ValueNode(ownerID, hash(key), [key, value]);
+    for (var ii = 0; ii < entries.length; ii++) {
+      var entry = entries[ii];
+      node = node.update(ownerID, 0, undefined, entry[0], entry[1]);
+    }
+    return node;
+  }
+
+  function packNodes(ownerID, nodes, count, excluding) {
+    var bitmap = 0;
+    var packedII = 0;
+    var packedNodes = new Array(count);
+    for (var ii = 0, bit = 1, len = nodes.length; ii < len; ii++, bit <<= 1) {
+      var node = nodes[ii];
+      if (node !== undefined && ii !== excluding) {
+        bitmap |= bit;
+        packedNodes[packedII++] = node;
+      }
+    }
+    return new BitmapIndexedNode(ownerID, bitmap, packedNodes);
+  }
+
+  function expandNodes(ownerID, nodes, bitmap, including, node) {
+    var count = 0;
+    var expandedNodes = new Array(SIZE);
+    for (var ii = 0; bitmap !== 0; ii++, bitmap >>>= 1) {
+      expandedNodes[ii] = bitmap & 1 ? nodes[count++] : undefined;
+    }
+    expandedNodes[including] = node;
+    return new HashArrayMapNode(ownerID, count + 1, expandedNodes);
+  }
+
+  function mergeIntoMapWith(map, merger, iterables) {
+    var iters = [];
+    for (var ii = 0; ii < iterables.length; ii++) {
+      var value = iterables[ii];
+      var iter = KeyedIterable(value);
+      if (!isIterable(value)) {
+        iter = iter.map(function(v ) {return fromJS(v)});
+      }
+      iters.push(iter);
+    }
+    return mergeIntoCollectionWith(map, merger, iters);
+  }
+
+  function deepMerger(existing, value, key) {
+    return existing && existing.mergeDeep && isIterable(value) ?
+      existing.mergeDeep(value) :
+      is(existing, value) ? existing : value;
+  }
+
+  function deepMergerWith(merger) {
+    return function(existing, value, key)  {
+      if (existing && existing.mergeDeepWith && isIterable(value)) {
+        return existing.mergeDeepWith(merger, value);
+      }
+      var nextValue = merger(existing, value, key);
+      return is(existing, nextValue) ? existing : nextValue;
+    };
+  }
+
+  function mergeIntoCollectionWith(collection, merger, iters) {
+    iters = iters.filter(function(x ) {return x.size !== 0});
+    if (iters.length === 0) {
+      return collection;
+    }
+    if (collection.size === 0 && !collection.__ownerID && iters.length === 1) {
+      return collection.constructor(iters[0]);
+    }
+    return collection.withMutations(function(collection ) {
+      var mergeIntoMap = merger ?
+        function(value, key)  {
+          collection.update(key, NOT_SET, function(existing )
+            {return existing === NOT_SET ? value : merger(existing, value, key)}
+          );
+        } :
+        function(value, key)  {
+          collection.set(key, value);
+        }
+      for (var ii = 0; ii < iters.length; ii++) {
+        iters[ii].forEach(mergeIntoMap);
+      }
+    });
+  }
+
+  function updateInDeepMap(existing, keyPathIter, notSetValue, updater) {
+    var isNotSet = existing === NOT_SET;
+    var step = keyPathIter.next();
+    if (step.done) {
+      var existingValue = isNotSet ? notSetValue : existing;
+      var newValue = updater(existingValue);
+      return newValue === existingValue ? existing : newValue;
+    }
+    invariant(
+      isNotSet || (existing && existing.set),
+      'invalid keyPath'
+    );
+    var key = step.value;
+    var nextExisting = isNotSet ? NOT_SET : existing.get(key, NOT_SET);
+    var nextUpdated = updateInDeepMap(
+      nextExisting,
+      keyPathIter,
+      notSetValue,
+      updater
+    );
+    return nextUpdated === nextExisting ? existing :
+      nextUpdated === NOT_SET ? existing.remove(key) :
+      (isNotSet ? emptyMap() : existing).set(key, nextUpdated);
+  }
+
+  function popCount(x) {
+    x = x - ((x >> 1) & 0x55555555);
+    x = (x & 0x33333333) + ((x >> 2) & 0x33333333);
+    x = (x + (x >> 4)) & 0x0f0f0f0f;
+    x = x + (x >> 8);
+    x = x + (x >> 16);
+    return x & 0x7f;
+  }
+
+  function setIn(array, idx, val, canEdit) {
+    var newArray = canEdit ? array : arrCopy(array);
+    newArray[idx] = val;
+    return newArray;
+  }
+
+  function spliceIn(array, idx, val, canEdit) {
+    var newLen = array.length + 1;
+    if (canEdit && idx + 1 === newLen) {
+      array[idx] = val;
+      return array;
+    }
+    var newArray = new Array(newLen);
+    var after = 0;
+    for (var ii = 0; ii < newLen; ii++) {
+      if (ii === idx) {
+        newArray[ii] = val;
+        after = -1;
+      } else {
+        newArray[ii] = array[ii + after];
+      }
+    }
+    return newArray;
+  }
+
+  function spliceOut(array, idx, canEdit) {
+    var newLen = array.length - 1;
+    if (canEdit && idx === newLen) {
+      array.pop();
+      return array;
+    }
+    var newArray = new Array(newLen);
+    var after = 0;
+    for (var ii = 0; ii < newLen; ii++) {
+      if (ii === idx) {
+        after = 1;
+      }
+      newArray[ii] = array[ii + after];
+    }
+    return newArray;
+  }
+
+  var MAX_ARRAY_MAP_SIZE = SIZE / 4;
+  var MAX_BITMAP_INDEXED_SIZE = SIZE / 2;
+  var MIN_HASH_ARRAY_MAP_SIZE = SIZE / 4;
+
+  createClass(List, IndexedCollection);
+
+    // @pragma Construction
+
+    function List(value) {
+      var empty = emptyList();
+      if (value === null || value === undefined) {
+        return empty;
+      }
+      if (isList(value)) {
+        return value;
+      }
+      var iter = IndexedIterable(value);
+      var size = iter.size;
+      if (size === 0) {
+        return empty;
+      }
+      assertNotInfinite(size);
+      if (size > 0 && size < SIZE) {
+        return makeList(0, size, SHIFT, null, new VNode(iter.toArray()));
+      }
+      return empty.withMutations(function(list ) {
+        list.setSize(size);
+        iter.forEach(function(v, i)  {return list.set(i, v)});
+      });
+    }
+
+    List.of = function(/*...values*/) {
+      return this(arguments);
+    };
+
+    List.prototype.toString = function() {
+      return this.__toString('List [', ']');
+    };
+
+    // @pragma Access
+
+    List.prototype.get = function(index, notSetValue) {
+      index = wrapIndex(this, index);
+      if (index >= 0 && index < this.size) {
+        index += this._origin;
+        var node = listNodeFor(this, index);
+        return node && node.array[index & MASK];
+      }
+      return notSetValue;
+    };
+
+    // @pragma Modification
+
+    List.prototype.set = function(index, value) {
+      return updateList(this, index, value);
+    };
+
+    List.prototype.remove = function(index) {
+      return !this.has(index) ? this :
+        index === 0 ? this.shift() :
+        index === this.size - 1 ? this.pop() :
+        this.splice(index, 1);
+    };
+
+    List.prototype.insert = function(index, value) {
+      return this.splice(index, 0, value);
+    };
+
+    List.prototype.clear = function() {
+      if (this.size === 0) {
+        return this;
+      }
+      if (this.__ownerID) {
+        this.size = this._origin = this._capacity = 0;
+        this._level = SHIFT;
+        this._root = this._tail = null;
+        this.__hash = undefined;
+        this.__altered = true;
+        return this;
+      }
+      return emptyList();
+    };
+
+    List.prototype.push = function(/*...values*/) {
+      var values = arguments;
+      var oldSize = this.size;
+      return this.withMutations(function(list ) {
+        setListBounds(list, 0, oldSize + values.length);
+        for (var ii = 0; ii < values.length; ii++) {
+          list.set(oldSize + ii, values[ii]);
+        }
+      });
+    };
+
+    List.prototype.pop = function() {
+      return setListBounds(this, 0, -1);
+    };
+
+    List.prototype.unshift = function(/*...values*/) {
+      var values = arguments;
+      return this.withMutations(function(list ) {
+        setListBounds(list, -values.length);
+        for (var ii = 0; ii < values.length; ii++) {
+          list.set(ii, values[ii]);
+        }
+      });
+    };
+
+    List.prototype.shift = function() {
+      return setListBounds(this, 1);
+    };
+
+    // @pragma Composition
+
+    List.prototype.merge = function(/*...iters*/) {
+      return mergeIntoListWith(this, undefined, arguments);
+    };
+
+    List.prototype.mergeWith = function(merger) {var iters = SLICE$0.call(arguments, 1);
+      return mergeIntoListWith(this, merger, iters);
+    };
+
+    List.prototype.mergeDeep = function(/*...iters*/) {
+      return mergeIntoListWith(this, deepMerger, arguments);
+    };
+
+    List.prototype.mergeDeepWith = function(merger) {var iters = SLICE$0.call(arguments, 1);
+      return mergeIntoListWith(this, deepMergerWith(merger), iters);
+    };
+
+    List.prototype.setSize = function(size) {
+      return setListBounds(this, 0, size);
+    };
+
+    // @pragma Iteration
+
+    List.prototype.slice = function(begin, end) {
+      var size = this.size;
+      if (wholeSlice(begin, end, size)) {
+        return this;
+      }
+      return setListBounds(
+        this,
+        resolveBegin(begin, size),
+        resolveEnd(end, size)
+      );
+    };
+
+    List.prototype.__iterator = function(type, reverse) {
+      var index = 0;
+      var values = iterateList(this, reverse);
+      return new Iterator(function()  {
+        var value = values();
+        return value === DONE ?
+          iteratorDone() :
+          iteratorValue(type, index++, value);
+      });
+    };
+
+    List.prototype.__iterate = function(fn, reverse) {
+      var index = 0;
+      var values = iterateList(this, reverse);
+      var value;
+      while ((value = values()) !== DONE) {
+        if (fn(value, index++, this) === false) {
+          break;
+        }
+      }
+      return index;
+    };
+
+    List.prototype.__ensureOwner = function(ownerID) {
+      if (ownerID === this.__ownerID) {
+        return this;
+      }
+      if (!ownerID) {
+        this.__ownerID = ownerID;
+        return this;
+      }
+      return makeList(this._origin, this._capacity, this._level, this._root, this._tail, ownerID, this.__hash);
+    };
+
+
+  function isList(maybeList) {
+    return !!(maybeList && maybeList[IS_LIST_SENTINEL]);
+  }
+
+  List.isList = isList;
+
+  var IS_LIST_SENTINEL = '@@__IMMUTABLE_LIST__@@';
+
+  var ListPrototype = List.prototype;
+  ListPrototype[IS_LIST_SENTINEL] = true;
+  ListPrototype[DELETE] = ListPrototype.remove;
+  ListPrototype.setIn = MapPrototype.setIn;
+  ListPrototype.deleteIn =
+  ListPrototype.removeIn = MapPrototype.removeIn;
+  ListPrototype.update = MapPrototype.update;
+  ListPrototype.updateIn = MapPrototype.updateIn;
+  ListPrototype.mergeIn = MapPrototype.mergeIn;
+  ListPrototype.mergeDeepIn = MapPrototype.mergeDeepIn;
+  ListPrototype.withMutations = MapPrototype.withMutations;
+  ListPrototype.asMutable = MapPrototype.asMutable;
+  ListPrototype.asImmutable = MapPrototype.asImmutable;
+  ListPrototype.wasAltered = MapPrototype.wasAltered;
+
+
+
+    function VNode(array, ownerID) {
+      this.array = array;
+      this.ownerID = ownerID;
+    }
+
+    // TODO: seems like these methods are very similar
+
+    VNode.prototype.removeBefore = function(ownerID, level, index) {
+      if (index === level ? 1 << level : 0 || this.array.length === 0) {
+        return this;
+      }
+      var originIndex = (index >>> level) & MASK;
+      if (originIndex >= this.array.length) {
+        return new VNode([], ownerID);
+      }
+      var removingFirst = originIndex === 0;
+      var newChild;
+      if (level > 0) {
+        var oldChild = this.array[originIndex];
+        newChild = oldChild && oldChild.removeBefore(ownerID, level - SHIFT, index);
+        if (newChild === oldChild && removingFirst) {
+          return this;
+        }
+      }
+      if (removingFirst && !newChild) {
+        return this;
+      }
+      var editable = editableVNode(this, ownerID);
+      if (!removingFirst) {
+        for (var ii = 0; ii < originIndex; ii++) {
+          editable.array[ii] = undefined;
+        }
+      }
+      if (newChild) {
+        editable.array[originIndex] = newChild;
+      }
+      return editable;
+    };
+
+    VNode.prototype.removeAfter = function(ownerID, level, index) {
+      if (index === (level ? 1 << level : 0) || this.array.length === 0) {
+        return this;
+      }
+      var sizeIndex = ((index - 1) >>> level) & MASK;
+      if (sizeIndex >= this.array.length) {
+        return this;
+      }
+
+      var newChild;
+      if (level > 0) {
+        var oldChild = this.array[sizeIndex];
+        newChild = oldChild && oldChild.removeAfter(ownerID, level - SHIFT, index);
+        if (newChild === oldChild && sizeIndex === this.array.length - 1) {
+          return this;
+        }
+      }
+
+      var editable = editableVNode(this, ownerID);
+      editable.array.splice(sizeIndex + 1);
+      if (newChild) {
+        editable.array[sizeIndex] = newChild;
+      }
+      return editable;
+    };
+
+
+
+  var DONE = {};
+
+  function iterateList(list, reverse) {
+    var left = list._origin;
+    var right = list._capacity;
+    var tailPos = getTailOffset(right);
+    var tail = list._tail;
+
+    return iterateNodeOrLeaf(list._root, list._level, 0);
+
+    function iterateNodeOrLeaf(node, level, offset) {
+      return level === 0 ?
+        iterateLeaf(node, offset) :
+        iterateNode(node, level, offset);
+    }
+
+    function iterateLeaf(node, offset) {
+      var array = offset === tailPos ? tail && tail.array : node && node.array;
+      var from = offset > left ? 0 : left - offset;
+      var to = right - offset;
+      if (to > SIZE) {
+        to = SIZE;
+      }
+      return function()  {
+        if (from === to) {
+          return DONE;
+        }
+        var idx = reverse ? --to : from++;
+        return array && array[idx];
+      };
+    }
+
+    function iterateNode(node, level, offset) {
+      var values;
+      var array = node && node.array;
+      var from = offset > left ? 0 : (left - offset) >> level;
+      var to = ((right - offset) >> level) + 1;
+      if (to > SIZE) {
+        to = SIZE;
+      }
+      return function()  {
+        do {
+          if (values) {
+            var value = values();
+            if (value !== DONE) {
+              return value;
+            }
+            values = null;
+          }
+          if (from === to) {
+            return DONE;
+          }
+          var idx = reverse ? --to : from++;
+          values = iterateNodeOrLeaf(
+            array && array[idx], level - SHIFT, offset + (idx << level)
+          );
+        } while (true);
+      };
+    }
+  }
+
+  function makeList(origin, capacity, level, root, tail, ownerID, hash) {
+    var list = Object.create(ListPrototype);
+    list.size = capacity - origin;
+    list._origin = origin;
+    list._capacity = capacity;
+    list._level = level;
+    list._root = root;
+    list._tail = tail;
+    list.__ownerID = ownerID;
+    list.__hash = hash;
+    list.__altered = false;
+    return list;
+  }
+
+  var EMPTY_LIST;
+  function emptyList() {
+    return EMPTY_LIST || (EMPTY_LIST = makeList(0, 0, SHIFT));
+  }
+
+  function updateList(list, index, value) {
+    index = wrapIndex(list, index);
+
+    if (index !== index) {
+      return list;
+    }
+
+    if (index >= list.size || index < 0) {
+      return list.withMutations(function(list ) {
+        index < 0 ?
+          setListBounds(list, index).set(0, value) :
+          setListBounds(list, 0, index + 1).set(index, value)
+      });
+    }
+
+    index += list._origin;
+
+    var newTail = list._tail;
+    var newRoot = list._root;
+    var didAlter = MakeRef(DID_ALTER);
+    if (index >= getTailOffset(list._capacity)) {
+      newTail = updateVNode(newTail, list.__ownerID, 0, index, value, didAlter);
+    } else {
+      newRoot = updateVNode(newRoot, list.__ownerID, list._level, index, value, didAlter);
+    }
+
+    if (!didAlter.value) {
+      return list;
+    }
+
+    if (list.__ownerID) {
+      list._root = newRoot;
+      list._tail = newTail;
+      list.__hash = undefined;
+      list.__altered = true;
+      return list;
+    }
+    return makeList(list._origin, list._capacity, list._level, newRoot, newTail);
+  }
+
+  function updateVNode(node, ownerID, level, index, value, didAlter) {
+    var idx = (index >>> level) & MASK;
+    var nodeHas = node && idx < node.array.length;
+    if (!nodeHas && value === undefined) {
+      return node;
+    }
+
+    var newNode;
+
+    if (level > 0) {
+      var lowerNode = node && node.array[idx];
+      var newLowerNode = updateVNode(lowerNode, ownerID, level - SHIFT, index, value, didAlter);
+      if (newLowerNode === lowerNode) {
+        return node;
+      }
+      newNode = editableVNode(node, ownerID);
+      newNode.array[idx] = newLowerNode;
+      return newNode;
+    }
+
+    if (nodeHas && node.array[idx] === value) {
+      return node;
+    }
+
+    SetRef(didAlter);
+
+    newNode = editableVNode(node, ownerID);
+    if (value === undefined && idx === newNode.array.length - 1) {
+      newNode.array.pop();
+    } else {
+      newNode.array[idx] = value;
+    }
+    return newNode;
+  }
+
+  function editableVNode(node, ownerID) {
+    if (ownerID && node && ownerID === node.ownerID) {
+      return node;
+    }
+    return new VNode(node ? node.array.slice() : [], ownerID);
+  }
+
+  function listNodeFor(list, rawIndex) {
+    if (rawIndex >= getTailOffset(list._capacity)) {
+      return list._tail;
+    }
+    if (rawIndex < 1 << (list._level + SHIFT)) {
+      var node = list._root;
+      var level = list._level;
+      while (node && level > 0) {
+        node = node.array[(rawIndex >>> level) & MASK];
+        level -= SHIFT;
+      }
+      return node;
+    }
+  }
+
+  function setListBounds(list, begin, end) {
+    // Sanitize begin & end using this shorthand for ToInt32(argument)
+    // http://www.ecma-international.org/ecma-262/6.0/#sec-toint32
+    if (begin !== undefined) {
+      begin = begin | 0;
+    }
+    if (end !== undefined) {
+      end = end | 0;
+    }
+    var owner = list.__ownerID || new OwnerID();
+    var oldOrigin = list._origin;
+    var oldCapacity = list._capacity;
+    var newOrigin = oldOrigin + begin;
+    var newCapacity = end === undefined ? oldCapacity : end < 0 ? oldCapacity + end : oldOrigin + end;
+    if (newOrigin === oldOrigin && newCapacity === oldCapacity) {
+      return list;
+    }
+
+    // If it's going to end after it starts, it's empty.
+    if (newOrigin >= newCapacity) {
+      return list.clear();
+    }
+
+    var newLevel = list._level;
+    var newRoot = list._root;
+
+    // New origin might need creating a higher root.
+    var offsetShift = 0;
+    while (newOrigin + offsetShift < 0) {
+      newRoot = new VNode(newRoot && newRoot.array.length ? [undefined, newRoot] : [], owner);
+      newLevel += SHIFT;
+      offsetShift += 1 << newLevel;
+    }
+    if (offsetShift) {
+      newOrigin += offsetShift;
+      oldOrigin += offsetShift;
+      newCapacity += offsetShift;
+      oldCapacity += offsetShift;
+    }
+
+    var oldTailOffset = getTailOffset(oldCapacity);
+    var newTailOffset = getTailOffset(newCapacity);
+
+    // New size might need creating a higher root.
+    while (newTailOffset >= 1 << (newLevel + SHIFT)) {
+      newRoot = new VNode(newRoot && newRoot.array.length ? [newRoot] : [], owner);
+      newLevel += SHIFT;
+    }
+
+    // Locate or create the new tail.
+    var oldTail = list._tail;
+    var newTail = newTailOffset < oldTailOffset ?
+      listNodeFor(list, newCapacity - 1) :
+      newTailOffset > oldTailOffset ? new VNode([], owner) : oldTail;
+
+    // Merge Tail into tree.
+    if (oldTail && newTailOffset > oldTailOffset && newOrigin < oldCapacity && oldTail.array.length) {
+      newRoot = editableVNode(newRoot, owner);
+      var node = newRoot;
+      for (var level = newLevel; level > SHIFT; level -= SHIFT) {
+        var idx = (oldTailOffset >>> level) & MASK;
+        node = node.array[idx] = editableVNode(node.array[idx], owner);
+      }
+      node.array[(oldTailOffset >>> SHIFT) & MASK] = oldTail;
+    }
+
+    // If the size has been reduced, there's a chance the tail needs to be trimmed.
+    if (newCapacity < oldCapacity) {
+      newTail = newTail && newTail.removeAfter(owner, 0, newCapacity);
+    }
+
+    // If the new origin is within the tail, then we do not need a root.
+    if (newOrigin >= newTailOffset) {
+      newOrigin -= newTailOffset;
+      newCapacity -= newTailOffset;
+      newLevel = SHIFT;
+      newRoot = null;
+      newTail = newTail && newTail.removeBefore(owner, 0, newOrigin);
+
+    // Otherwise, if the root has been trimmed, garbage collect.
+    } else if (newOrigin > oldOrigin || newTailOffset < oldTailOffset) {
+      offsetShift = 0;
+
+      // Identify the new top root node of the subtree of the old root.
+      while (newRoot) {
+        var beginIndex = (newOrigin >>> newLevel) & MASK;
+        if (beginIndex !== (newTailOffset >>> newLevel) & MASK) {
+          break;
+        }
+        if (beginIndex) {
+          offsetShift += (1 << newLevel) * beginIndex;
+        }
+        newLevel -= SHIFT;
+        newRoot = newRoot.array[beginIndex];
+      }
+
+      // Trim the new sides of the new root.
+      if (newRoot && newOrigin > oldOrigin) {
+        newRoot = newRoot.removeBefore(owner, newLevel, newOrigin - offsetShift);
+      }
+      if (newRoot && newTailOffset < oldTailOffset) {
+        newRoot = newRoot.removeAfter(owner, newLevel, newTailOffset - offsetShift);
+      }
+      if (offsetShift) {
+        newOrigin -= offsetShift;
+        newCapacity -= offsetShift;
+      }
+    }
+
+    if (list.__ownerID) {
+      list.size = newCapacity - newOrigin;
+      list._origin = newOrigin;
+      list._capacity = newCapacity;
+      list._level = newLevel;
+      list._root = newRoot;
+      list._tail = newTail;
+      list.__hash = undefined;
+      list.__altered = true;
+      return list;
+    }
+    return makeList(newOrigin, newCapacity, newLevel, newRoot, newTail);
+  }
+
+  function mergeIntoListWith(list, merger, iterables) {
+    var iters = [];
+    var maxSize = 0;
+    for (var ii = 0; ii < iterables.length; ii++) {
+      var value = iterables[ii];
+      var iter = IndexedIterable(value);
+      if (iter.size > maxSize) {
+        maxSize = iter.size;
+      }
+      if (!isIterable(value)) {
+        iter = iter.map(function(v ) {return fromJS(v)});
+      }
+      iters.push(iter);
+    }
+    if (maxSize > list.size) {
+      list = list.setSize(maxSize);
+    }
+    return mergeIntoCollectionWith(list, merger, iters);
+  }
+
+  function getTailOffset(size) {
+    return size < SIZE ? 0 : (((size - 1) >>> SHIFT) << SHIFT);
+  }
+
+  createClass(OrderedMap, Map);
+
+    // @pragma Construction
+
+    function OrderedMap(value) {
+      return value === null || value === undefined ? emptyOrderedMap() :
+        isOrderedMap(value) ? value :
+        emptyOrderedMap().withMutations(function(map ) {
+          var iter = KeyedIterable(value);
+          assertNotInfinite(iter.size);
+          iter.forEach(function(v, k)  {return map.set(k, v)});
+        });
+    }
+
+    OrderedMap.of = function(/*...values*/) {
+      return this(arguments);
+    };
+
+    OrderedMap.prototype.toString = function() {
+      return this.__toString('OrderedMap {', '}');
+    };
+
+    // @pragma Access
+
+    OrderedMap.prototype.get = function(k, notSetValue) {
+      var index = this._map.get(k);
+      return index !== undefined ? this._list.get(index)[1] : notSetValue;
+    };
+
+    // @pragma Modification
+
+    OrderedMap.prototype.clear = function() {
+      if (this.size === 0) {
+        return this;
+      }
+      if (this.__ownerID) {
+        this.size = 0;
+        this._map.clear();
+        this._list.clear();
+        return this;
+      }
+      return emptyOrderedMap();
+    };
+
+    OrderedMap.prototype.set = function(k, v) {
+      return updateOrderedMap(this, k, v);
+    };
+
+    OrderedMap.prototype.remove = function(k) {
+      return updateOrderedMap(this, k, NOT_SET);
+    };
+
+    OrderedMap.prototype.wasAltered = function() {
+      return this._map.wasAltered() || this._list.wasAltered();
+    };
+
+    OrderedMap.prototype.__iterate = function(fn, reverse) {var this$0 = this;
+      return this._list.__iterate(
+        function(entry ) {return entry && fn(entry[1], entry[0], this$0)},
+        reverse
+      );
+    };
+
+    OrderedMap.prototype.__iterator = function(type, reverse) {
+      return this._list.fromEntrySeq().__iterator(type, reverse);
+    };
+
+    OrderedMap.prototype.__ensureOwner = function(ownerID) {
+      if (ownerID === this.__ownerID) {
+        return this;
+      }
+      var newMap = this._map.__ensureOwner(ownerID);
+      var newList = this._list.__ensureOwner(ownerID);
+      if (!ownerID) {
+        this.__ownerID = ownerID;
+        this._map = newMap;
+        this._list = newList;
+        return this;
+      }
+      return makeOrderedMap(newMap, newList, ownerID, this.__hash);
+    };
+
+
+  function isOrderedMap(maybeOrderedMap) {
+    return isMap(maybeOrderedMap) && isOrdered(maybeOrderedMap);
+  }
+
+  OrderedMap.isOrderedMap = isOrderedMap;
+
+  OrderedMap.prototype[IS_ORDERED_SENTINEL] = true;
+  OrderedMap.prototype[DELETE] = OrderedMap.prototype.remove;
+
+
+
+  function makeOrderedMap(map, list, ownerID, hash) {
+    var omap = Object.create(OrderedMap.prototype);
+    omap.size = map ? map.size : 0;
+    omap._map = map;
+    omap._list = list;
+    omap.__ownerID = ownerID;
+    omap.__hash = hash;
+    return omap;
+  }
+
+  var EMPTY_ORDERED_MAP;
+  function emptyOrderedMap() {
+    return EMPTY_ORDERED_MAP || (EMPTY_ORDERED_MAP = makeOrderedMap(emptyMap(), emptyList()));
+  }
+
+  function updateOrderedMap(omap, k, v) {
+    var map = omap._map;
+    var list = omap._list;
+    var i = map.get(k);
+    var has = i !== undefined;
+    var newMap;
+    var newList;
+    if (v === NOT_SET) { // removed
+      if (!has) {
+        return omap;
+      }
+      if (list.size >= SIZE && list.size >= map.size * 2) {
+        newList = list.filter(function(entry, idx)  {return entry !== undefined && i !== idx});
+        newMap = newList.toKeyedSeq().map(function(entry ) {return entry[0]}).flip().toMap();
+        if (omap.__ownerID) {
+          newMap.__ownerID = newList.__ownerID = omap.__ownerID;
+        }
+      } else {
+        newMap = map.remove(k);
+        newList = i === list.size - 1 ? list.pop() : list.set(i, undefined);
+      }
+    } else {
+      if (has) {
+        if (v === list.get(i)[1]) {
+          return omap;
+        }
+        newMap = map;
+        newList = list.set(i, [k, v]);
+      } else {
+        newMap = map.set(k, list.size);
+        newList = list.set(list.size, [k, v]);
+      }
+    }
+    if (omap.__ownerID) {
+      omap.size = newMap.size;
+      omap._map = newMap;
+      omap._list = newList;
+      omap.__hash = undefined;
+      return omap;
+    }
+    return makeOrderedMap(newMap, newList);
+  }
+
+  createClass(ToKeyedSequence, KeyedSeq);
+    function ToKeyedSequence(indexed, useKeys) {
+      this._iter = indexed;
+      this._useKeys = useKeys;
+      this.size = indexed.size;
+    }
+
+    ToKeyedSequence.prototype.get = function(key, notSetValue) {
+      return this._iter.get(key, notSetValue);
+    };
+
+    ToKeyedSequence.prototype.has = function(key) {
+      return this._iter.has(key);
+    };
+
+    ToKeyedSequence.prototype.valueSeq = function() {
+      return this._iter.valueSeq();
+    };
+
+    ToKeyedSequence.prototype.reverse = function() {var this$0 = this;
+      var reversedSequence = reverseFactory(this, true);
+      if (!this._useKeys) {
+        reversedSequence.valueSeq = function()  {return this$0._iter.toSeq().reverse()};
+      }
+      return reversedSequence;
+    };
+
+    ToKeyedSequence.prototype.map = function(mapper, context) {var this$0 = this;
+      var mappedSequence = mapFactory(this, mapper, context);
+      if (!this._useKeys) {
+        mappedSequence.valueSeq = function()  {return this$0._iter.toSeq().map(mapper, context)};
+      }
+      return mappedSequence;
+    };
+
+    ToKeyedSequence.prototype.__iterate = function(fn, reverse) {var this$0 = this;
+      var ii;
+      return this._iter.__iterate(
+        this._useKeys ?
+          function(v, k)  {return fn(v, k, this$0)} :
+          ((ii = reverse ? resolveSize(this) : 0),
+            function(v ) {return fn(v, reverse ? --ii : ii++, this$0)}),
+        reverse
+      );
+    };
+
+    ToKeyedSequence.prototype.__iterator = function(type, reverse) {
+      if (this._useKeys) {
+        return this._iter.__iterator(type, reverse);
+      }
+      var iterator = this._iter.__iterator(ITERATE_VALUES, reverse);
+      var ii = reverse ? resolveSize(this) : 0;
+      return new Iterator(function()  {
+        var step = iterator.next();
+        return step.done ? step :
+          iteratorValue(type, reverse ? --ii : ii++, step.value, step);
+      });
+    };
+
+  ToKeyedSequence.prototype[IS_ORDERED_SENTINEL] = true;
+
+
+  createClass(ToIndexedSequence, IndexedSeq);
+    function ToIndexedSequence(iter) {
+      this._iter = iter;
+      this.size = iter.size;
+    }
+
+    ToIndexedSequence.prototype.includes = function(value) {
+      return this._iter.includes(value);
+    };
+
+    ToIndexedSequence.prototype.__iterate = function(fn, reverse) {var this$0 = this;
+      var iterations = 0;
+      return this._iter.__iterate(function(v ) {return fn(v, iterations++, this$0)}, reverse);
+    };
+
+    ToIndexedSequence.prototype.__iterator = function(type, reverse) {
+      var iterator = this._iter.__iterator(ITERATE_VALUES, reverse);
+      var iterations = 0;
+      return new Iterator(function()  {
+        var step = iterator.next();
+        return step.done ? step :
+          iteratorValue(type, iterations++, step.value, step)
+      });
+    };
+
+
+
+  createClass(ToSetSequence, SetSeq);
+    function ToSetSequence(iter) {
+      this._iter = iter;
+      this.size = iter.size;
+    }
+
+    ToSetSequence.prototype.has = function(key) {
+      return this._iter.includes(key);
+    };
+
+    ToSetSequence.prototype.__iterate = function(fn, reverse) {var this$0 = this;
+      return this._iter.__iterate(function(v ) {return fn(v, v, this$0)}, reverse);
+    };
+
+    ToSetSequence.prototype.__iterator = function(type, reverse) {
+      var iterator = this._iter.__iterator(ITERATE_VALUES, reverse);
+      return new Iterator(function()  {
+        var step = iterator.next();
+        return step.done ? step :
+          iteratorValue(type, step.value, step.value, step);
+      });
+    };
+
+
+
+  createClass(FromEntriesSequence, KeyedSeq);
+    function FromEntriesSequence(entries) {
+      this._iter = entries;
+      this.size = entries.size;
+    }
+
+    FromEntriesSequence.prototype.entrySeq = function() {
+      return this._iter.toSeq();
+    };
+
+    FromEntriesSequence.prototype.__iterate = function(fn, reverse) {var this$0 = this;
+      return this._iter.__iterate(function(entry ) {
+        // Check if entry exists first so array access doesn't throw for holes
+        // in the parent iteration.
+        if (entry) {
+          validateEntry(entry);
+          var indexedIterable = isIterable(entry);
+          return fn(
+            indexedIterable ? entry.get(1) : entry[1],
+            indexedIterable ? entry.get(0) : entry[0],
+            this$0
+          );
+        }
+      }, reverse);
+    };
+
+    FromEntriesSequence.prototype.__iterator = function(type, reverse) {
+      var iterator = this._iter.__iterator(ITERATE_VALUES, reverse);
+      return new Iterator(function()  {
+        while (true) {
+          var step = iterator.next();
+          if (step.done) {
+            return step;
+          }
+          var entry = step.value;
+          // Check if entry exists first so array access doesn't throw for holes
+          // in the parent iteration.
+          if (entry) {
+            validateEntry(entry);
+            var indexedIterable = isIterable(entry);
+            return iteratorValue(
+              type,
+              indexedIterable ? entry.get(0) : entry[0],
+              indexedIterable ? entry.get(1) : entry[1],
+              step
+            );
+          }
+        }
+      });
+    };
+
+
+  ToIndexedSequence.prototype.cacheResult =
+  ToKeyedSequence.prototype.cacheResult =
+  ToSetSequence.prototype.cacheResult =
+  FromEntriesSequence.prototype.cacheResult =
+    cacheResultThrough;
+
+
+  function flipFactory(iterable) {
+    var flipSequence = makeSequence(iterable);
+    flipSequence._iter = iterable;
+    flipSequence.size = iterable.size;
+    flipSequence.flip = function()  {return iterable};
+    flipSequence.reverse = function () {
+      var reversedSequence = iterable.reverse.apply(this); // super.reverse()
+      reversedSequence.flip = function()  {return iterable.reverse()};
+      return reversedSequence;
+    };
+    flipSequence.has = function(key ) {return iterable.includes(key)};
+    flipSequence.includes = function(key ) {return iterable.has(key)};
+    flipSequence.cacheResult = cacheResultThrough;
+    flipSequence.__iterateUncached = function (fn, reverse) {var this$0 = this;
+      return iterable.__iterate(function(v, k)  {return fn(k, v, this$0) !== false}, reverse);
+    }
+    flipSequence.__iteratorUncached = function(type, reverse) {
+      if (type === ITERATE_ENTRIES) {
+        var iterator = iterable.__iterator(type, reverse);
+        return new Iterator(function()  {
+          var step = iterator.next();
+          if (!step.done) {
+            var k = step.value[0];
+            step.value[0] = step.value[1];
+            step.value[1] = k;
+          }
+          return step;
+        });
+      }
+      return iterable.__iterator(
+        type === ITERATE_VALUES ? ITERATE_KEYS : ITERATE_VALUES,
+        reverse
+      );
+    }
+    return flipSequence;
+  }
+
+
+  function mapFactory(iterable, mapper, context) {
+    var mappedSequence = makeSequence(iterable);
+    mappedSequence.size = iterable.size;
+    mappedSequence.has = function(key ) {return iterable.has(key)};
+    mappedSequence.get = function(key, notSetValue)  {
+      var v = iterable.get(key, NOT_SET);
+      return v === NOT_SET ?
+        notSetValue :
+        mapper.call(context, v, key, iterable);
+    };
+    mappedSequence.__iterateUncached = function (fn, reverse) {var this$0 = this;
+      return iterable.__iterate(
+        function(v, k, c)  {return fn(mapper.call(context, v, k, c), k, this$0) !== false},
+        reverse
+      );
+    }
+    mappedSequence.__iteratorUncached = function (type, reverse) {
+      var iterator = iterable.__iterator(ITERATE_ENTRIES, reverse);
+      return new Iterator(function()  {
+        var step = iterator.next();
+        if (step.done) {
+          return step;
+        }
+        var entry = step.value;
+        var key = entry[0];
+        return iteratorValue(
+          type,
+          key,
+          mapper.call(context, entry[1], key, iterable),
+          step
+        );
+      });
+    }
+    return mappedSequence;
+  }
+
+
+  function reverseFactory(iterable, useKeys) {
+    var reversedSequence = makeSequence(iterable);
+    reversedSequence._iter = iterable;
+    reversedSequence.size = iterable.size;
+    reversedSequence.reverse = function()  {return iterable};
+    if (iterable.flip) {
+      reversedSequence.flip = function () {
+        var flipSequence = flipFactory(iterable);
+        flipSequence.reverse = function()  {return iterable.flip()};
+        return flipSequence;
+      };
+    }
+    reversedSequence.get = function(key, notSetValue) 
+      {return iterable.get(useKeys ? key : -1 - key, notSetValue)};
+    reversedSequence.has = function(key )
+      {return iterable.has(useKeys ? key : -1 - key)};
+    reversedSequence.includes = function(value ) {return iterable.includes(value)};
+    reversedSequence.cacheResult = cacheResultThrough;
+    reversedSequence.__iterate = function (fn, reverse) {var this$0 = this;
+      return iterable.__iterate(function(v, k)  {return fn(v, k, this$0)}, !reverse);
+    };
+    reversedSequence.__iterator =
+      function(type, reverse)  {return iterable.__iterator(type, !reverse)};
+    return reversedSequence;
+  }
+
+
+  function filterFactory(iterable, predicate, context, useKeys) {
+    var filterSequence = makeSequence(iterable);
+    if (useKeys) {
+      filterSequence.has = function(key ) {
+        var v = iterable.get(key, NOT_SET);
+        return v !== NOT_SET && !!predicate.call(context, v, key, iterable);
+      };
+      filterSequence.get = function(key, notSetValue)  {
+        var v = iterable.get(key, NOT_SET);
+        return v !== NOT_SET && predicate.call(context, v, key, iterable) ?
+          v : notSetValue;
+      };
+    }
+    filterSequence.__iterateUncached = function (fn, reverse) {var this$0 = this;
+      var iterations = 0;
+      iterable.__iterate(function(v, k, c)  {
+        if (predicate.call(context, v, k, c)) {
+          iterations++;
+          return fn(v, useKeys ? k : iterations - 1, this$0);
+        }
+      }, reverse);
+      return iterations;
+    };
+    filterSequence.__iteratorUncached = function (type, reverse) {
+      var iterator = iterable.__iterator(ITERATE_ENTRIES, reverse);
+      var iterations = 0;
+      return new Iterator(function()  {
+        while (true) {
+          var step = iterator.next();
+          if (step.done) {
+            return step;
+          }
+          var entry = step.value;
+          var key = entry[0];
+          var value = entry[1];
+          if (predicate.call(context, value, key, iterable)) {
+            return iteratorValue(type, useKeys ? key : iterations++, value, step);
+          }
+        }
+      });
+    }
+    return filterSequence;
+  }
+
+
+  function countByFactory(iterable, grouper, context) {
+    var groups = Map().asMutable();
+    iterable.__iterate(function(v, k)  {
+      groups.update(
+        grouper.call(context, v, k, iterable),
+        0,
+        function(a ) {return a + 1}
+      );
+    });
+    return groups.asImmutable();
+  }
+
+
+  function groupByFactory(iterable, grouper, context) {
+    var isKeyedIter = isKeyed(iterable);
+    var groups = (isOrdered(iterable) ? OrderedMap() : Map()).asMutable();
+    iterable.__iterate(function(v, k)  {
+      groups.update(
+        grouper.call(context, v, k, iterable),
+        function(a ) {return (a = a || [], a.push(isKeyedIter ? [k, v] : v), a)}
+      );
+    });
+    var coerce = iterableClass(iterable);
+    return groups.map(function(arr ) {return reify(iterable, coerce(arr))});
+  }
+
+
+  function sliceFactory(iterable, begin, end, useKeys) {
+    var originalSize = iterable.size;
+
+    // Sanitize begin & end using this shorthand for ToInt32(argument)
+    // http://www.ecma-international.org/ecma-262/6.0/#sec-toint32
+    if (begin !== undefined) {
+      begin = begin | 0;
+    }
+    if (end !== undefined) {
+      end = end | 0;
+    }
+
+    if (wholeSlice(begin, end, originalSize)) {
+      return iterable;
+    }
+
+    var resolvedBegin = resolveBegin(begin, originalSize);
+    var resolvedEnd = resolveEnd(end, originalSize);
+
+    // begin or end will be NaN if they were provided as negative numbers and
+    // this iterable's size is unknown. In that case, cache first so there is
+    // a known size and these do not resolve to NaN.
+    if (resolvedBegin !== resolvedBegin || resolvedEnd !== resolvedEnd) {
+      return sliceFactory(iterable.toSeq().cacheResult(), begin, end, useKeys);
+    }
+
+    // Note: resolvedEnd is undefined when the original sequence's length is
+    // unknown and this slice did not supply an end and should contain all
+    // elements after resolvedBegin.
+    // In that case, resolvedSize will be NaN and sliceSize will remain undefined.
+    var resolvedSize = resolvedEnd - resolvedBegin;
+    var sliceSize;
+    if (resolvedSize === resolvedSize) {
+      sliceSize = resolvedSize < 0 ? 0 : resolvedSize;
+    }
+
+    var sliceSeq = makeSequence(iterable);
+
+    // If iterable.size is undefined, the size of the realized sliceSeq is
+    // unknown at this point unless the number of items to slice is 0
+    sliceSeq.size = sliceSize === 0 ? sliceSize : iterable.size && sliceSize || undefined;
+
+    if (!useKeys && isSeq(iterable) && sliceSize >= 0) {
+      sliceSeq.get = function (index, notSetValue) {
+        index = wrapIndex(this, index);
+        return index >= 0 && index < sliceSize ?
+          iterable.get(index + resolvedBegin, notSetValue) :
+          notSetValue;
+      }
+    }
+
+    sliceSeq.__iterateUncached = function(fn, reverse) {var this$0 = this;
+      if (sliceSize === 0) {
+        return 0;
+      }
+      if (reverse) {
+        return this.cacheResult().__iterate(fn, reverse);
+      }
+      var skipped = 0;
+      var isSkipping = true;
+      var iterations = 0;
+      iterable.__iterate(function(v, k)  {
+        if (!(isSkipping && (isSkipping = skipped++ < resolvedBegin))) {
+          iterations++;
+          return fn(v, useKeys ? k : iterations - 1, this$0) !== false &&
+                 iterations !== sliceSize;
+        }
+      });
+      return iterations;
+    };
+
+    sliceSeq.__iteratorUncached = function(type, reverse) {
+      if (sliceSize !== 0 && reverse) {
+        return this.cacheResult().__iterator(type, reverse);
+      }
+      // Don't bother instantiating parent iterator if taking 0.
+      var iterator = sliceSize !== 0 && iterable.__iterator(type, reverse);
+      var skipped = 0;
+      var iterations = 0;
+      return new Iterator(function()  {
+        while (skipped++ < resolvedBegin) {
+          iterator.next();
+        }
+        if (++iterations > sliceSize) {
+          return iteratorDone();
+        }
+        var step = iterator.next();
+        if (useKeys || type === ITERATE_VALUES) {
+          return step;
+        } else if (type === ITERATE_KEYS) {
+          return iteratorValue(type, iterations - 1, undefined, step);
+        } else {
+          return iteratorValue(type, iterations - 1, step.value[1], step);
+        }
+      });
+    }
+
+    return sliceSeq;
+  }
+
+
+  function takeWhileFactory(iterable, predicate, context) {
+    var takeSequence = makeSequence(iterable);
+    takeSequence.__iterateUncached = function(fn, reverse) {var this$0 = this;
+      if (reverse) {
+        return this.cacheResult().__iterate(fn, reverse);
+      }
+      var iterations = 0;
+      iterable.__iterate(function(v, k, c) 
+        {return predicate.call(context, v, k, c) && ++iterations && fn(v, k, this$0)}
+      );
+      return iterations;
+    };
+    takeSequence.__iteratorUncached = function(type, reverse) {var this$0 = this;
+      if (reverse) {
+        return this.cacheResult().__iterator(type, reverse);
+      }
+      var iterator = iterable.__iterator(ITERATE_ENTRIES, reverse);
+      var iterating = true;
+      return new Iterator(function()  {
+        if (!iterating) {
+          return iteratorDone();
+        }
+        var step = iterator.next();
+        if (step.done) {
+          return step;
+        }
+        var entry = step.value;
+        var k = entry[0];
+        var v = entry[1];
+        if (!predicate.call(context, v, k, this$0)) {
+          iterating = false;
+          return iteratorDone();
+        }
+        return type === ITERATE_ENTRIES ? step :
+          iteratorValue(type, k, v, step);
+      });
+    };
+    return takeSequence;
+  }
+
+
+  function skipWhileFactory(iterable, predicate, context, useKeys) {
+    var skipSequence = makeSequence(iterable);
+    skipSequence.__iterateUncached = function (fn, reverse) {var this$0 = this;
+      if (reverse) {
+        return this.cacheResult().__iterate(fn, reverse);
+      }
+      var isSkipping = true;
+      var iterations = 0;
+      iterable.__iterate(function(v, k, c)  {
+        if (!(isSkipping && (isSkipping = predicate.call(context, v, k, c)))) {
+          iterations++;
+          return fn(v, useKeys ? k : iterations - 1, this$0);
+        }
+      });
+      return iterations;
+    };
+    skipSequence.__iteratorUncached = function(type, reverse) {var this$0 = this;
+      if (reverse) {
+        return this.cacheResult().__iterator(type, reverse);
+      }
+      var iterator = iterable.__iterator(ITERATE_ENTRIES, reverse);
+      var skipping = true;
+      var iterations = 0;
+      return new Iterator(function()  {
+        var step, k, v;
+        do {
+          step = iterator.next();
+          if (step.done) {
+            if (useKeys || type === ITERATE_VALUES) {
+              return step;
+            } else if (type === ITERATE_KEYS) {
+              return iteratorValue(type, iterations++, undefined, step);
+            } else {
+              return iteratorValue(type, iterations++, step.value[1], step);
+            }
+          }
+          var entry = step.value;
+          k = entry[0];
+          v = entry[1];
+          skipping && (skipping = predicate.call(context, v, k, this$0));
+        } while (skipping);
+        return type === ITERATE_ENTRIES ? step :
+          iteratorValue(type, k, v, step);
+      });
+    };
+    return skipSequence;
+  }
+
+
+  function concatFactory(iterable, values) {
+    var isKeyedIterable = isKeyed(iterable);
+    var iters = [iterable].concat(values).map(function(v ) {
+      if (!isIterable(v)) {
+        v = isKeyedIterable ?
+          keyedSeqFromValue(v) :
+          indexedSeqFromValue(Array.isArray(v) ? v : [v]);
+      } else if (isKeyedIterable) {
+        v = KeyedIterable(v);
+      }
+      return v;
+    }).filter(function(v ) {return v.size !== 0});
+
+    if (iters.length === 0) {
+      return iterable;
+    }
+
+    if (iters.length === 1) {
+      var singleton = iters[0];
+      if (singleton === iterable ||
+          isKeyedIterable && isKeyed(singleton) ||
+          isIndexed(iterable) && isIndexed(singleton)) {
+        return singleton;
+      }
+    }
+
+    var concatSeq = new ArraySeq(iters);
+    if (isKeyedIterable) {
+      concatSeq = concatSeq.toKeyedSeq();
+    } else if (!isIndexed(iterable)) {
+      concatSeq = concatSeq.toSetSeq();
+    }
+    concatSeq = concatSeq.flatten(true);
+    concatSeq.size = iters.reduce(
+      function(sum, seq)  {
+        if (sum !== undefined) {
+          var size = seq.size;
+          if (size !== undefined) {
+            return sum + size;
+          }
+        }
+      },
+      0
+    );
+    return concatSeq;
+  }
+
+
+  function flattenFactory(iterable, depth, useKeys) {
+    var flatSequence = makeSequence(iterable);
+    flatSequence.__iterateUncached = function(fn, reverse) {
+      var iterations = 0;
+      var stopped = false;
+      function flatDeep(iter, currentDepth) {var this$0 = this;
+        iter.__iterate(function(v, k)  {
+          if ((!depth || currentDepth < depth) && isIterable(v)) {
+            flatDeep(v, currentDepth + 1);
+          } else if (fn(v, useKeys ? k : iterations++, this$0) === false) {
+            stopped = true;
+          }
+          return !stopped;
+        }, reverse);
+      }
+      flatDeep(iterable, 0);
+      return iterations;
+    }
+    flatSequence.__iteratorUncached = function(type, reverse) {
+      var iterator = iterable.__iterator(type, reverse);
+      var stack = [];
+      var iterations = 0;
+      return new Iterator(function()  {
+        while (iterator) {
+          var step = iterator.next();
+          if (step.done !== false) {
+            iterator = stack.pop();
+            continue;
+          }
+          var v = step.value;
+          if (type === ITERATE_ENTRIES) {
+            v = v[1];
+          }
+          if ((!depth || stack.length < depth) && isIterable(v)) {
+            stack.push(iterator);
+            iterator = v.__iterator(type, reverse);
+          } else {
+            return useKeys ? step : iteratorValue(type, iterations++, v, step);
+          }
+        }
+        return iteratorDone();
+      });
+    }
+    return flatSequence;
+  }
+
+
+  function flatMapFactory(iterable, mapper, context) {
+    var coerce = iterableClass(iterable);
+    return iterable.toSeq().map(
+      function(v, k)  {return coerce(mapper.call(context, v, k, iterable))}
+    ).flatten(true);
+  }
+
+
+  function interposeFactory(iterable, separator) {
+    var interposedSequence = makeSequence(iterable);
+    interposedSequence.size = iterable.size && iterable.size * 2 -1;
+    interposedSequence.__iterateUncached = function(fn, reverse) {var this$0 = this;
+      var iterations = 0;
+      iterable.__iterate(function(v, k) 
+        {return (!iterations || fn(separator, iterations++, this$0) !== false) &&
+        fn(v, iterations++, this$0) !== false},
+        reverse
+      );
+      return iterations;
+    };
+    interposedSequence.__iteratorUncached = function(type, reverse) {
+      var iterator = iterable.__iterator(ITERATE_VALUES, reverse);
+      var iterations = 0;
+      var step;
+      return new Iterator(function()  {
+        if (!step || iterations % 2) {
+          step = iterator.next();
+          if (step.done) {
+            return step;
+          }
+        }
+        return iterations % 2 ?
+          iteratorValue(type, iterations++, separator) :
+          iteratorValue(type, iterations++, step.value, step);
+      });
+    };
+    return interposedSequence;
+  }
+
+
+  function sortFactory(iterable, comparator, mapper) {
+    if (!comparator) {
+      comparator = defaultComparator;
+    }
+    var isKeyedIterable = isKeyed(iterable);
+    var index = 0;
+    var entries = iterable.toSeq().map(
+      function(v, k)  {return [k, v, index++, mapper ? mapper(v, k, iterable) : v]}
+    ).toArray();
+    entries.sort(function(a, b)  {return comparator(a[3], b[3]) || a[2] - b[2]}).forEach(
+      isKeyedIterable ?
+      function(v, i)  { entries[i].length = 2; } :
+      function(v, i)  { entries[i] = v[1]; }
+    );
+    return isKeyedIterable ? KeyedSeq(entries) :
+      isIndexed(iterable) ? IndexedSeq(entries) :
+      SetSeq(entries);
+  }
+
+
+  function maxFactory(iterable, comparator, mapper) {
+    if (!comparator) {
+      comparator = defaultComparator;
+    }
+    if (mapper) {
+      var entry = iterable.toSeq()
+        .map(function(v, k)  {return [v, mapper(v, k, iterable)]})
+        .reduce(function(a, b)  {return maxCompare(comparator, a[1], b[1]) ? b : a});
+      return entry && entry[0];
+    } else {
+      return iterable.reduce(function(a, b)  {return maxCompare(comparator, a, b) ? b : a});
+    }
+  }
+
+  function maxCompare(comparator, a, b) {
+    var comp = comparator(b, a);
+    // b is considered the new max if the comparator declares them equal, but
+    // they are not equal and b is in fact a nullish value.
+    return (comp === 0 && b !== a && (b === undefined || b === null || b !== b)) || comp > 0;
+  }
+
+
+  function zipWithFactory(keyIter, zipper, iters) {
+    var zipSequence = makeSequence(keyIter);
+    zipSequence.size = new ArraySeq(iters).map(function(i ) {return i.size}).min();
+    // Note: this a generic base implementation of __iterate in terms of
+    // __iterator which may be more generically useful in the future.
+    zipSequence.__iterate = function(fn, reverse) {
+      /* generic:
+      var iterator = this.__iterator(ITERATE_ENTRIES, reverse);
+      var step;
+      var iterations = 0;
+      while (!(step = iterator.next()).done) {
+        iterations++;
+        if (fn(step.value[1], step.value[0], this) === false) {
+          break;
+        }
+      }
+      return iterations;
+      */
+      // indexed:
+      var iterator = this.__iterator(ITERATE_VALUES, reverse);
+      var step;
+      var iterations = 0;
+      while (!(step = iterator.next()).done) {
+        if (fn(step.value, iterations++, this) === false) {
+          break;
+        }
+      }
+      return iterations;
+    };
+    zipSequence.__iteratorUncached = function(type, reverse) {
+      var iterators = iters.map(function(i )
+        {return (i = Iterable(i), getIterator(reverse ? i.reverse() : i))}
+      );
+      var iterations = 0;
+      var isDone = false;
+      return new Iterator(function()  {
+        var steps;
+        if (!isDone) {
+          steps = iterators.map(function(i ) {return i.next()});
+          isDone = steps.some(function(s ) {return s.done});
+        }
+        if (isDone) {
+          return iteratorDone();
+        }
+        return iteratorValue(
+          type,
+          iterations++,
+          zipper.apply(null, steps.map(function(s ) {return s.value}))
+        );
+      });
+    };
+    return zipSequence
+  }
+
+
+  // #pragma Helper Functions
+
+  function reify(iter, seq) {
+    return isSeq(iter) ? seq : iter.constructor(seq);
+  }
+
+  function validateEntry(entry) {
+    if (entry !== Object(entry)) {
+      throw new TypeError('Expected [K, V] tuple: ' + entry);
+    }
+  }
+
+  function resolveSize(iter) {
+    assertNotInfinite(iter.size);
+    return ensureSize(iter);
+  }
+
+  function iterableClass(iterable) {
+    return isKeyed(iterable) ? KeyedIterable :
+      isIndexed(iterable) ? IndexedIterable :
+      SetIterable;
+  }
+
+  function makeSequence(iterable) {
+    return Object.create(
+      (
+        isKeyed(iterable) ? KeyedSeq :
+        isIndexed(iterable) ? IndexedSeq :
+        SetSeq
+      ).prototype
+    );
+  }
+
+  function cacheResultThrough() {
+    if (this._iter.cacheResult) {
+      this._iter.cacheResult();
+      this.size = this._iter.size;
+      return this;
+    } else {
+      return Seq.prototype.cacheResult.call(this);
+    }
+  }
+
+  function defaultComparator(a, b) {
+    return a > b ? 1 : a < b ? -1 : 0;
+  }
+
+  function forceIterator(keyPath) {
+    var iter = getIterator(keyPath);
+    if (!iter) {
+      // Array might not be iterable in this environment, so we need a fallback
+      // to our wrapped type.
+      if (!isArrayLike(keyPath)) {
+        throw new TypeError('Expected iterable or array-like: ' + keyPath);
+      }
+      iter = getIterator(Iterable(keyPath));
+    }
+    return iter;
+  }
+
+  createClass(Record, KeyedCollection);
+
+    function Record(defaultValues, name) {
+      var hasInitialized;
+
+      var RecordType = function Record(values) {
+        if (values instanceof RecordType) {
+          return values;
+        }
+        if (!(this instanceof RecordType)) {
+          return new RecordType(values);
+        }
+        if (!hasInitialized) {
+          hasInitialized = true;
+          var keys = Object.keys(defaultValues);
+          setProps(RecordTypePrototype, keys);
+          RecordTypePrototype.size = keys.length;
+          RecordTypePrototype._name = name;
+          RecordTypePrototype._keys = keys;
+          RecordTypePrototype._defaultValues = defaultValues;
+        }
+        this._map = Map(values);
+      };
+
+      var RecordTypePrototype = RecordType.prototype = Object.create(RecordPrototype);
+      RecordTypePrototype.constructor = RecordType;
+
+      return RecordType;
+    }
+
+    Record.prototype.toString = function() {
+      return this.__toString(recordName(this) + ' {', '}');
+    };
+
+    // @pragma Access
+
+    Record.prototype.has = function(k) {
+      return this._defaultValues.hasOwnProperty(k);
+    };
+
+    Record.prototype.get = function(k, notSetValue) {
+      if (!this.has(k)) {
+        return notSetValue;
+      }
+      var defaultVal = this._defaultValues[k];
+      return this._map ? this._map.get(k, defaultVal) : defaultVal;
+    };
+
+    // @pragma Modification
+
+    Record.prototype.clear = function() {
+      if (this.__ownerID) {
+        this._map && this._map.clear();
+        return this;
+      }
+      var RecordType = this.constructor;
+      return RecordType._empty || (RecordType._empty = makeRecord(this, emptyMap()));
+    };
+
+    Record.prototype.set = function(k, v) {
+      if (!this.has(k)) {
+        throw new Error('Cannot set unknown key "' + k + '" on ' + recordName(this));
+      }
+      var newMap = this._map && this._map.set(k, v);
+      if (this.__ownerID || newMap === this._map) {
+        return this;
+      }
+      return makeRecord(this, newMap);
+    };
+
+    Record.prototype.remove = function(k) {
+      if (!this.has(k)) {
+        return this;
+      }
+      var newMap = this._map && this._map.remove(k);
+      if (this.__ownerID || newMap === this._map) {
+        return this;
+      }
+      return makeRecord(this, newMap);
+    };
+
+    Record.prototype.wasAltered = function() {
+      return this._map.wasAltered();
+    };
+
+    Record.prototype.__iterator = function(type, reverse) {var this$0 = this;
+      return KeyedIterable(this._defaultValues).map(function(_, k)  {return this$0.get(k)}).__iterator(type, reverse);
+    };
+
+    Record.prototype.__iterate = function(fn, reverse) {var this$0 = this;
+      return KeyedIterable(this._defaultValues).map(function(_, k)  {return this$0.get(k)}).__iterate(fn, reverse);
+    };
+
+    Record.prototype.__ensureOwner = function(ownerID) {
+      if (ownerID === this.__ownerID) {
+        return this;
+      }
+      var newMap = this._map && this._map.__ensureOwner(ownerID);
+      if (!ownerID) {
+        this.__ownerID = ownerID;
+        this._map = newMap;
+        return this;
+      }
+      return makeRecord(this, newMap, ownerID);
+    };
+
+
+  var RecordPrototype = Record.prototype;
+  RecordPrototype[DELETE] = RecordPrototype.remove;
+  RecordPrototype.deleteIn =
+  RecordPrototype.removeIn = MapPrototype.removeIn;
+  RecordPrototype.merge = MapPrototype.merge;
+  RecordPrototype.mergeWith = MapPrototype.mergeWith;
+  RecordPrototype.mergeIn = MapPrototype.mergeIn;
+  RecordPrototype.mergeDeep = MapPrototype.mergeDeep;
+  RecordPrototype.mergeDeepWith = MapPrototype.mergeDeepWith;
+  RecordPrototype.mergeDeepIn = MapPrototype.mergeDeepIn;
+  RecordPrototype.setIn = MapPrototype.setIn;
+  RecordPrototype.update = MapPrototype.update;
+  RecordPrototype.updateIn = MapPrototype.updateIn;
+  RecordPrototype.withMutations = MapPrototype.withMutations;
+  RecordPrototype.asMutable = MapPrototype.asMutable;
+  RecordPrototype.asImmutable = MapPrototype.asImmutable;
+
+
+  function makeRecord(likeRecord, map, ownerID) {
+    var record = Object.create(Object.getPrototypeOf(likeRecord));
+    record._map = map;
+    record.__ownerID = ownerID;
+    return record;
+  }
+
+  function recordName(record) {
+    return record._name || record.constructor.name || 'Record';
+  }
+
+  function setProps(prototype, names) {
+    try {
+      names.forEach(setProp.bind(undefined, prototype));
+    } catch (error) {
+      // Object.defineProperty failed. Probably IE8.
+    }
+  }
+
+  function setProp(prototype, name) {
+    Object.defineProperty(prototype, name, {
+      get: function() {
+        return this.get(name);
+      },
+      set: function(value) {
+        invariant(this.__ownerID, 'Cannot set on an immutable record.');
+        this.set(name, value);
+      }
+    });
+  }
+
+  createClass(Set, SetCollection);
+
+    // @pragma Construction
+
+    function Set(value) {
+      return value === null || value === undefined ? emptySet() :
+        isSet(value) && !isOrdered(value) ? value :
+        emptySet().withMutations(function(set ) {
+          var iter = SetIterable(value);
+          assertNotInfinite(iter.size);
+          iter.forEach(function(v ) {return set.add(v)});
+        });
+    }
+
+    Set.of = function(/*...values*/) {
+      return this(arguments);
+    };
+
+    Set.fromKeys = function(value) {
+      return this(KeyedIterable(value).keySeq());
+    };
+
+    Set.prototype.toString = function() {
+      return this.__toString('Set {', '}');
+    };
+
+    // @pragma Access
+
+    Set.prototype.has = function(value) {
+      return this._map.has(value);
+    };
+
+    // @pragma Modification
+
+    Set.prototype.add = function(value) {
+      return updateSet(this, this._map.set(value, true));
+    };
+
+    Set.prototype.remove = function(value) {
+      return updateSet(this, this._map.remove(value));
+    };
+
+    Set.prototype.clear = function() {
+      return updateSet(this, this._map.clear());
+    };
+
+    // @pragma Composition
+
+    Set.prototype.union = function() {var iters = SLICE$0.call(arguments, 0);
+      iters = iters.filter(function(x ) {return x.size !== 0});
+      if (iters.length === 0) {
+        return this;
+      }
+      if (this.size === 0 && !this.__ownerID && iters.length === 1) {
+        return this.constructor(iters[0]);
+      }
+      return this.withMutations(function(set ) {
+        for (var ii = 0; ii < iters.length; ii++) {
+          SetIterable(iters[ii]).forEach(function(value ) {return set.add(value)});
+        }
+      });
+    };
+
+    Set.prototype.intersect = function() {var iters = SLICE$0.call(arguments, 0);
+      if (iters.length === 0) {
+        return this;
+      }
+      iters = iters.map(function(iter ) {return SetIterable(iter)});
+      var originalSet = this;
+      return this.withMutations(function(set ) {
+        originalSet.forEach(function(value ) {
+          if (!iters.every(function(iter ) {return iter.includes(value)})) {
+            set.remove(value);
+          }
+        });
+      });
+    };
+
+    Set.prototype.subtract = function() {var iters = SLICE$0.call(arguments, 0);
+      if (iters.length === 0) {
+        return this;
+      }
+      iters = iters.map(function(iter ) {return SetIterable(iter)});
+      var originalSet = this;
+      return this.withMutations(function(set ) {
+        originalSet.forEach(function(value ) {
+          if (iters.some(function(iter ) {return iter.includes(value)})) {
+            set.remove(value);
+          }
+        });
+      });
+    };
+
+    Set.prototype.merge = function() {
+      return this.union.apply(this, arguments);
+    };
+
+    Set.prototype.mergeWith = function(merger) {var iters = SLICE$0.call(arguments, 1);
+      return this.union.apply(this, iters);
+    };
+
+    Set.prototype.sort = function(comparator) {
+      // Late binding
+      return OrderedSet(sortFactory(this, comparator));
+    };
+
+    Set.prototype.sortBy = function(mapper, comparator) {
+      // Late binding
+      return OrderedSet(sortFactory(this, comparator, mapper));
+    };
+
+    Set.prototype.wasAltered = function() {
+      return this._map.wasAltered();
+    };
+
+    Set.prototype.__iterate = function(fn, reverse) {var this$0 = this;
+      return this._map.__iterate(function(_, k)  {return fn(k, k, this$0)}, reverse);
+    };
+
+    Set.prototype.__iterator = function(type, reverse) {
+      return this._map.map(function(_, k)  {return k}).__iterator(type, reverse);
+    };
+
+    Set.prototype.__ensureOwner = function(ownerID) {
+      if (ownerID === this.__ownerID) {
+        return this;
+      }
+      var newMap = this._map.__ensureOwner(ownerID);
+      if (!ownerID) {
+        this.__ownerID = ownerID;
+        this._map = newMap;
+        return this;
+      }
+      return this.__make(newMap, ownerID);
+    };
+
+
+  function isSet(maybeSet) {
+    return !!(maybeSet && maybeSet[IS_SET_SENTINEL]);
+  }
+
+  Set.isSet = isSet;
+
+  var IS_SET_SENTINEL = '@@__IMMUTABLE_SET__@@';
+
+  var SetPrototype = Set.prototype;
+  SetPrototype[IS_SET_SENTINEL] = true;
+  SetPrototype[DELETE] = SetPrototype.remove;
+  SetPrototype.mergeDeep = SetPrototype.merge;
+  SetPrototype.mergeDeepWith = SetPrototype.mergeWith;
+  SetPrototype.withMutations = MapPrototype.withMutations;
+  SetPrototype.asMutable = MapPrototype.asMutable;
+  SetPrototype.asImmutable = MapPrototype.asImmutable;
+
+  SetPrototype.__empty = emptySet;
+  SetPrototype.__make = makeSet;
+
+  function updateSet(set, newMap) {
+    if (set.__ownerID) {
+      set.size = newMap.size;
+      set._map = newMap;
+      return set;
+    }
+    return newMap === set._map ? set :
+      newMap.size === 0 ? set.__empty() :
+      set.__make(newMap);
+  }
+
+  function makeSet(map, ownerID) {
+    var set = Object.create(SetPrototype);
+    set.size = map ? map.size : 0;
+    set._map = map;
+    set.__ownerID = ownerID;
+    return set;
+  }
+
+  var EMPTY_SET;
+  function emptySet() {
+    return EMPTY_SET || (EMPTY_SET = makeSet(emptyMap()));
+  }
+
+  createClass(OrderedSet, Set);
+
+    // @pragma Construction
+
+    function OrderedSet(value) {
+      return value === null || value === undefined ? emptyOrderedSet() :
+        isOrderedSet(value) ? value :
+        emptyOrderedSet().withMutations(function(set ) {
+          var iter = SetIterable(value);
+          assertNotInfinite(iter.size);
+          iter.forEach(function(v ) {return set.add(v)});
+        });
+    }
+
+    OrderedSet.of = function(/*...values*/) {
+      return this(arguments);
+    };
+
+    OrderedSet.fromKeys = function(value) {
+      return this(KeyedIterable(value).keySeq());
+    };
+
+    OrderedSet.prototype.toString = function() {
+      return this.__toString('OrderedSet {', '}');
+    };
+
+
+  function isOrderedSet(maybeOrderedSet) {
+    return isSet(maybeOrderedSet) && isOrdered(maybeOrderedSet);
+  }
+
+  OrderedSet.isOrderedSet = isOrderedSet;
+
+  var OrderedSetPrototype = OrderedSet.prototype;
+  OrderedSetPrototype[IS_ORDERED_SENTINEL] = true;
+
+  OrderedSetPrototype.__empty = emptyOrderedSet;
+  OrderedSetPrototype.__make = makeOrderedSet;
+
+  function makeOrderedSet(map, ownerID) {
+    var set = Object.create(OrderedSetPrototype);
+    set.size = map ? map.size : 0;
+    set._map = map;
+    set.__ownerID = ownerID;
+    return set;
+  }
+
+  var EMPTY_ORDERED_SET;
+  function emptyOrderedSet() {
+    return EMPTY_ORDERED_SET || (EMPTY_ORDERED_SET = makeOrderedSet(emptyOrderedMap()));
+  }
+
+  createClass(Stack, IndexedCollection);
+
+    // @pragma Construction
+
+    function Stack(value) {
+      return value === null || value === undefined ? emptyStack() :
+        isStack(value) ? value :
+        emptyStack().unshiftAll(value);
+    }
+
+    Stack.of = function(/*...values*/) {
+      return this(arguments);
+    };
+
+    Stack.prototype.toString = function() {
+      return this.__toString('Stack [', ']');
+    };
+
+    // @pragma Access
+
+    Stack.prototype.get = function(index, notSetValue) {
+      var head = this._head;
+      index = wrapIndex(this, index);
+      while (head && index--) {
+        head = head.next;
+      }
+      return head ? head.value : notSetValue;
+    };
+
+    Stack.prototype.peek = function() {
+      return this._head && this._head.value;
+    };
+
+    // @pragma Modification
+
+    Stack.prototype.push = function(/*...values*/) {
+      if (arguments.length === 0) {
+        return this;
+      }
+      var newSize = this.size + arguments.length;
+      var head = this._head;
+      for (var ii = arguments.length - 1; ii >= 0; ii--) {
+        head = {
+          value: arguments[ii],
+          next: head
+        };
+      }
+      if (this.__ownerID) {
+        this.size = newSize;
+        this._head = head;
+        this.__hash = undefined;
+        this.__altered = true;
+        return this;
+      }
+      return makeStack(newSize, head);
+    };
+
+    Stack.prototype.pushAll = function(iter) {
+      iter = IndexedIterable(iter);
+      if (iter.size === 0) {
+        return this;
+      }
+      assertNotInfinite(iter.size);
+      var newSize = this.size;
+      var head = this._head;
+      iter.reverse().forEach(function(value ) {
+        newSize++;
+        head = {
+          value: value,
+          next: head
+        };
+      });
+      if (this.__ownerID) {
+        this.size = newSize;
+        this._head = head;
+        this.__hash = undefined;
+        this.__altered = true;
+        return this;
+      }
+      return makeStack(newSize, head);
+    };
+
+    Stack.prototype.pop = function() {
+      return this.slice(1);
+    };
+
+    Stack.prototype.unshift = function(/*...values*/) {
+      return this.push.apply(this, arguments);
+    };
+
+    Stack.prototype.unshiftAll = function(iter) {
+      return this.pushAll(iter);
+    };
+
+    Stack.prototype.shift = function() {
+      return this.pop.apply(this, arguments);
+    };
+
+    Stack.prototype.clear = function() {
+      if (this.size === 0) {
+        return this;
+      }
+      if (this.__ownerID) {
+        this.size = 0;
+        this._head = undefined;
+        this.__hash = undefined;
+        this.__altered = true;
+        return this;
+      }
+      return emptyStack();
+    };
+
+    Stack.prototype.slice = function(begin, end) {
+      if (wholeSlice(begin, end, this.size)) {
+        return this;
+      }
+      var resolvedBegin = resolveBegin(begin, this.size);
+      var resolvedEnd = resolveEnd(end, this.size);
+      if (resolvedEnd !== this.size) {
+        // super.slice(begin, end);
+        return IndexedCollection.prototype.slice.call(this, begin, end);
+      }
+      var newSize = this.size - resolvedBegin;
+      var head = this._head;
+      while (resolvedBegin--) {
+        head = head.next;
+      }
+      if (this.__ownerID) {
+        this.size = newSize;
+        this._head = head;
+        this.__hash = undefined;
+        this.__altered = true;
+        return this;
+      }
+      return makeStack(newSize, head);
+    };
+
+    // @pragma Mutability
+
+    Stack.prototype.__ensureOwner = function(ownerID) {
+      if (ownerID === this.__ownerID) {
+        return this;
+      }
+      if (!ownerID) {
+        this.__ownerID = ownerID;
+        this.__altered = false;
+        return this;
+      }
+      return makeStack(this.size, this._head, ownerID, this.__hash);
+    };
+
+    // @pragma Iteration
+
+    Stack.prototype.__iterate = function(fn, reverse) {
+      if (reverse) {
+        return this.reverse().__iterate(fn);
+      }
+      var iterations = 0;
+      var node = this._head;
+      while (node) {
+        if (fn(node.value, iterations++, this) === false) {
+          break;
+        }
+        node = node.next;
+      }
+      return iterations;
+    };
+
+    Stack.prototype.__iterator = function(type, reverse) {
+      if (reverse) {
+        return this.reverse().__iterator(type);
+      }
+      var iterations = 0;
+      var node = this._head;
+      return new Iterator(function()  {
+        if (node) {
+          var value = node.value;
+          node = node.next;
+          return iteratorValue(type, iterations++, value);
+        }
+        return iteratorDone();
+      });
+    };
+
+
+  function isStack(maybeStack) {
+    return !!(maybeStack && maybeStack[IS_STACK_SENTINEL]);
+  }
+
+  Stack.isStack = isStack;
+
+  var IS_STACK_SENTINEL = '@@__IMMUTABLE_STACK__@@';
+
+  var StackPrototype = Stack.prototype;
+  StackPrototype[IS_STACK_SENTINEL] = true;
+  StackPrototype.withMutations = MapPrototype.withMutations;
+  StackPrototype.asMutable = MapPrototype.asMutable;
+  StackPrototype.asImmutable = MapPrototype.asImmutable;
+  StackPrototype.wasAltered = MapPrototype.wasAltered;
+
+
+  function makeStack(size, head, ownerID, hash) {
+    var map = Object.create(StackPrototype);
+    map.size = size;
+    map._head = head;
+    map.__ownerID = ownerID;
+    map.__hash = hash;
+    map.__altered = false;
+    return map;
+  }
+
+  var EMPTY_STACK;
+  function emptyStack() {
+    return EMPTY_STACK || (EMPTY_STACK = makeStack(0));
+  }
+
+  /**
+   * Contributes additional methods to a constructor
+   */
+  function mixin(ctor, methods) {
+    var keyCopier = function(key ) { ctor.prototype[key] = methods[key]; };
+    Object.keys(methods).forEach(keyCopier);
+    Object.getOwnPropertySymbols &&
+      Object.getOwnPropertySymbols(methods).forEach(keyCopier);
+    return ctor;
+  }
+
+  Iterable.Iterator = Iterator;
+
+  mixin(Iterable, {
+
+    // ### Conversion to other types
+
+    toArray: function() {
+      assertNotInfinite(this.size);
+      var array = new Array(this.size || 0);
+      this.valueSeq().__iterate(function(v, i)  { array[i] = v; });
+      return array;
+    },
+
+    toIndexedSeq: function() {
+      return new ToIndexedSequence(this);
+    },
+
+    toJS: function() {
+      return this.toSeq().map(
+        function(value ) {return value && typeof value.toJS === 'function' ? value.toJS() : value}
+      ).__toJS();
+    },
+
+    toJSON: function() {
+      return this.toSeq().map(
+        function(value ) {return value && typeof value.toJSON === 'function' ? value.toJSON() : value}
+      ).__toJS();
+    },
+
+    toKeyedSeq: function() {
+      return new ToKeyedSequence(this, true);
+    },
+
+    toMap: function() {
+      // Use Late Binding here to solve the circular dependency.
+      return Map(this.toKeyedSeq());
+    },
+
+    toObject: function() {
+      assertNotInfinite(this.size);
+      var object = {};
+      this.__iterate(function(v, k)  { object[k] = v; });
+      return object;
+    },
+
+    toOrderedMap: function() {
+      // Use Late Binding here to solve the circular dependency.
+      return OrderedMap(this.toKeyedSeq());
+    },
+
+    toOrderedSet: function() {
+      // Use Late Binding here to solve the circular dependency.
+      return OrderedSet(isKeyed(this) ? this.valueSeq() : this);
+    },
+
+    toSet: function() {
+      // Use Late Binding here to solve the circular dependency.
+      return Set(isKeyed(this) ? this.valueSeq() : this);
+    },
+
+    toSetSeq: function() {
+      return new ToSetSequence(this);
+    },
+
+    toSeq: function() {
+      return isIndexed(this) ? this.toIndexedSeq() :
+        isKeyed(this) ? this.toKeyedSeq() :
+        this.toSetSeq();
+    },
+
+    toStack: function() {
+      // Use Late Binding here to solve the circular dependency.
+      return Stack(isKeyed(this) ? this.valueSeq() : this);
+    },
+
+    toList: function() {
+      // Use Late Binding here to solve the circular dependency.
+      return List(isKeyed(this) ? this.valueSeq() : this);
+    },
+
+
+    // ### Common JavaScript methods and properties
+
+    toString: function() {
+      return '[Iterable]';
+    },
+
+    __toString: function(head, tail) {
+      if (this.size === 0) {
+        return head + tail;
+      }
+      return head + ' ' + this.toSeq().map(this.__toStringMapper).join(', ') + ' ' + tail;
+    },
+
+
+    // ### ES6 Collection methods (ES6 Array and Map)
+
+    concat: function() {var values = SLICE$0.call(arguments, 0);
+      return reify(this, concatFactory(this, values));
+    },
+
+    includes: function(searchValue) {
+      return this.some(function(value ) {return is(value, searchValue)});
+    },
+
+    entries: function() {
+      return this.__iterator(ITERATE_ENTRIES);
+    },
+
+    every: function(predicate, context) {
+      assertNotInfinite(this.size);
+      var returnValue = true;
+      this.__iterate(function(v, k, c)  {
+        if (!predicate.call(context, v, k, c)) {
+          returnValue = false;
+          return false;
+        }
+      });
+      return returnValue;
+    },
+
+    filter: function(predicate, context) {
+      return reify(this, filterFactory(this, predicate, context, true));
+    },
+
+    find: function(predicate, context, notSetValue) {
+      var entry = this.findEntry(predicate, context);
+      return entry ? entry[1] : notSetValue;
+    },
+
+    findEntry: function(predicate, context) {
+      var found;
+      this.__iterate(function(v, k, c)  {
+        if (predicate.call(context, v, k, c)) {
+          found = [k, v];
+          return false;
+        }
+      });
+      return found;
+    },
+
+    findLastEntry: function(predicate, context) {
+      return this.toSeq().reverse().findEntry(predicate, context);
+    },
+
+    forEach: function(sideEffect, context) {
+      assertNotInfinite(this.size);
+      return this.__iterate(context ? sideEffect.bind(context) : sideEffect);
+    },
+
+    join: function(separator) {
+      assertNotInfinite(this.size);
+      separator = separator !== undefined ? '' + separator : ',';
+      var joined = '';
+      var isFirst = true;
+      this.__iterate(function(v ) {
+        isFirst ? (isFirst = false) : (joined += separator);
+        joined += v !== null && v !== undefined ? v.toString() : '';
+      });
+      return joined;
+    },
+
+    keys: function() {
+      return this.__iterator(ITERATE_KEYS);
+    },
+
+    map: function(mapper, context) {
+      return reify(this, mapFactory(this, mapper, context));
+    },
+
+    reduce: function(reducer, initialReduction, context) {
+      assertNotInfinite(this.size);
+      var reduction;
+      var useFirst;
+      if (arguments.length < 2) {
+        useFirst = true;
+      } else {
+        reduction = initialReduction;
+      }
+      this.__iterate(function(v, k, c)  {
+        if (useFirst) {
+          useFirst = false;
+          reduction = v;
+        } else {
+          reduction = reducer.call(context, reduction, v, k, c);
+        }
+      });
+      return reduction;
+    },
+
+    reduceRight: function(reducer, initialReduction, context) {
+      var reversed = this.toKeyedSeq().reverse();
+      return reversed.reduce.apply(reversed, arguments);
+    },
+
+    reverse: function() {
+      return reify(this, reverseFactory(this, true));
+    },
+
+    slice: function(begin, end) {
+      return reify(this, sliceFactory(this, begin, end, true));
+    },
+
+    some: function(predicate, context) {
+      return !this.every(not(predicate), context);
+    },
+
+    sort: function(comparator) {
+      return reify(this, sortFactory(this, comparator));
+    },
+
+    values: function() {
+      return this.__iterator(ITERATE_VALUES);
+    },
+
+
+    // ### More sequential methods
+
+    butLast: function() {
+      return this.slice(0, -1);
+    },
+
+    isEmpty: function() {
+      return this.size !== undefined ? this.size === 0 : !this.some(function()  {return true});
+    },
+
+    count: function(predicate, context) {
+      return ensureSize(
+        predicate ? this.toSeq().filter(predicate, context) : this
+      );
+    },
+
+    countBy: function(grouper, context) {
+      return countByFactory(this, grouper, context);
+    },
+
+    equals: function(other) {
+      return deepEqual(this, other);
+    },
+
+    entrySeq: function() {
+      var iterable = this;
+      if (iterable._cache) {
+        // We cache as an entries array, so we can just return the cache!
+        return new ArraySeq(iterable._cache);
+      }
+      var entriesSequence = iterable.toSeq().map(entryMapper).toIndexedSeq();
+      entriesSequence.fromEntrySeq = function()  {return iterable.toSeq()};
+      return entriesSequence;
+    },
+
+    filterNot: function(predicate, context) {
+      return this.filter(not(predicate), context);
+    },
+
+    findLast: function(predicate, context, notSetValue) {
+      return this.toKeyedSeq().reverse().find(predicate, context, notSetValue);
+    },
+
+    first: function() {
+      return this.find(returnTrue);
+    },
+
+    flatMap: function(mapper, context) {
+      return reify(this, flatMapFactory(this, mapper, context));
+    },
+
+    flatten: function(depth) {
+      return reify(this, flattenFactory(this, depth, true));
+    },
+
+    fromEntrySeq: function() {
+      return new FromEntriesSequence(this);
+    },
+
+    get: function(searchKey, notSetValue) {
+      return this.find(function(_, key)  {return is(key, searchKey)}, undefined, notSetValue);
+    },
+
+    getIn: function(searchKeyPath, notSetValue) {
+      var nested = this;
+      // Note: in an ES6 environment, we would prefer:
+      // for (var key of searchKeyPath) {
+      var iter = forceIterator(searchKeyPath);
+      var step;
+      while (!(step = iter.next()).done) {
+        var key = step.value;
+        nested = nested && nested.get ? nested.get(key, NOT_SET) : NOT_SET;
+        if (nested === NOT_SET) {
+          return notSetValue;
+        }
+      }
+      return nested;
+    },
+
+    groupBy: function(grouper, context) {
+      return groupByFactory(this, grouper, context);
+    },
+
+    has: function(searchKey) {
+      return this.get(searchKey, NOT_SET) !== NOT_SET;
+    },
+
+    hasIn: function(searchKeyPath) {
+      return this.getIn(searchKeyPath, NOT_SET) !== NOT_SET;
+    },
+
+    isSubset: function(iter) {
+      iter = typeof iter.includes === 'function' ? iter : Iterable(iter);
+      return this.every(function(value ) {return iter.includes(value)});
+    },
+
+    isSuperset: function(iter) {
+      iter = typeof iter.isSubset === 'function' ? iter : Iterable(iter);
+      return iter.isSubset(this);
+    },
+
+    keySeq: function() {
+      return this.toSeq().map(keyMapper).toIndexedSeq();
+    },
+
+    last: function() {
+      return this.toSeq().reverse().first();
+    },
+
+    max: function(comparator) {
+      return maxFactory(this, comparator);
+    },
+
+    maxBy: function(mapper, comparator) {
+      return maxFactory(this, comparator, mapper);
+    },
+
+    min: function(comparator) {
+      return maxFactory(this, comparator ? neg(comparator) : defaultNegComparator);
+    },
+
+    minBy: function(mapper, comparator) {
+      return maxFactory(this, comparator ? neg(comparator) : defaultNegComparator, mapper);
+    },
+
+    rest: function() {
+      return this.slice(1);
+    },
+
+    skip: function(amount) {
+      return this.slice(Math.max(0, amount));
+    },
+
+    skipLast: function(amount) {
+      return reify(this, this.toSeq().reverse().skip(amount).reverse());
+    },
+
+    skipWhile: function(predicate, context) {
+      return reify(this, skipWhileFactory(this, predicate, context, true));
+    },
+
+    skipUntil: function(predicate, context) {
+      return this.skipWhile(not(predicate), context);
+    },
+
+    sortBy: function(mapper, comparator) {
+      return reify(this, sortFactory(this, comparator, mapper));
+    },
+
+    take: function(amount) {
+      return this.slice(0, Math.max(0, amount));
+    },
+
+    takeLast: function(amount) {
+      return reify(this, this.toSeq().reverse().take(amount).reverse());
+    },
+
+    takeWhile: function(predicate, context) {
+      return reify(this, takeWhileFactory(this, predicate, context));
+    },
+
+    takeUntil: function(predicate, context) {
+      return this.takeWhile(not(predicate), context);
+    },
+
+    valueSeq: function() {
+      return this.toIndexedSeq();
+    },
+
+
+    // ### Hashable Object
+
+    hashCode: function() {
+      return this.__hash || (this.__hash = hashIterable(this));
+    }
+
+
+    // ### Internal
+
+    // abstract __iterate(fn, reverse)
+
+    // abstract __iterator(type, reverse)
+  });
+
+  // var IS_ITERABLE_SENTINEL = '@@__IMMUTABLE_ITERABLE__@@';
+  // var IS_KEYED_SENTINEL = '@@__IMMUTABLE_KEYED__@@';
+  // var IS_INDEXED_SENTINEL = '@@__IMMUTABLE_INDEXED__@@';
+  // var IS_ORDERED_SENTINEL = '@@__IMMUTABLE_ORDERED__@@';
+
+  var IterablePrototype = Iterable.prototype;
+  IterablePrototype[IS_ITERABLE_SENTINEL] = true;
+  IterablePrototype[ITERATOR_SYMBOL] = IterablePrototype.values;
+  IterablePrototype.__toJS = IterablePrototype.toArray;
+  IterablePrototype.__toStringMapper = quoteString;
+  IterablePrototype.inspect =
+  IterablePrototype.toSource = function() { return this.toString(); };
+  IterablePrototype.chain = IterablePrototype.flatMap;
+  IterablePrototype.contains = IterablePrototype.includes;
+
+  // Temporary warning about using length
+  (function () {
+    try {
+      Object.defineProperty(IterablePrototype, 'length', {
+        get: function () {
+          if (!Iterable.noLengthWarning) {
+            var stack;
+            try {
+              throw new Error();
+            } catch (error) {
+              stack = error.stack;
+            }
+            if (stack.indexOf('_wrapObject') === -1) {
+              console && console.warn && console.warn(
+                'iterable.length has been deprecated, '+
+                'use iterable.size or iterable.count(). '+
+                'This warning will become a silent error in a future version. ' +
+                stack
+              );
+              return this.size;
+            }
+          }
+        }
+      });
+    } catch (e) {}
+  })();
+
+
+
+  mixin(KeyedIterable, {
+
+    // ### More sequential methods
+
+    flip: function() {
+      return reify(this, flipFactory(this));
+    },
+
+    findKey: function(predicate, context) {
+      var entry = this.findEntry(predicate, context);
+      return entry && entry[0];
+    },
+
+    findLastKey: function(predicate, context) {
+      return this.toSeq().reverse().findKey(predicate, context);
+    },
+
+    keyOf: function(searchValue) {
+      return this.findKey(function(value ) {return is(value, searchValue)});
+    },
+
+    lastKeyOf: function(searchValue) {
+      return this.findLastKey(function(value ) {return is(value, searchValue)});
+    },
+
+    mapEntries: function(mapper, context) {var this$0 = this;
+      var iterations = 0;
+      return reify(this,
+        this.toSeq().map(
+          function(v, k)  {return mapper.call(context, [k, v], iterations++, this$0)}
+        ).fromEntrySeq()
+      );
+    },
+
+    mapKeys: function(mapper, context) {var this$0 = this;
+      return reify(this,
+        this.toSeq().flip().map(
+          function(k, v)  {return mapper.call(context, k, v, this$0)}
+        ).flip()
+      );
+    }
+
+  });
+
+  var KeyedIterablePrototype = KeyedIterable.prototype;
+  KeyedIterablePrototype[IS_KEYED_SENTINEL] = true;
+  KeyedIterablePrototype[ITERATOR_SYMBOL] = IterablePrototype.entries;
+  KeyedIterablePrototype.__toJS = IterablePrototype.toObject;
+  KeyedIterablePrototype.__toStringMapper = function(v, k)  {return JSON.stringify(k) + ': ' + quoteString(v)};
+
+
+
+  mixin(IndexedIterable, {
+
+    // ### Conversion to other types
+
+    toKeyedSeq: function() {
+      return new ToKeyedSequence(this, false);
+    },
+
+
+    // ### ES6 Collection methods (ES6 Array and Map)
+
+    filter: function(predicate, context) {
+      return reify(this, filterFactory(this, predicate, context, false));
+    },
+
+    findIndex: function(predicate, context) {
+      var entry = this.findEntry(predicate, context);
+      return entry ? entry[0] : -1;
+    },
+
+    indexOf: function(searchValue) {
+      var key = this.toKeyedSeq().keyOf(searchValue);
+      return key === undefined ? -1 : key;
+    },
+
+    lastIndexOf: function(searchValue) {
+      var key = this.toKeyedSeq().reverse().keyOf(searchValue);
+      return key === undefined ? -1 : key;
+
+      // var index =
+      // return this.toSeq().reverse().indexOf(searchValue);
+    },
+
+    reverse: function() {
+      return reify(this, reverseFactory(this, false));
+    },
+
+    slice: function(begin, end) {
+      return reify(this, sliceFactory(this, begin, end, false));
+    },
+
+    splice: function(index, removeNum /*, ...values*/) {
+      var numArgs = arguments.length;
+      removeNum = Math.max(removeNum | 0, 0);
+      if (numArgs === 0 || (numArgs === 2 && !removeNum)) {
+        return this;
+      }
+      // If index is negative, it should resolve relative to the size of the
+      // collection. However size may be expensive to compute if not cached, so
+      // only call count() if the number is in fact negative.
+      index = resolveBegin(index, index < 0 ? this.count() : this.size);
+      var spliced = this.slice(0, index);
+      return reify(
+        this,
+        numArgs === 1 ?
+          spliced :
+          spliced.concat(arrCopy(arguments, 2), this.slice(index + removeNum))
+      );
+    },
+
+
+    // ### More collection methods
+
+    findLastIndex: function(predicate, context) {
+      var key = this.toKeyedSeq().findLastKey(predicate, context);
+      return key === undefined ? -1 : key;
+    },
+
+    first: function() {
+      return this.get(0);
+    },
+
+    flatten: function(depth) {
+      return reify(this, flattenFactory(this, depth, false));
+    },
+
+    get: function(index, notSetValue) {
+      index = wrapIndex(this, index);
+      return (index < 0 || (this.size === Infinity ||
+          (this.size !== undefined && index > this.size))) ?
+        notSetValue :
+        this.find(function(_, key)  {return key === index}, undefined, notSetValue);
+    },
+
+    has: function(index) {
+      index = wrapIndex(this, index);
+      return index >= 0 && (this.size !== undefined ?
+        this.size === Infinity || index < this.size :
+        this.indexOf(index) !== -1
+      );
+    },
+
+    interpose: function(separator) {
+      return reify(this, interposeFactory(this, separator));
+    },
+
+    interleave: function(/*...iterables*/) {
+      var iterables = [this].concat(arrCopy(arguments));
+      var zipped = zipWithFactory(this.toSeq(), IndexedSeq.of, iterables);
+      var interleaved = zipped.flatten(true);
+      if (zipped.size) {
+        interleaved.size = zipped.size * iterables.length;
+      }
+      return reify(this, interleaved);
+    },
+
+    last: function() {
+      return this.get(-1);
+    },
+
+    skipWhile: function(predicate, context) {
+      return reify(this, skipWhileFactory(this, predicate, context, false));
+    },
+
+    zip: function(/*, ...iterables */) {
+      var iterables = [this].concat(arrCopy(arguments));
+      return reify(this, zipWithFactory(this, defaultZipper, iterables));
+    },
+
+    zipWith: function(zipper/*, ...iterables */) {
+      var iterables = arrCopy(arguments);
+      iterables[0] = this;
+      return reify(this, zipWithFactory(this, zipper, iterables));
+    }
+
+  });
+
+  IndexedIterable.prototype[IS_INDEXED_SENTINEL] = true;
+  IndexedIterable.prototype[IS_ORDERED_SENTINEL] = true;
+
+
+
+  mixin(SetIterable, {
+
+    // ### ES6 Collection methods (ES6 Array and Map)
+
+    get: function(value, notSetValue) {
+      return this.has(value) ? value : notSetValue;
+    },
+
+    includes: function(value) {
+      return this.has(value);
+    },
+
+
+    // ### More sequential methods
+
+    keySeq: function() {
+      return this.valueSeq();
+    }
+
+  });
+
+  SetIterable.prototype.has = IterablePrototype.includes;
+
+
+  // Mixin subclasses
+
+  mixin(KeyedSeq, KeyedIterable.prototype);
+  mixin(IndexedSeq, IndexedIterable.prototype);
+  mixin(SetSeq, SetIterable.prototype);
+
+  mixin(KeyedCollection, KeyedIterable.prototype);
+  mixin(IndexedCollection, IndexedIterable.prototype);
+  mixin(SetCollection, SetIterable.prototype);
+
+
+  // #pragma Helper functions
+
+  function keyMapper(v, k) {
+    return k;
+  }
+
+  function entryMapper(v, k) {
+    return [k, v];
+  }
+
+  function not(predicate) {
+    return function() {
+      return !predicate.apply(this, arguments);
+    }
+  }
+
+  function neg(predicate) {
+    return function() {
+      return -predicate.apply(this, arguments);
+    }
+  }
+
+  function quoteString(value) {
+    return typeof value === 'string' ? JSON.stringify(value) : value;
+  }
+
+  function defaultZipper() {
+    return arrCopy(arguments);
+  }
+
+  function defaultNegComparator(a, b) {
+    return a < b ? 1 : a > b ? -1 : 0;
+  }
+
+  function hashIterable(iterable) {
+    if (iterable.size === Infinity) {
+      return 0;
+    }
+    var ordered = isOrdered(iterable);
+    var keyed = isKeyed(iterable);
+    var h = ordered ? 1 : 0;
+    var size = iterable.__iterate(
+      keyed ?
+        ordered ?
+          function(v, k)  { h = 31 * h + hashMerge(hash(v), hash(k)) | 0; } :
+          function(v, k)  { h = h + hashMerge(hash(v), hash(k)) | 0; } :
+        ordered ?
+          function(v ) { h = 31 * h + hash(v) | 0; } :
+          function(v ) { h = h + hash(v) | 0; }
+    );
+    return murmurHashOfSize(size, h);
+  }
+
+  function murmurHashOfSize(size, h) {
+    h = imul(h, 0xCC9E2D51);
+    h = imul(h << 15 | h >>> -15, 0x1B873593);
+    h = imul(h << 13 | h >>> -13, 5);
+    h = (h + 0xE6546B64 | 0) ^ size;
+    h = imul(h ^ h >>> 16, 0x85EBCA6B);
+    h = imul(h ^ h >>> 13, 0xC2B2AE35);
+    h = smi(h ^ h >>> 16);
+    return h;
+  }
+
+  function hashMerge(a, b) {
+    return a ^ b + 0x9E3779B9 + (a << 6) + (a >> 2) | 0; // int
+  }
+
+  var Immutable = {
+
+    Iterable: Iterable,
+
+    Seq: Seq,
+    Collection: Collection,
+    Map: Map,
+    OrderedMap: OrderedMap,
+    List: List,
+    Stack: Stack,
+    Set: Set,
+    OrderedSet: OrderedSet,
+
+    Record: Record,
+    Range: Range,
+    Repeat: Repeat,
+
+    is: is,
+    fromJS: fromJS
+
+  };
+
+  return Immutable;
+
+}));
+
+/***/ }),
+/* 2 */
+/***/ (function(module, exports, __webpack_require__) {
+
+"use strict";
+/**
+ * Copyright (c) 2013-present, Facebook, Inc.
+ *
+ * This source code is licensed under the MIT license found in the
+ * LICENSE file in the root directory of this source tree.
+ *
+ */
+
+
+
+/**
+ * Use invariant() to assert state which your program assumes to be true.
+ *
+ * Provide sprintf-style format (only %s is supported) and arguments
+ * to provide information about what broke and what you were
+ * expecting.
+ *
+ * The invariant message will be stripped in production, but the invariant
+ * will remain to ensure logic does not differ in production.
+ */
+
+var validateFormat = function validateFormat(format) {};
+
+if (true) {
+  validateFormat = function validateFormat(format) {
+    if (format === undefined) {
+      throw new Error('invariant requires an error message argument');
+    }
+  };
+}
+
+function invariant(condition, format, a, b, c, d, e, f) {
+  validateFormat(format);
+
+  if (!condition) {
+    var error;
+    if (format === undefined) {
+      error = new Error('Minified exception occurred; use the non-minified dev environment ' + 'for the full error message and additional helpful warnings.');
+    } else {
+      var args = [a, b, c, d, e, f];
+      var argIndex = 0;
+      error = new Error(format.replace(/%s/g, function () {
+        return args[argIndex++];
+      }));
+      error.name = 'Invariant Violation';
+    }
+
+    error.framesToPop = 1; // we don't care about invariant's own frame
+    throw error;
+  }
+}
+
+module.exports = invariant;
+
+/***/ }),
+/* 3 */
+/***/ (function(module, exports, __webpack_require__) {
+
+"use strict";
+/**
+ * Copyright (c) 2013-present, Facebook, Inc.
+ * All rights reserved.
+ *
+ * This source code is licensed under the BSD-style license found in the
+ * LICENSE file in the root directory of this source tree. An additional grant
+ * of patent rights can be found in the PATENTS file in the same directory.
+ *
+ * @providesModule EditorState
+ * @format
+ * 
+ */
+
+
+
+var _assign = __webpack_require__(5);
+
+var _extends = _assign || function (target) { for (var i = 1; i < arguments.length; i++) { var source = arguments[i]; for (var key in source) { if (Object.prototype.hasOwnProperty.call(source, key)) { target[key] = source[key]; } } } return target; };
+
+function _classCallCheck(instance, Constructor) { if (!(instance instanceof Constructor)) { throw new TypeError("Cannot call a class as a function"); } }
+
+var BlockTree = __webpack_require__(73);
+var ContentState = __webpack_require__(44);
+var EditorBidiService = __webpack_require__(186);
+var Immutable = __webpack_require__(1);
+var SelectionState = __webpack_require__(21);
+
+var OrderedSet = Immutable.OrderedSet,
+    Record = Immutable.Record,
+    Stack = Immutable.Stack;
+
+
+var defaultRecord = {
+  allowUndo: true,
+  currentContent: null,
+  decorator: null,
+  directionMap: null,
+  forceSelection: false,
+  inCompositionMode: false,
+  inlineStyleOverride: null,
+  lastChangeType: null,
+  nativelyRenderedContent: null,
+  redoStack: Stack(),
+  selection: null,
+  treeMap: null,
+  undoStack: Stack()
+};
+
+var EditorStateRecord = Record(defaultRecord);
+
+var EditorState = function () {
+  EditorState.createEmpty = function createEmpty(decorator) {
+    return EditorState.createWithContent(ContentState.createFromText(''), decorator);
+  };
+
+  EditorState.createWithContent = function createWithContent(contentState, decorator) {
+    var firstKey = contentState.getBlockMap().first().getKey();
+    return EditorState.create({
+      currentContent: contentState,
+      undoStack: Stack(),
+      redoStack: Stack(),
+      decorator: decorator || null,
+      selection: SelectionState.createEmpty(firstKey)
+    });
+  };
+
+  EditorState.create = function create(config) {
+    var currentContent = config.currentContent,
+        decorator = config.decorator;
+
+    var recordConfig = _extends({}, config, {
+      treeMap: generateNewTreeMap(currentContent, decorator),
+      directionMap: EditorBidiService.getDirectionMap(currentContent)
+    });
+    return new EditorState(new EditorStateRecord(recordConfig));
+  };
+
+  EditorState.set = function set(editorState, put) {
+    var map = editorState.getImmutable().withMutations(function (state) {
+      var existingDecorator = state.get('decorator');
+      var decorator = existingDecorator;
+      if (put.decorator === null) {
+        decorator = null;
+      } else if (put.decorator) {
+        decorator = put.decorator;
+      }
+
+      var newContent = put.currentContent || editorState.getCurrentContent();
+
+      if (decorator !== existingDecorator) {
+        var treeMap = state.get('treeMap');
+        var newTreeMap;
+        if (decorator && existingDecorator) {
+          newTreeMap = regenerateTreeForNewDecorator(newContent, newContent.getBlockMap(), treeMap, decorator, existingDecorator);
+        } else {
+          newTreeMap = generateNewTreeMap(newContent, decorator);
+        }
+
+        state.merge({
+          decorator: decorator,
+          treeMap: newTreeMap,
+          nativelyRenderedContent: null
+        });
+        return;
+      }
+
+      var existingContent = editorState.getCurrentContent();
+      if (newContent !== existingContent) {
+        state.set('treeMap', regenerateTreeForNewBlocks(editorState, newContent.getBlockMap(), newContent.getEntityMap(), decorator));
+      }
+
+      state.merge(put);
+    });
+
+    return new EditorState(map);
+  };
+
+  EditorState.prototype.toJS = function toJS() {
+    return this.getImmutable().toJS();
+  };
+
+  EditorState.prototype.getAllowUndo = function getAllowUndo() {
+    return this.getImmutable().get('allowUndo');
+  };
+
+  EditorState.prototype.getCurrentContent = function getCurrentContent() {
+    return this.getImmutable().get('currentContent');
+  };
+
+  EditorState.prototype.getUndoStack = function getUndoStack() {
+    return this.getImmutable().get('undoStack');
+  };
+
+  EditorState.prototype.getRedoStack = function getRedoStack() {
+    return this.getImmutable().get('redoStack');
+  };
+
+  EditorState.prototype.getSelection = function getSelection() {
+    return this.getImmutable().get('selection');
+  };
+
+  EditorState.prototype.getDecorator = function getDecorator() {
+    return this.getImmutable().get('decorator');
+  };
+
+  EditorState.prototype.isInCompositionMode = function isInCompositionMode() {
+    return this.getImmutable().get('inCompositionMode');
+  };
+
+  EditorState.prototype.mustForceSelection = function mustForceSelection() {
+    return this.getImmutable().get('forceSelection');
+  };
+
+  EditorState.prototype.getNativelyRenderedContent = function getNativelyRenderedContent() {
+    return this.getImmutable().get('nativelyRenderedContent');
+  };
+
+  EditorState.prototype.getLastChangeType = function getLastChangeType() {
+    return this.getImmutable().get('lastChangeType');
+  };
+
+  /**
+   * While editing, the user may apply inline style commands with a collapsed
+   * cursor, intending to type text that adopts the specified style. In this
+   * case, we track the specified style as an "override" that takes precedence
+   * over the inline style of the text adjacent to the cursor.
+   *
+   * If null, there is no override in place.
+   */
+
+
+  EditorState.prototype.getInlineStyleOverride = function getInlineStyleOverride() {
+    return this.getImmutable().get('inlineStyleOverride');
+  };
+
+  EditorState.setInlineStyleOverride = function setInlineStyleOverride(editorState, inlineStyleOverride) {
+    return EditorState.set(editorState, { inlineStyleOverride: inlineStyleOverride });
+  };
+
+  /**
+   * Get the appropriate inline style for the editor state. If an
+   * override is in place, use it. Otherwise, the current style is
+   * based on the location of the selection state.
+   */
+
+
+  EditorState.prototype.getCurrentInlineStyle = function getCurrentInlineStyle() {
+    var override = this.getInlineStyleOverride();
+    if (override != null) {
+      return override;
+    }
+
+    var content = this.getCurrentContent();
+    var selection = this.getSelection();
+
+    if (selection.isCollapsed()) {
+      return getInlineStyleForCollapsedSelection(content, selection);
+    }
+
+    return getInlineStyleForNonCollapsedSelection(content, selection);
+  };
+
+  EditorState.prototype.getBlockTree = function getBlockTree(blockKey) {
+    return this.getImmutable().getIn(['treeMap', blockKey]);
+  };
+
+  EditorState.prototype.isSelectionAtStartOfContent = function isSelectionAtStartOfContent() {
+    var firstKey = this.getCurrentContent().getBlockMap().first().getKey();
+    return this.getSelection().hasEdgeWithin(firstKey, 0, 0);
+  };
+
+  EditorState.prototype.isSelectionAtEndOfContent = function isSelectionAtEndOfContent() {
+    var content = this.getCurrentContent();
+    var blockMap = content.getBlockMap();
+    var last = blockMap.last();
+    var end = last.getLength();
+    return this.getSelection().hasEdgeWithin(last.getKey(), end, end);
+  };
+
+  EditorState.prototype.getDirectionMap = function getDirectionMap() {
+    return this.getImmutable().get('directionMap');
+  };
+
+  /**
+   * Incorporate native DOM selection changes into the EditorState. This
+   * method can be used when we simply want to accept whatever the DOM
+   * has given us to represent selection, and we do not need to re-render
+   * the editor.
+   *
+   * To forcibly move the DOM selection, see `EditorState.forceSelection`.
+   */
+
+
+  EditorState.acceptSelection = function acceptSelection(editorState, selection) {
+    return updateSelection(editorState, selection, false);
+  };
+
+  /**
+   * At times, we need to force the DOM selection to be where we
+   * need it to be. This can occur when the anchor or focus nodes
+   * are non-text nodes, for instance. In this case, we want to trigger
+   * a re-render of the editor, which in turn forces selection into
+   * the correct place in the DOM. The `forceSelection` method
+   * accomplishes this.
+   *
+   * This method should be used in cases where you need to explicitly
+   * move the DOM selection from one place to another without a change
+   * in ContentState.
+   */
+
+
+  EditorState.forceSelection = function forceSelection(editorState, selection) {
+    if (!selection.getHasFocus()) {
+      selection = selection.set('hasFocus', true);
+    }
+    return updateSelection(editorState, selection, true);
+  };
+
+  /**
+   * Move selection to the end of the editor without forcing focus.
+   */
+
+
+  EditorState.moveSelectionToEnd = function moveSelectionToEnd(editorState) {
+    var content = editorState.getCurrentContent();
+    var lastBlock = content.getLastBlock();
+    var lastKey = lastBlock.getKey();
+    var length = lastBlock.getLength();
+
+    return EditorState.acceptSelection(editorState, new SelectionState({
+      anchorKey: lastKey,
+      anchorOffset: length,
+      focusKey: lastKey,
+      focusOffset: length,
+      isBackward: false
+    }));
+  };
+
+  /**
+   * Force focus to the end of the editor. This is useful in scenarios
+   * where we want to programmatically focus the input and it makes sense
+   * to allow the user to continue working seamlessly.
+   */
+
+
+  EditorState.moveFocusToEnd = function moveFocusToEnd(editorState) {
+    var afterSelectionMove = EditorState.moveSelectionToEnd(editorState);
+    return EditorState.forceSelection(afterSelectionMove, afterSelectionMove.getSelection());
+  };
+
+  /**
+   * Push the current ContentState onto the undo stack if it should be
+   * considered a boundary state, and set the provided ContentState as the
+   * new current content.
+   */
+
+
+  EditorState.push = function push(editorState, contentState, changeType) {
+    if (editorState.getCurrentContent() === contentState) {
+      return editorState;
+    }
+
+    var forceSelection = changeType !== 'insert-characters';
+    var directionMap = EditorBidiService.getDirectionMap(contentState, editorState.getDirectionMap());
+
+    if (!editorState.getAllowUndo()) {
+      return EditorState.set(editorState, {
+        currentContent: contentState,
+        directionMap: directionMap,
+        lastChangeType: changeType,
+        selection: contentState.getSelectionAfter(),
+        forceSelection: forceSelection,
+        inlineStyleOverride: null
+      });
+    }
+
+    var selection = editorState.getSelection();
+    var currentContent = editorState.getCurrentContent();
+    var undoStack = editorState.getUndoStack();
+    var newContent = contentState;
+
+    if (selection !== currentContent.getSelectionAfter() || mustBecomeBoundary(editorState, changeType)) {
+      undoStack = undoStack.push(currentContent);
+      newContent = newContent.set('selectionBefore', selection);
+    } else if (changeType === 'insert-characters' || changeType === 'backspace-character' || changeType === 'delete-character') {
+      // Preserve the previous selection.
+      newContent = newContent.set('selectionBefore', currentContent.getSelectionBefore());
+    }
+
+    var inlineStyleOverride = editorState.getInlineStyleOverride();
+
+    // Don't discard inline style overrides for the following change types:
+    var overrideChangeTypes = ['adjust-depth', 'change-block-type', 'split-block'];
+
+    if (overrideChangeTypes.indexOf(changeType) === -1) {
+      inlineStyleOverride = null;
+    }
+
+    var editorStateChanges = {
+      currentContent: newContent,
+      directionMap: directionMap,
+      undoStack: undoStack,
+      redoStack: Stack(),
+      lastChangeType: changeType,
+      selection: contentState.getSelectionAfter(),
+      forceSelection: forceSelection,
+      inlineStyleOverride: inlineStyleOverride
+    };
+
+    return EditorState.set(editorState, editorStateChanges);
+  };
+
+  /**
+   * Make the top ContentState in the undo stack the new current content and
+   * push the current content onto the redo stack.
+   */
+
+
+  EditorState.undo = function undo(editorState) {
+    if (!editorState.getAllowUndo()) {
+      return editorState;
+    }
+
+    var undoStack = editorState.getUndoStack();
+    var newCurrentContent = undoStack.peek();
+    if (!newCurrentContent) {
+      return editorState;
+    }
+
+    var currentContent = editorState.getCurrentContent();
+    var directionMap = EditorBidiService.getDirectionMap(newCurrentContent, editorState.getDirectionMap());
+
+    return EditorState.set(editorState, {
+      currentContent: newCurrentContent,
+      directionMap: directionMap,
+      undoStack: undoStack.shift(),
+      redoStack: editorState.getRedoStack().push(currentContent),
+      forceSelection: true,
+      inlineStyleOverride: null,
+      lastChangeType: 'undo',
+      nativelyRenderedContent: null,
+      selection: currentContent.getSelectionBefore()
+    });
+  };
+
+  /**
+   * Make the top ContentState in the redo stack the new current content and
+   * push the current content onto the undo stack.
+   */
+
+
+  EditorState.redo = function redo(editorState) {
+    if (!editorState.getAllowUndo()) {
+      return editorState;
+    }
+
+    var redoStack = editorState.getRedoStack();
+    var newCurrentContent = redoStack.peek();
+    if (!newCurrentContent) {
+      return editorState;
+    }
+
+    var currentContent = editorState.getCurrentContent();
+    var directionMap = EditorBidiService.getDirectionMap(newCurrentContent, editorState.getDirectionMap());
+
+    return EditorState.set(editorState, {
+      currentContent: newCurrentContent,
+      directionMap: directionMap,
+      undoStack: editorState.getUndoStack().push(currentContent),
+      redoStack: redoStack.shift(),
+      forceSelection: true,
+      inlineStyleOverride: null,
+      lastChangeType: 'redo',
+      nativelyRenderedContent: null,
+      selection: newCurrentContent.getSelectionAfter()
+    });
+  };
+
+  /**
+   * Not for public consumption.
+   */
+
+
+  function EditorState(immutable) {
+    _classCallCheck(this, EditorState);
+
+    this._immutable = immutable;
+  }
+
+  /**
+   * Not for public consumption.
+   */
+
+
+  EditorState.prototype.getImmutable = function getImmutable() {
+    return this._immutable;
+  };
+
+  return EditorState;
+}();
+
+/**
+ * Set the supplied SelectionState as the new current selection, and set
+ * the `force` flag to trigger manual selection placement by the view.
+ */
+
+
+function updateSelection(editorState, selection, forceSelection) {
+  return EditorState.set(editorState, {
+    selection: selection,
+    forceSelection: forceSelection,
+    nativelyRenderedContent: null,
+    inlineStyleOverride: null
+  });
+}
+
+/**
+ * Regenerate the entire tree map for a given ContentState and decorator.
+ * Returns an OrderedMap that maps all available ContentBlock objects.
+ */
+function generateNewTreeMap(contentState, decorator) {
+  return contentState.getBlockMap().map(function (block) {
+    return BlockTree.generate(contentState, block, decorator);
+  }).toOrderedMap();
+}
+
+/**
+ * Regenerate tree map objects for all ContentBlocks that have changed
+ * between the current editorState and newContent. Returns an OrderedMap
+ * with only changed regenerated tree map objects.
+ */
+function regenerateTreeForNewBlocks(editorState, newBlockMap, newEntityMap, decorator) {
+  var contentState = editorState.getCurrentContent().set('entityMap', newEntityMap);
+  var prevBlockMap = contentState.getBlockMap();
+  var prevTreeMap = editorState.getImmutable().get('treeMap');
+  return prevTreeMap.merge(newBlockMap.toSeq().filter(function (block, key) {
+    return block !== prevBlockMap.get(key);
+  }).map(function (block) {
+    return BlockTree.generate(contentState, block, decorator);
+  }));
+}
+
+/**
+ * Generate tree map objects for a new decorator object, preserving any
+ * decorations that are unchanged from the previous decorator.
+ *
+ * Note that in order for this to perform optimally, decoration Lists for
+ * decorators should be preserved when possible to allow for direct immutable
+ * List comparison.
+ */
+function regenerateTreeForNewDecorator(content, blockMap, previousTreeMap, decorator, existingDecorator) {
+  return previousTreeMap.merge(blockMap.toSeq().filter(function (block) {
+    return decorator.getDecorations(block, content) !== existingDecorator.getDecorations(block, content);
+  }).map(function (block) {
+    return BlockTree.generate(content, block, decorator);
+  }));
+}
+
+/**
+ * Return whether a change should be considered a boundary state, given
+ * the previous change type. Allows us to discard potential boundary states
+ * during standard typing or deletion behavior.
+ */
+function mustBecomeBoundary(editorState, changeType) {
+  var lastChangeType = editorState.getLastChangeType();
+  return changeType !== lastChangeType || changeType !== 'insert-characters' && changeType !== 'backspace-character' && changeType !== 'delete-character';
+}
+
+function getInlineStyleForCollapsedSelection(content, selection) {
+  var startKey = selection.getStartKey();
+  var startOffset = selection.getStartOffset();
+  var startBlock = content.getBlockForKey(startKey);
+
+  // If the cursor is not at the start of the block, look backward to
+  // preserve the style of the preceding character.
+  if (startOffset > 0) {
+    return startBlock.getInlineStyleAt(startOffset - 1);
+  }
+
+  // The caret is at position zero in this block. If the block has any
+  // text at all, use the style of the first character.
+  if (startBlock.getLength()) {
+    return startBlock.getInlineStyleAt(0);
+  }
+
+  // Otherwise, look upward in the document to find the closest character.
+  return lookUpwardForInlineStyle(content, startKey);
+}
+
+function getInlineStyleForNonCollapsedSelection(content, selection) {
+  var startKey = selection.getStartKey();
+  var startOffset = selection.getStartOffset();
+  var startBlock = content.getBlockForKey(startKey);
+
+  // If there is a character just inside the selection, use its style.
+  if (startOffset < startBlock.getLength()) {
+    return startBlock.getInlineStyleAt(startOffset);
+  }
+
+  // Check if the selection at the end of a non-empty block. Use the last
+  // style in the block.
+  if (startOffset > 0) {
+    return startBlock.getInlineStyleAt(startOffset - 1);
+  }
+
+  // Otherwise, look upward in the document to find the closest character.
+  return lookUpwardForInlineStyle(content, startKey);
+}
+
+function lookUpwardForInlineStyle(content, fromKey) {
+  var lastNonEmpty = content.getBlockMap().reverse().skipUntil(function (_, k) {
+    return k === fromKey;
+  }).skip(1).skipUntil(function (block, _) {
+    return block.getLength();
+  }).first();
+
+  if (lastNonEmpty) return lastNonEmpty.getInlineStyleAt(lastNonEmpty.getLength() - 1);
+  return OrderedSet();
+}
+
+module.exports = EditorState;
+
+/***/ }),
+/* 4 */
 /***/ (function(module, exports, __webpack_require__) {
 
 /**
@@ -103,7 +5716,7 @@ if (true) {
   // By explicitly using `prop-types` you are opting into new development behavior.
   // http://fb.me/prop-types-in-prod
   var throwOnDirectAccess = true;
-  module.exports = __webpack_require__(67)(isValidElement, throwOnDirectAccess);
+  module.exports = __webpack_require__(127)(isValidElement, throwOnDirectAccess);
 } else {
   // By explicitly using `prop-types` you are opting into new production behavior.
   // http://fb.me/prop-types-in-prod
@@ -112,14 +5725,425 @@ if (true) {
 
 
 /***/ }),
-/* 2 */
+/* 5 */
+/***/ (function(module, exports, __webpack_require__) {
+
+"use strict";
+/*
+object-assign
+(c) Sindre Sorhus
+@license MIT
+*/
+
+
+/* eslint-disable no-unused-vars */
+var getOwnPropertySymbols = Object.getOwnPropertySymbols;
+var hasOwnProperty = Object.prototype.hasOwnProperty;
+var propIsEnumerable = Object.prototype.propertyIsEnumerable;
+
+function toObject(val) {
+	if (val === null || val === undefined) {
+		throw new TypeError('Object.assign cannot be called with null or undefined');
+	}
+
+	return Object(val);
+}
+
+function shouldUseNative() {
+	try {
+		if (!Object.assign) {
+			return false;
+		}
+
+		// Detect buggy property enumeration order in older V8 versions.
+
+		// https://bugs.chromium.org/p/v8/issues/detail?id=4118
+		var test1 = new String('abc');  // eslint-disable-line no-new-wrappers
+		test1[5] = 'de';
+		if (Object.getOwnPropertyNames(test1)[0] === '5') {
+			return false;
+		}
+
+		// https://bugs.chromium.org/p/v8/issues/detail?id=3056
+		var test2 = {};
+		for (var i = 0; i < 10; i++) {
+			test2['_' + String.fromCharCode(i)] = i;
+		}
+		var order2 = Object.getOwnPropertyNames(test2).map(function (n) {
+			return test2[n];
+		});
+		if (order2.join('') !== '0123456789') {
+			return false;
+		}
+
+		// https://bugs.chromium.org/p/v8/issues/detail?id=3056
+		var test3 = {};
+		'abcdefghijklmnopqrst'.split('').forEach(function (letter) {
+			test3[letter] = letter;
+		});
+		if (Object.keys(Object.assign({}, test3)).join('') !==
+				'abcdefghijklmnopqrst') {
+			return false;
+		}
+
+		return true;
+	} catch (err) {
+		// We don't expect any of the above to throw, but better to be safe.
+		return false;
+	}
+}
+
+module.exports = shouldUseNative() ? Object.assign : function (target, source) {
+	var from;
+	var to = toObject(target);
+	var symbols;
+
+	for (var s = 1; s < arguments.length; s++) {
+		from = Object(arguments[s]);
+
+		for (var key in from) {
+			if (hasOwnProperty.call(from, key)) {
+				to[key] = from[key];
+			}
+		}
+
+		if (getOwnPropertySymbols) {
+			symbols = getOwnPropertySymbols(from);
+			for (var i = 0; i < symbols.length; i++) {
+				if (propIsEnumerable.call(from, symbols[i])) {
+					to[symbols[i]] = from[symbols[i]];
+				}
+			}
+		}
+	}
+
+	return to;
+};
+
+
+/***/ }),
+/* 6 */
+/***/ (function(module, exports, __webpack_require__) {
+
+"use strict";
+/**
+ * Copyright (c) 2013-present, Facebook, Inc.
+ * All rights reserved.
+ *
+ * This source code is licensed under the BSD-style license found in the
+ * LICENSE file in the root directory of this source tree. An additional grant
+ * of patent rights can be found in the PATENTS file in the same directory.
+ *
+ * @providesModule DraftModifier
+ * @format
+ * 
+ */
+
+
+
+var CharacterMetadata = __webpack_require__(8);
+var ContentStateInlineStyle = __webpack_require__(175);
+var DraftFeatureFlags = __webpack_require__(16);
+var Immutable = __webpack_require__(1);
+
+var applyEntityToContentState = __webpack_require__(176);
+var getCharacterRemovalRange = __webpack_require__(178);
+var getContentStateFragment = __webpack_require__(31);
+var insertFragmentIntoContentState = __webpack_require__(181);
+var insertTextIntoContentState = __webpack_require__(182);
+var invariant = __webpack_require__(2);
+var modifyBlockForContentState = __webpack_require__(183);
+var removeEntitiesAtEdges = __webpack_require__(70);
+var removeRangeFromContentState = __webpack_require__(184);
+var splitBlockInContentState = __webpack_require__(185);
+
+var OrderedSet = Immutable.OrderedSet;
+
+/**
+ * `DraftModifier` provides a set of convenience methods that apply
+ * modifications to a `ContentState` object based on a target `SelectionState`.
+ *
+ * Any change to a `ContentState` should be decomposable into a series of
+ * transaction functions that apply the required changes and return output
+ * `ContentState` objects.
+ *
+ * These functions encapsulate some of the most common transaction sequences.
+ */
+
+var DraftModifier = {
+  replaceText: function replaceText(contentState, rangeToReplace, text, inlineStyle, entityKey) {
+    var withoutEntities = removeEntitiesAtEdges(contentState, rangeToReplace);
+    var withoutText = removeRangeFromContentState(withoutEntities, rangeToReplace);
+
+    var character = CharacterMetadata.create({
+      style: inlineStyle || OrderedSet(),
+      entity: entityKey || null
+    });
+
+    return insertTextIntoContentState(withoutText, withoutText.getSelectionAfter(), text, character);
+  },
+
+  insertText: function insertText(contentState, targetRange, text, inlineStyle, entityKey) {
+    !targetRange.isCollapsed() ?  true ? invariant(false, 'Target range must be collapsed for `insertText`.') : invariant(false) : void 0;
+    return DraftModifier.replaceText(contentState, targetRange, text, inlineStyle, entityKey);
+  },
+
+  moveText: function moveText(contentState, removalRange, targetRange) {
+    var movedFragment = getContentStateFragment(contentState, removalRange);
+
+    var afterRemoval = DraftModifier.removeRange(contentState, removalRange, 'backward');
+
+    return DraftModifier.replaceWithFragment(afterRemoval, targetRange, movedFragment);
+  },
+
+  replaceWithFragment: function replaceWithFragment(contentState, targetRange, fragment) {
+    var withoutEntities = removeEntitiesAtEdges(contentState, targetRange);
+    var withoutText = removeRangeFromContentState(withoutEntities, targetRange);
+
+    return insertFragmentIntoContentState(withoutText, withoutText.getSelectionAfter(), fragment);
+  },
+
+  removeRange: function removeRange(contentState, rangeToRemove, removalDirection) {
+    var startKey = void 0,
+        endKey = void 0,
+        startBlock = void 0,
+        endBlock = void 0;
+    if (rangeToRemove.getIsBackward()) {
+      rangeToRemove = rangeToRemove.merge({
+        anchorKey: rangeToRemove.getFocusKey(),
+        anchorOffset: rangeToRemove.getFocusOffset(),
+        focusKey: rangeToRemove.getAnchorKey(),
+        focusOffset: rangeToRemove.getAnchorOffset(),
+        isBackward: false
+      });
+    }
+    startKey = rangeToRemove.getAnchorKey();
+    endKey = rangeToRemove.getFocusKey();
+    startBlock = contentState.getBlockForKey(startKey);
+    endBlock = contentState.getBlockForKey(endKey);
+    var startOffset = rangeToRemove.getStartOffset();
+    var endOffset = rangeToRemove.getEndOffset();
+
+    var startEntityKey = startBlock.getEntityAt(startOffset);
+    var endEntityKey = endBlock.getEntityAt(endOffset - 1);
+
+    // Check whether the selection state overlaps with a single entity.
+    // If so, try to remove the appropriate substring of the entity text.
+    if (startKey === endKey) {
+      if (startEntityKey && startEntityKey === endEntityKey) {
+        var _adjustedRemovalRange = getCharacterRemovalRange(contentState.getEntityMap(), startBlock, endBlock, rangeToRemove, removalDirection);
+        return removeRangeFromContentState(contentState, _adjustedRemovalRange);
+      }
+    }
+    var adjustedRemovalRange = rangeToRemove;
+    if (DraftFeatureFlags.draft_segmented_entities_behavior) {
+      // Adjust the selection to properly delete segemented and immutable
+      // entities
+      adjustedRemovalRange = getCharacterRemovalRange(contentState.getEntityMap(), startBlock, endBlock, rangeToRemove, removalDirection);
+    }
+
+    var withoutEntities = removeEntitiesAtEdges(contentState, adjustedRemovalRange);
+    return removeRangeFromContentState(withoutEntities, adjustedRemovalRange);
+  },
+
+  splitBlock: function splitBlock(contentState, selectionState) {
+    var withoutEntities = removeEntitiesAtEdges(contentState, selectionState);
+    var withoutText = removeRangeFromContentState(withoutEntities, selectionState);
+
+    return splitBlockInContentState(withoutText, withoutText.getSelectionAfter());
+  },
+
+  applyInlineStyle: function applyInlineStyle(contentState, selectionState, inlineStyle) {
+    return ContentStateInlineStyle.add(contentState, selectionState, inlineStyle);
+  },
+
+  removeInlineStyle: function removeInlineStyle(contentState, selectionState, inlineStyle) {
+    return ContentStateInlineStyle.remove(contentState, selectionState, inlineStyle);
+  },
+
+  setBlockType: function setBlockType(contentState, selectionState, blockType) {
+    return modifyBlockForContentState(contentState, selectionState, function (block) {
+      return block.merge({ type: blockType, depth: 0 });
+    });
+  },
+
+  setBlockData: function setBlockData(contentState, selectionState, blockData) {
+    return modifyBlockForContentState(contentState, selectionState, function (block) {
+      return block.merge({ data: blockData });
+    });
+  },
+
+  mergeBlockData: function mergeBlockData(contentState, selectionState, blockData) {
+    return modifyBlockForContentState(contentState, selectionState, function (block) {
+      return block.merge({ data: block.getData().merge(blockData) });
+    });
+  },
+
+  applyEntity: function applyEntity(contentState, selectionState, entityKey) {
+    var withoutEntities = removeEntitiesAtEdges(contentState, selectionState);
+    return applyEntityToContentState(withoutEntities, selectionState, entityKey);
+  }
+};
+
+module.exports = DraftModifier;
+
+/***/ }),
+/* 7 */
+/***/ (function(module, exports) {
+
+var g;
+
+// This works in non-strict mode
+g = (function() {
+	return this;
+})();
+
+try {
+	// This works if eval is allowed (see CSP)
+	g = g || Function("return this")() || (1,eval)("this");
+} catch(e) {
+	// This works if the window reference is available
+	if(typeof window === "object")
+		g = window;
+}
+
+// g can still be undefined, but nothing to do about it...
+// We return undefined, instead of nothing here, so it's
+// easier to handle this case. if(!global) { ...}
+
+module.exports = g;
+
+
+/***/ }),
+/* 8 */
+/***/ (function(module, exports, __webpack_require__) {
+
+"use strict";
+/**
+ * Copyright (c) 2013-present, Facebook, Inc.
+ * All rights reserved.
+ *
+ * This source code is licensed under the BSD-style license found in the
+ * LICENSE file in the root directory of this source tree. An additional grant
+ * of patent rights can be found in the PATENTS file in the same directory.
+ *
+ * @providesModule CharacterMetadata
+ * @format
+ * 
+ */
+
+
+
+function _classCallCheck(instance, Constructor) { if (!(instance instanceof Constructor)) { throw new TypeError("Cannot call a class as a function"); } }
+
+function _possibleConstructorReturn(self, call) { if (!self) { throw new ReferenceError("this hasn't been initialised - super() hasn't been called"); } return call && (typeof call === "object" || typeof call === "function") ? call : self; }
+
+function _inherits(subClass, superClass) { if (typeof superClass !== "function" && superClass !== null) { throw new TypeError("Super expression must either be null or a function, not " + typeof superClass); } subClass.prototype = Object.create(superClass && superClass.prototype, { constructor: { value: subClass, enumerable: false, writable: true, configurable: true } }); if (superClass) Object.setPrototypeOf ? Object.setPrototypeOf(subClass, superClass) : subClass.__proto__ = superClass; }
+
+var _require = __webpack_require__(1),
+    Map = _require.Map,
+    OrderedSet = _require.OrderedSet,
+    Record = _require.Record;
+
+// Immutable.map is typed such that the value for every key in the map
+// must be the same type
+
+
+var EMPTY_SET = OrderedSet();
+
+var defaultRecord = {
+  style: EMPTY_SET,
+  entity: null
+};
+
+var CharacterMetadataRecord = Record(defaultRecord);
+
+var CharacterMetadata = function (_CharacterMetadataRec) {
+  _inherits(CharacterMetadata, _CharacterMetadataRec);
+
+  function CharacterMetadata() {
+    _classCallCheck(this, CharacterMetadata);
+
+    return _possibleConstructorReturn(this, _CharacterMetadataRec.apply(this, arguments));
+  }
+
+  CharacterMetadata.prototype.getStyle = function getStyle() {
+    return this.get('style');
+  };
+
+  CharacterMetadata.prototype.getEntity = function getEntity() {
+    return this.get('entity');
+  };
+
+  CharacterMetadata.prototype.hasStyle = function hasStyle(style) {
+    return this.getStyle().includes(style);
+  };
+
+  CharacterMetadata.applyStyle = function applyStyle(record, style) {
+    var withStyle = record.set('style', record.getStyle().add(style));
+    return CharacterMetadata.create(withStyle);
+  };
+
+  CharacterMetadata.removeStyle = function removeStyle(record, style) {
+    var withoutStyle = record.set('style', record.getStyle().remove(style));
+    return CharacterMetadata.create(withoutStyle);
+  };
+
+  CharacterMetadata.applyEntity = function applyEntity(record, entityKey) {
+    var withEntity = record.getEntity() === entityKey ? record : record.set('entity', entityKey);
+    return CharacterMetadata.create(withEntity);
+  };
+
+  /**
+   * Use this function instead of the `CharacterMetadata` constructor.
+   * Since most content generally uses only a very small number of
+   * style/entity permutations, we can reuse these objects as often as
+   * possible.
+   */
+
+
+  CharacterMetadata.create = function create(config) {
+    if (!config) {
+      return EMPTY;
+    }
+
+    var defaultConfig = {
+      style: EMPTY_SET,
+      entity: null
+    };
+
+    // Fill in unspecified properties, if necessary.
+    var configMap = Map(defaultConfig).merge(config);
+
+    var existing = pool.get(configMap);
+    if (existing) {
+      return existing;
+    }
+
+    var newCharacter = new CharacterMetadata(configMap);
+    pool = pool.set(configMap, newCharacter);
+    return newCharacter;
+  };
+
+  return CharacterMetadata;
+}(CharacterMetadataRecord);
+
+var EMPTY = new CharacterMetadata();
+var pool = Map([[Map(defaultRecord), EMPTY]]);
+
+CharacterMetadata.EMPTY = EMPTY;
+
+module.exports = CharacterMetadata;
+
+/***/ }),
+/* 9 */
 /***/ (function(module, exports, __webpack_require__) {
 
 "use strict";
 
 
-var bind = __webpack_require__(19);
-var isBuffer = __webpack_require__(41);
+var bind = __webpack_require__(56);
+var isBuffer = __webpack_require__(102);
 
 /*global toString:true*/
 
@@ -422,7 +6446,438 @@ module.exports = {
 
 
 /***/ }),
-/* 3 */
+/* 10 */
+/***/ (function(module, exports, __webpack_require__) {
+
+"use strict";
+/**
+ * Copyright (c) 2013-present, Facebook, Inc.
+ * All rights reserved.
+ *
+ * This source code is licensed under the BSD-style license found in the
+ * LICENSE file in the root directory of this source tree. An additional grant
+ * of patent rights can be found in the PATENTS file in the same directory.
+ *
+ * @providesModule ContentBlockNode
+ * @format
+ * 
+ *
+ * This file is a fork of ContentBlock adding support for nesting references by
+ * providing links to children, parent, prevSibling, and nextSibling.
+ *
+ * This is unstable and not part of the public API and should not be used by
+ * production systems. This file may be update/removed without notice.
+ */
+
+
+
+function _classCallCheck(instance, Constructor) { if (!(instance instanceof Constructor)) { throw new TypeError("Cannot call a class as a function"); } }
+
+function _possibleConstructorReturn(self, call) { if (!self) { throw new ReferenceError("this hasn't been initialised - super() hasn't been called"); } return call && (typeof call === "object" || typeof call === "function") ? call : self; }
+
+function _inherits(subClass, superClass) { if (typeof superClass !== "function" && superClass !== null) { throw new TypeError("Super expression must either be null or a function, not " + typeof superClass); } subClass.prototype = Object.create(superClass && superClass.prototype, { constructor: { value: subClass, enumerable: false, writable: true, configurable: true } }); if (superClass) Object.setPrototypeOf ? Object.setPrototypeOf(subClass, superClass) : subClass.__proto__ = superClass; }
+
+var CharacterMetadata = __webpack_require__(8);
+var Immutable = __webpack_require__(1);
+
+var findRangesImmutable = __webpack_require__(25);
+
+var List = Immutable.List,
+    Map = Immutable.Map,
+    OrderedSet = Immutable.OrderedSet,
+    Record = Immutable.Record,
+    Repeat = Immutable.Repeat;
+
+
+var EMPTY_SET = OrderedSet();
+
+var defaultRecord = {
+  parent: null,
+  characterList: List(),
+  data: Map(),
+  depth: 0,
+  key: '',
+  text: '',
+  type: 'unstyled',
+  children: List(),
+  prevSibling: null,
+  nextSibling: null
+};
+
+var haveEqualStyle = function haveEqualStyle(charA, charB) {
+  return charA.getStyle() === charB.getStyle();
+};
+
+var haveEqualEntity = function haveEqualEntity(charA, charB) {
+  return charA.getEntity() === charB.getEntity();
+};
+
+var decorateCharacterList = function decorateCharacterList(config) {
+  if (!config) {
+    return config;
+  }
+
+  var characterList = config.characterList,
+      text = config.text;
+
+
+  if (text && !characterList) {
+    config.characterList = List(Repeat(CharacterMetadata.EMPTY, text.length));
+  }
+
+  return config;
+};
+
+var ContentBlockNode = function (_Record) {
+  _inherits(ContentBlockNode, _Record);
+
+  function ContentBlockNode() {
+    var props = arguments.length > 0 && arguments[0] !== undefined ? arguments[0] : defaultRecord;
+
+    _classCallCheck(this, ContentBlockNode);
+
+    return _possibleConstructorReturn(this, _Record.call(this, decorateCharacterList(props)));
+  }
+
+  ContentBlockNode.prototype.getKey = function getKey() {
+    return this.get('key');
+  };
+
+  ContentBlockNode.prototype.getType = function getType() {
+    return this.get('type');
+  };
+
+  ContentBlockNode.prototype.getText = function getText() {
+    return this.get('text');
+  };
+
+  ContentBlockNode.prototype.getCharacterList = function getCharacterList() {
+    return this.get('characterList');
+  };
+
+  ContentBlockNode.prototype.getLength = function getLength() {
+    return this.getText().length;
+  };
+
+  ContentBlockNode.prototype.getDepth = function getDepth() {
+    return this.get('depth');
+  };
+
+  ContentBlockNode.prototype.getData = function getData() {
+    return this.get('data');
+  };
+
+  ContentBlockNode.prototype.getInlineStyleAt = function getInlineStyleAt(offset) {
+    var character = this.getCharacterList().get(offset);
+    return character ? character.getStyle() : EMPTY_SET;
+  };
+
+  ContentBlockNode.prototype.getEntityAt = function getEntityAt(offset) {
+    var character = this.getCharacterList().get(offset);
+    return character ? character.getEntity() : null;
+  };
+
+  ContentBlockNode.prototype.getChildKeys = function getChildKeys() {
+    return this.get('children');
+  };
+
+  ContentBlockNode.prototype.getParentKey = function getParentKey() {
+    return this.get('parent');
+  };
+
+  ContentBlockNode.prototype.getPrevSiblingKey = function getPrevSiblingKey() {
+    return this.get('prevSibling');
+  };
+
+  ContentBlockNode.prototype.getNextSiblingKey = function getNextSiblingKey() {
+    return this.get('nextSibling');
+  };
+
+  ContentBlockNode.prototype.findStyleRanges = function findStyleRanges(filterFn, callback) {
+    findRangesImmutable(this.getCharacterList(), haveEqualStyle, filterFn, callback);
+  };
+
+  ContentBlockNode.prototype.findEntityRanges = function findEntityRanges(filterFn, callback) {
+    findRangesImmutable(this.getCharacterList(), haveEqualEntity, filterFn, callback);
+  };
+
+  return ContentBlockNode;
+}(Record(defaultRecord));
+
+module.exports = ContentBlockNode;
+
+/***/ }),
+/* 11 */
+/***/ (function(module, exports, __webpack_require__) {
+
+"use strict";
+
+
+/**
+ * Copyright (c) 2013-present, Facebook, Inc.
+ *
+ * This source code is licensed under the MIT license found in the
+ * LICENSE file in the root directory of this source tree.
+ *
+ * 
+ */
+
+var nullthrows = function nullthrows(x) {
+  if (x != null) {
+    return x;
+  }
+  throw new Error("Got unexpected null or undefined");
+};
+
+module.exports = nullthrows;
+
+/***/ }),
+/* 12 */
+/***/ (function(module, exports, __webpack_require__) {
+
+"use strict";
+/**
+ * Copyright (c) 2013-present, Facebook, Inc.
+ *
+ * This source code is licensed under the MIT license found in the
+ * LICENSE file in the root directory of this source tree.
+ *
+ */
+
+
+
+var UserAgentData = __webpack_require__(196);
+var VersionRange = __webpack_require__(199);
+
+var mapObject = __webpack_require__(200);
+var memoizeStringOnly = __webpack_require__(201);
+
+/**
+ * Checks to see whether `name` and `version` satisfy `query`.
+ *
+ * @param {string} name Name of the browser, device, engine or platform
+ * @param {?string} version Version of the browser, engine or platform
+ * @param {string} query Query of form "Name [range expression]"
+ * @param {?function} normalizer Optional pre-processor for range expression
+ * @return {boolean}
+ */
+function compare(name, version, query, normalizer) {
+  // check for exact match with no version
+  if (name === query) {
+    return true;
+  }
+
+  // check for non-matching names
+  if (!query.startsWith(name)) {
+    return false;
+  }
+
+  // full comparison with version
+  var range = query.slice(name.length);
+  if (version) {
+    range = normalizer ? normalizer(range) : range;
+    return VersionRange.contains(range, version);
+  }
+
+  return false;
+}
+
+/**
+ * Normalizes `version` by stripping any "NT" prefix, but only on the Windows
+ * platform.
+ *
+ * Mimics the stripping performed by the `UserAgentWindowsPlatform` PHP class.
+ *
+ * @param {string} version
+ * @return {string}
+ */
+function normalizePlatformVersion(version) {
+  if (UserAgentData.platformName === 'Windows') {
+    return version.replace(/^\s*NT/, '');
+  }
+
+  return version;
+}
+
+/**
+ * Provides client-side access to the authoritative PHP-generated User Agent
+ * information supplied by the server.
+ */
+var UserAgent = {
+  /**
+   * Check if the User Agent browser matches `query`.
+   *
+   * `query` should be a string like "Chrome" or "Chrome > 33".
+   *
+   * Valid browser names include:
+   *
+   * - ACCESS NetFront
+   * - AOL
+   * - Amazon Silk
+   * - Android
+   * - BlackBerry
+   * - BlackBerry PlayBook
+   * - Chrome
+   * - Chrome for iOS
+   * - Chrome frame
+   * - Facebook PHP SDK
+   * - Facebook for iOS
+   * - Firefox
+   * - IE
+   * - IE Mobile
+   * - Mobile Safari
+   * - Motorola Internet Browser
+   * - Nokia
+   * - Openwave Mobile Browser
+   * - Opera
+   * - Opera Mini
+   * - Opera Mobile
+   * - Safari
+   * - UIWebView
+   * - Unknown
+   * - webOS
+   * - etc...
+   *
+   * An authoritative list can be found in the PHP `BrowserDetector` class and
+   * related classes in the same file (see calls to `new UserAgentBrowser` here:
+   * https://fburl.com/50728104).
+   *
+   * @note Function results are memoized
+   *
+   * @param {string} query Query of the form "Name [range expression]"
+   * @return {boolean}
+   */
+  isBrowser: function isBrowser(query) {
+    return compare(UserAgentData.browserName, UserAgentData.browserFullVersion, query);
+  },
+
+
+  /**
+   * Check if the User Agent browser uses a 32 or 64 bit architecture.
+   *
+   * @note Function results are memoized
+   *
+   * @param {string} query Query of the form "32" or "64".
+   * @return {boolean}
+   */
+  isBrowserArchitecture: function isBrowserArchitecture(query) {
+    return compare(UserAgentData.browserArchitecture, null, query);
+  },
+
+
+  /**
+   * Check if the User Agent device matches `query`.
+   *
+   * `query` should be a string like "iPhone" or "iPad".
+   *
+   * Valid device names include:
+   *
+   * - Kindle
+   * - Kindle Fire
+   * - Unknown
+   * - iPad
+   * - iPhone
+   * - iPod
+   * - etc...
+   *
+   * An authoritative list can be found in the PHP `DeviceDetector` class and
+   * related classes in the same file (see calls to `new UserAgentDevice` here:
+   * https://fburl.com/50728332).
+   *
+   * @note Function results are memoized
+   *
+   * @param {string} query Query of the form "Name"
+   * @return {boolean}
+   */
+  isDevice: function isDevice(query) {
+    return compare(UserAgentData.deviceName, null, query);
+  },
+
+
+  /**
+   * Check if the User Agent rendering engine matches `query`.
+   *
+   * `query` should be a string like "WebKit" or "WebKit >= 537".
+   *
+   * Valid engine names include:
+   *
+   * - Gecko
+   * - Presto
+   * - Trident
+   * - WebKit
+   * - etc...
+   *
+   * An authoritative list can be found in the PHP `RenderingEngineDetector`
+   * class related classes in the same file (see calls to `new
+   * UserAgentRenderingEngine` here: https://fburl.com/50728617).
+   *
+   * @note Function results are memoized
+   *
+   * @param {string} query Query of the form "Name [range expression]"
+   * @return {boolean}
+   */
+  isEngine: function isEngine(query) {
+    return compare(UserAgentData.engineName, UserAgentData.engineVersion, query);
+  },
+
+
+  /**
+   * Check if the User Agent platform matches `query`.
+   *
+   * `query` should be a string like "Windows" or "iOS 5 - 6".
+   *
+   * Valid platform names include:
+   *
+   * - Android
+   * - BlackBerry OS
+   * - Java ME
+   * - Linux
+   * - Mac OS X
+   * - Mac OS X Calendar
+   * - Mac OS X Internet Account
+   * - Symbian
+   * - SymbianOS
+   * - Windows
+   * - Windows Mobile
+   * - Windows Phone
+   * - iOS
+   * - iOS Facebook Integration Account
+   * - iOS Facebook Social Sharing UI
+   * - webOS
+   * - Chrome OS
+   * - etc...
+   *
+   * An authoritative list can be found in the PHP `PlatformDetector` class and
+   * related classes in the same file (see calls to `new UserAgentPlatform`
+   * here: https://fburl.com/50729226).
+   *
+   * @note Function results are memoized
+   *
+   * @param {string} query Query of the form "Name [range expression]"
+   * @return {boolean}
+   */
+  isPlatform: function isPlatform(query) {
+    return compare(UserAgentData.platformName, UserAgentData.platformFullVersion, query, normalizePlatformVersion);
+  },
+
+
+  /**
+   * Check if the User Agent platform is a 32 or 64 bit architecture.
+   *
+   * @note Function results are memoized
+   *
+   * @param {string} query Query of the form "32" or "64".
+   * @return {boolean}
+   */
+  isPlatformArchitecture: function isPlatformArchitecture(query) {
+    return compare(UserAgentData.platformArchitecture, null, query);
+  }
+};
+
+module.exports = mapObject(UserAgent, memoizeStringOnly);
+
+/***/ }),
+/* 13 */
 /***/ (function(module, exports, __webpack_require__) {
 
 "use strict";
@@ -478,7 +6933,41 @@ module.exports = invariant;
 
 
 /***/ }),
-/* 4 */
+/* 14 */
+/***/ (function(module, exports, __webpack_require__) {
+
+"use strict";
+/**
+ * Copyright (c) 2013-present, Facebook, Inc.
+ * All rights reserved.
+ *
+ * This source code is licensed under the BSD-style license found in the
+ * LICENSE file in the root directory of this source tree. An additional grant
+ * of patent rights can be found in the PATENTS file in the same directory.
+ *
+ * @providesModule generateRandomKey
+ * @format
+ * 
+ */
+
+
+
+var seenKeys = {};
+var MULTIPLIER = Math.pow(2, 24);
+
+function generateRandomKey() {
+  var key = void 0;
+  while (key === undefined || seenKeys.hasOwnProperty(key) || !isNaN(+key)) {
+    key = Math.floor(Math.random() * MULTIPLIER).toString(32);
+  }
+  seenKeys[key] = true;
+  return key;
+}
+
+module.exports = generateRandomKey;
+
+/***/ }),
+/* 15 */
 /***/ (function(module, exports, __webpack_require__) {
 
 "use strict";
@@ -547,20 +7036,452 @@ module.exports = warning;
 
 
 /***/ }),
-/* 5 */
+/* 16 */
+/***/ (function(module, exports, __webpack_require__) {
+
+"use strict";
+/**
+ * Copyright 2013-present, Facebook, Inc.
+ * All rights reserved.
+ *
+ * This source code is licensed under the BSD-style license found in the
+ * LICENSE file in the root directory of this source tree. An additional grant
+ * of patent rights can be found in the PATENTS file in the same directory.
+ *
+ * @providesModule DraftFeatureFlags
+ * @format
+ * 
+ */
+
+
+
+var DraftFeatureFlags = __webpack_require__(174);
+
+module.exports = DraftFeatureFlags;
+
+/***/ }),
+/* 17 */
+/***/ (function(module, exports, __webpack_require__) {
+
+"use strict";
+
+
+function checkDCE() {
+  /* global __REACT_DEVTOOLS_GLOBAL_HOOK__ */
+  if (
+    typeof __REACT_DEVTOOLS_GLOBAL_HOOK__ === 'undefined' ||
+    typeof __REACT_DEVTOOLS_GLOBAL_HOOK__.checkDCE !== 'function'
+  ) {
+    return;
+  }
+  if (true) {
+    // This branch is unreachable because this function is only called
+    // in production, but the condition is true only in development.
+    // Therefore if the branch is still here, dead code elimination wasn't
+    // properly applied.
+    // Don't change the message. React DevTools relies on it. Also make sure
+    // this message doesn't occur elsewhere in this function, or it will cause
+    // a false positive.
+    throw new Error('^_^');
+  }
+  try {
+    // Verify that the code above has been dead code eliminated (DCE'd).
+    __REACT_DEVTOOLS_GLOBAL_HOOK__.checkDCE(checkDCE);
+  } catch (err) {
+    // DevTools shouldn't crash React, no matter what.
+    // We should still report in case we break this code.
+    console.error(err);
+  }
+}
+
+if (false) {
+  // DCE check should happen before ReactDOM bundle executes so that
+  // DevTools can report bad minification during injection.
+  checkDCE();
+  module.exports = require('./cjs/react-dom.production.min.js');
+} else {
+  module.exports = __webpack_require__(121);
+}
+
+
+/***/ }),
+/* 18 */
+/***/ (function(module, exports, __webpack_require__) {
+
+"use strict";
+/**
+ * Copyright (c) 2013-present, Facebook, Inc.
+ * All rights reserved.
+ *
+ * This source code is licensed under the BSD-style license found in the
+ * LICENSE file in the root directory of this source tree. An additional grant
+ * of patent rights can be found in the PATENTS file in the same directory.
+ *
+ * @providesModule ContentBlock
+ * @format
+ * 
+ */
+
+
+
+function _classCallCheck(instance, Constructor) { if (!(instance instanceof Constructor)) { throw new TypeError("Cannot call a class as a function"); } }
+
+function _possibleConstructorReturn(self, call) { if (!self) { throw new ReferenceError("this hasn't been initialised - super() hasn't been called"); } return call && (typeof call === "object" || typeof call === "function") ? call : self; }
+
+function _inherits(subClass, superClass) { if (typeof superClass !== "function" && superClass !== null) { throw new TypeError("Super expression must either be null or a function, not " + typeof superClass); } subClass.prototype = Object.create(superClass && superClass.prototype, { constructor: { value: subClass, enumerable: false, writable: true, configurable: true } }); if (superClass) Object.setPrototypeOf ? Object.setPrototypeOf(subClass, superClass) : subClass.__proto__ = superClass; }
+
+var CharacterMetadata = __webpack_require__(8);
+var Immutable = __webpack_require__(1);
+
+var findRangesImmutable = __webpack_require__(25);
+
+var List = Immutable.List,
+    Map = Immutable.Map,
+    OrderedSet = Immutable.OrderedSet,
+    Record = Immutable.Record,
+    Repeat = Immutable.Repeat;
+
+
+var EMPTY_SET = OrderedSet();
+
+var defaultRecord = {
+  key: '',
+  type: 'unstyled',
+  text: '',
+  characterList: List(),
+  depth: 0,
+  data: Map()
+};
+
+var ContentBlockRecord = Record(defaultRecord);
+
+var decorateCharacterList = function decorateCharacterList(config) {
+  if (!config) {
+    return config;
+  }
+
+  var characterList = config.characterList,
+      text = config.text;
+
+
+  if (text && !characterList) {
+    config.characterList = List(Repeat(CharacterMetadata.EMPTY, text.length));
+  }
+
+  return config;
+};
+
+var ContentBlock = function (_ContentBlockRecord) {
+  _inherits(ContentBlock, _ContentBlockRecord);
+
+  function ContentBlock(config) {
+    _classCallCheck(this, ContentBlock);
+
+    return _possibleConstructorReturn(this, _ContentBlockRecord.call(this, decorateCharacterList(config)));
+  }
+
+  ContentBlock.prototype.getKey = function getKey() {
+    return this.get('key');
+  };
+
+  ContentBlock.prototype.getType = function getType() {
+    return this.get('type');
+  };
+
+  ContentBlock.prototype.getText = function getText() {
+    return this.get('text');
+  };
+
+  ContentBlock.prototype.getCharacterList = function getCharacterList() {
+    return this.get('characterList');
+  };
+
+  ContentBlock.prototype.getLength = function getLength() {
+    return this.getText().length;
+  };
+
+  ContentBlock.prototype.getDepth = function getDepth() {
+    return this.get('depth');
+  };
+
+  ContentBlock.prototype.getData = function getData() {
+    return this.get('data');
+  };
+
+  ContentBlock.prototype.getInlineStyleAt = function getInlineStyleAt(offset) {
+    var character = this.getCharacterList().get(offset);
+    return character ? character.getStyle() : EMPTY_SET;
+  };
+
+  ContentBlock.prototype.getEntityAt = function getEntityAt(offset) {
+    var character = this.getCharacterList().get(offset);
+    return character ? character.getEntity() : null;
+  };
+
+  /**
+   * Execute a callback for every contiguous range of styles within the block.
+   */
+
+
+  ContentBlock.prototype.findStyleRanges = function findStyleRanges(filterFn, callback) {
+    findRangesImmutable(this.getCharacterList(), haveEqualStyle, filterFn, callback);
+  };
+
+  /**
+   * Execute a callback for every contiguous range of entities within the block.
+   */
+
+
+  ContentBlock.prototype.findEntityRanges = function findEntityRanges(filterFn, callback) {
+    findRangesImmutable(this.getCharacterList(), haveEqualEntity, filterFn, callback);
+  };
+
+  return ContentBlock;
+}(ContentBlockRecord);
+
+function haveEqualStyle(charA, charB) {
+  return charA.getStyle() === charB.getStyle();
+}
+
+function haveEqualEntity(charA, charB) {
+  return charA.getEntity() === charB.getEntity();
+}
+
+module.exports = ContentBlock;
+
+/***/ }),
+/* 19 */
+/***/ (function(module, exports, __webpack_require__) {
+
+"use strict";
+/**
+ * Copyright (c) 2013-present, Facebook, Inc.
+ *
+ * This source code is licensed under the MIT license found in the
+ * LICENSE file in the root directory of this source tree.
+ *
+ * @typechecks
+ */
+
+/**
+ * Unicode-enabled replacesments for basic String functions.
+ *
+ * All the functions in this module assume that the input string is a valid
+ * UTF-16 encoding of a Unicode sequence. If it's not the case, the behavior
+ * will be undefined.
+ *
+ * WARNING: Since this module is typechecks-enforced, you may find new bugs
+ * when replacing normal String functions with ones provided here.
+ */
+
+
+
+var invariant = __webpack_require__(2);
+
+// These two ranges are consecutive so anything in [HIGH_START, LOW_END] is a
+// surrogate code unit.
+var SURROGATE_HIGH_START = 0xD800;
+var SURROGATE_HIGH_END = 0xDBFF;
+var SURROGATE_LOW_START = 0xDC00;
+var SURROGATE_LOW_END = 0xDFFF;
+var SURROGATE_UNITS_REGEX = /[\uD800-\uDFFF]/;
+
+/**
+ * @param {number} codeUnit   A Unicode code-unit, in range [0, 0x10FFFF]
+ * @return {boolean}          Whether code-unit is in a surrogate (hi/low) range
+ */
+function isCodeUnitInSurrogateRange(codeUnit) {
+  return SURROGATE_HIGH_START <= codeUnit && codeUnit <= SURROGATE_LOW_END;
+}
+
+/**
+ * Returns whether the two characters starting at `index` form a surrogate pair.
+ * For example, given the string s = "\uD83D\uDE0A", (s, 0) returns true and
+ * (s, 1) returns false.
+ *
+ * @param {string} str
+ * @param {number} index
+ * @return {boolean}
+ */
+function isSurrogatePair(str, index) {
+  !(0 <= index && index < str.length) ?  true ? invariant(false, 'isSurrogatePair: Invalid index %s for string length %s.', index, str.length) : invariant(false) : void 0;
+  if (index + 1 === str.length) {
+    return false;
+  }
+  var first = str.charCodeAt(index);
+  var second = str.charCodeAt(index + 1);
+  return SURROGATE_HIGH_START <= first && first <= SURROGATE_HIGH_END && SURROGATE_LOW_START <= second && second <= SURROGATE_LOW_END;
+}
+
+/**
+ * @param {string} str  Non-empty string
+ * @return {boolean}    True if the input includes any surrogate code units
+ */
+function hasSurrogateUnit(str) {
+  return SURROGATE_UNITS_REGEX.test(str);
+}
+
+/**
+ * Return the length of the original Unicode character at given position in the
+ * String by looking into the UTF-16 code unit; that is equal to 1 for any
+ * non-surrogate characters in BMP ([U+0000..U+D7FF] and [U+E000, U+FFFF]); and
+ * returns 2 for the hi/low surrogates ([U+D800..U+DFFF]), which are in fact
+ * representing non-BMP characters ([U+10000..U+10FFFF]).
+ *
+ * Examples:
+ * - '\u0020' => 1
+ * - '\u3020' => 1
+ * - '\uD835' => 2
+ * - '\uD835\uDDEF' => 2
+ * - '\uDDEF' => 2
+ *
+ * @param {string} str  Non-empty string
+ * @param {number} pos  Position in the string to look for one code unit
+ * @return {number}      Number 1 or 2
+ */
+function getUTF16Length(str, pos) {
+  return 1 + isCodeUnitInSurrogateRange(str.charCodeAt(pos));
+}
+
+/**
+ * Fully Unicode-enabled replacement for String#length
+ *
+ * @param {string} str  Valid Unicode string
+ * @return {number}     The number of Unicode characters in the string
+ */
+function strlen(str) {
+  // Call the native functions if there's no surrogate char
+  if (!hasSurrogateUnit(str)) {
+    return str.length;
+  }
+
+  var len = 0;
+  for (var pos = 0; pos < str.length; pos += getUTF16Length(str, pos)) {
+    len++;
+  }
+  return len;
+}
+
+/**
+ * Fully Unicode-enabled replacement for String#substr()
+ *
+ * @param {string} str      Valid Unicode string
+ * @param {number} start    Location in Unicode sequence to begin extracting
+ * @param {?number} length  The number of Unicode characters to extract
+ *                          (default: to the end of the string)
+ * @return {string}         Extracted sub-string
+ */
+function substr(str, start, length) {
+  start = start || 0;
+  length = length === undefined ? Infinity : length || 0;
+
+  // Call the native functions if there's no surrogate char
+  if (!hasSurrogateUnit(str)) {
+    return str.substr(start, length);
+  }
+
+  // Obvious cases
+  var size = str.length;
+  if (size <= 0 || start > size || length <= 0) {
+    return '';
+  }
+
+  // Find the actual starting position
+  var posA = 0;
+  if (start > 0) {
+    for (; start > 0 && posA < size; start--) {
+      posA += getUTF16Length(str, posA);
+    }
+    if (posA >= size) {
+      return '';
+    }
+  } else if (start < 0) {
+    for (posA = size; start < 0 && 0 < posA; start++) {
+      posA -= getUTF16Length(str, posA - 1);
+    }
+    if (posA < 0) {
+      posA = 0;
+    }
+  }
+
+  // Find the actual ending position
+  var posB = size;
+  if (length < size) {
+    for (posB = posA; length > 0 && posB < size; length--) {
+      posB += getUTF16Length(str, posB);
+    }
+  }
+
+  return str.substring(posA, posB);
+}
+
+/**
+ * Fully Unicode-enabled replacement for String#substring()
+ *
+ * @param {string} str    Valid Unicode string
+ * @param {number} start  Location in Unicode sequence to begin extracting
+ * @param {?number} end   Location in Unicode sequence to end extracting
+ *                        (default: end of the string)
+ * @return {string}       Extracted sub-string
+ */
+function substring(str, start, end) {
+  start = start || 0;
+  end = end === undefined ? Infinity : end || 0;
+
+  if (start < 0) {
+    start = 0;
+  }
+  if (end < 0) {
+    end = 0;
+  }
+
+  var length = Math.abs(end - start);
+  start = start < end ? start : end;
+  return substr(str, start, length);
+}
+
+/**
+ * Get a list of Unicode code-points from a String
+ *
+ * @param {string} str        Valid Unicode string
+ * @return {array<number>}    A list of code-points in [0..0x10FFFF]
+ */
+function getCodePoints(str) {
+  var codePoints = [];
+  for (var pos = 0; pos < str.length; pos += getUTF16Length(str, pos)) {
+    codePoints.push(str.codePointAt(pos));
+  }
+  return codePoints;
+}
+
+var UnicodeUtils = {
+  getCodePoints: getCodePoints,
+  getUTF16Length: getUTF16Length,
+  hasSurrogateUnit: hasSurrogateUnit,
+  isCodeUnitInSurrogateRange: isCodeUnitInSurrogateRange,
+  isSurrogatePair: isSurrogatePair,
+  strlen: strlen,
+  substring: substring,
+  substr: substr
+};
+
+module.exports = UnicodeUtils;
+
+/***/ }),
+/* 20 */
 /***/ (function(module, __webpack_exports__, __webpack_require__) {
 
 "use strict";
-/* harmony import */ var __WEBPACK_IMPORTED_MODULE_0__createBrowserHistory__ = __webpack_require__(68);
+/* harmony import */ var __WEBPACK_IMPORTED_MODULE_0__createBrowserHistory__ = __webpack_require__(128);
 /* harmony reexport (binding) */ __webpack_require__.d(__webpack_exports__, "a", function() { return __WEBPACK_IMPORTED_MODULE_0__createBrowserHistory__["a"]; });
-/* harmony import */ var __WEBPACK_IMPORTED_MODULE_1__createHashHistory__ = __webpack_require__(71);
+/* harmony import */ var __WEBPACK_IMPORTED_MODULE_1__createHashHistory__ = __webpack_require__(131);
 /* harmony reexport (binding) */ __webpack_require__.d(__webpack_exports__, "b", function() { return __WEBPACK_IMPORTED_MODULE_1__createHashHistory__["a"]; });
-/* harmony import */ var __WEBPACK_IMPORTED_MODULE_2__createMemoryHistory__ = __webpack_require__(72);
+/* harmony import */ var __WEBPACK_IMPORTED_MODULE_2__createMemoryHistory__ = __webpack_require__(132);
 /* harmony reexport (binding) */ __webpack_require__.d(__webpack_exports__, "d", function() { return __WEBPACK_IMPORTED_MODULE_2__createMemoryHistory__["a"]; });
-/* harmony import */ var __WEBPACK_IMPORTED_MODULE_3__LocationUtils__ = __webpack_require__(10);
+/* harmony import */ var __WEBPACK_IMPORTED_MODULE_3__LocationUtils__ = __webpack_require__(30);
 /* harmony reexport (binding) */ __webpack_require__.d(__webpack_exports__, "c", function() { return __WEBPACK_IMPORTED_MODULE_3__LocationUtils__["a"]; });
 /* harmony reexport (binding) */ __webpack_require__.d(__webpack_exports__, "f", function() { return __WEBPACK_IMPORTED_MODULE_3__LocationUtils__["b"]; });
-/* harmony import */ var __WEBPACK_IMPORTED_MODULE_4__PathUtils__ = __webpack_require__(6);
+/* harmony import */ var __WEBPACK_IMPORTED_MODULE_4__PathUtils__ = __webpack_require__(23);
 /* unused harmony reexport parsePath */
 /* harmony reexport (binding) */ __webpack_require__.d(__webpack_exports__, "e", function() { return __WEBPACK_IMPORTED_MODULE_4__PathUtils__["b"]; });
 
@@ -574,7 +7495,192 @@ module.exports = warning;
 
 
 /***/ }),
-/* 6 */
+/* 21 */
+/***/ (function(module, exports, __webpack_require__) {
+
+"use strict";
+/**
+ * Copyright (c) 2013-present, Facebook, Inc.
+ * All rights reserved.
+ *
+ * This source code is licensed under the BSD-style license found in the
+ * LICENSE file in the root directory of this source tree. An additional grant
+ * of patent rights can be found in the PATENTS file in the same directory.
+ *
+ * @providesModule SelectionState
+ * @format
+ * 
+ */
+
+
+
+function _classCallCheck(instance, Constructor) { if (!(instance instanceof Constructor)) { throw new TypeError("Cannot call a class as a function"); } }
+
+function _possibleConstructorReturn(self, call) { if (!self) { throw new ReferenceError("this hasn't been initialised - super() hasn't been called"); } return call && (typeof call === "object" || typeof call === "function") ? call : self; }
+
+function _inherits(subClass, superClass) { if (typeof superClass !== "function" && superClass !== null) { throw new TypeError("Super expression must either be null or a function, not " + typeof superClass); } subClass.prototype = Object.create(superClass && superClass.prototype, { constructor: { value: subClass, enumerable: false, writable: true, configurable: true } }); if (superClass) Object.setPrototypeOf ? Object.setPrototypeOf(subClass, superClass) : subClass.__proto__ = superClass; }
+
+var Immutable = __webpack_require__(1);
+
+var Record = Immutable.Record;
+
+
+var defaultRecord = {
+  anchorKey: '',
+  anchorOffset: 0,
+  focusKey: '',
+  focusOffset: 0,
+  isBackward: false,
+  hasFocus: false
+};
+
+var SelectionStateRecord = Record(defaultRecord);
+
+var SelectionState = function (_SelectionStateRecord) {
+  _inherits(SelectionState, _SelectionStateRecord);
+
+  function SelectionState() {
+    _classCallCheck(this, SelectionState);
+
+    return _possibleConstructorReturn(this, _SelectionStateRecord.apply(this, arguments));
+  }
+
+  SelectionState.prototype.serialize = function serialize() {
+    return 'Anchor: ' + this.getAnchorKey() + ':' + this.getAnchorOffset() + ', ' + 'Focus: ' + this.getFocusKey() + ':' + this.getFocusOffset() + ', ' + 'Is Backward: ' + String(this.getIsBackward()) + ', ' + 'Has Focus: ' + String(this.getHasFocus());
+  };
+
+  SelectionState.prototype.getAnchorKey = function getAnchorKey() {
+    return this.get('anchorKey');
+  };
+
+  SelectionState.prototype.getAnchorOffset = function getAnchorOffset() {
+    return this.get('anchorOffset');
+  };
+
+  SelectionState.prototype.getFocusKey = function getFocusKey() {
+    return this.get('focusKey');
+  };
+
+  SelectionState.prototype.getFocusOffset = function getFocusOffset() {
+    return this.get('focusOffset');
+  };
+
+  SelectionState.prototype.getIsBackward = function getIsBackward() {
+    return this.get('isBackward');
+  };
+
+  SelectionState.prototype.getHasFocus = function getHasFocus() {
+    return this.get('hasFocus');
+  };
+
+  /**
+   * Return whether the specified range overlaps with an edge of the
+   * SelectionState.
+   */
+
+
+  SelectionState.prototype.hasEdgeWithin = function hasEdgeWithin(blockKey, start, end) {
+    var anchorKey = this.getAnchorKey();
+    var focusKey = this.getFocusKey();
+
+    if (anchorKey === focusKey && anchorKey === blockKey) {
+      var selectionStart = this.getStartOffset();
+      var selectionEnd = this.getEndOffset();
+      return start <= selectionEnd && selectionStart <= end;
+    }
+
+    if (blockKey !== anchorKey && blockKey !== focusKey) {
+      return false;
+    }
+
+    var offsetToCheck = blockKey === anchorKey ? this.getAnchorOffset() : this.getFocusOffset();
+
+    return start <= offsetToCheck && end >= offsetToCheck;
+  };
+
+  SelectionState.prototype.isCollapsed = function isCollapsed() {
+    return this.getAnchorKey() === this.getFocusKey() && this.getAnchorOffset() === this.getFocusOffset();
+  };
+
+  SelectionState.prototype.getStartKey = function getStartKey() {
+    return this.getIsBackward() ? this.getFocusKey() : this.getAnchorKey();
+  };
+
+  SelectionState.prototype.getStartOffset = function getStartOffset() {
+    return this.getIsBackward() ? this.getFocusOffset() : this.getAnchorOffset();
+  };
+
+  SelectionState.prototype.getEndKey = function getEndKey() {
+    return this.getIsBackward() ? this.getAnchorKey() : this.getFocusKey();
+  };
+
+  SelectionState.prototype.getEndOffset = function getEndOffset() {
+    return this.getIsBackward() ? this.getAnchorOffset() : this.getFocusOffset();
+  };
+
+  SelectionState.createEmpty = function createEmpty(key) {
+    return new SelectionState({
+      anchorKey: key,
+      anchorOffset: 0,
+      focusKey: key,
+      focusOffset: 0,
+      isBackward: false,
+      hasFocus: false
+    });
+  };
+
+  return SelectionState;
+}(SelectionStateRecord);
+
+module.exports = SelectionState;
+
+/***/ }),
+/* 22 */
+/***/ (function(module, exports, __webpack_require__) {
+
+"use strict";
+
+
+/**
+ * Copyright (c) 2013-present, Facebook, Inc.
+ *
+ * This source code is licensed under the MIT license found in the
+ * LICENSE file in the root directory of this source tree.
+ *
+ */
+
+/**
+ * This function is used to mark string literals representing CSS class names
+ * so that they can be transformed statically. This allows for modularization
+ * and minification of CSS class names.
+ *
+ * In static_upstream, this function is actually implemented, but it should
+ * eventually be replaced with something more descriptive, and the transform
+ * that is used in the main stack should be ported for use elsewhere.
+ *
+ * @param string|object className to modularize, or an object of key/values.
+ *                      In the object case, the values are conditions that
+ *                      determine if the className keys should be included.
+ * @param [string ...]  Variable list of classNames in the string case.
+ * @return string       Renderable space-separated CSS className.
+ */
+function cx(classNames) {
+  if (typeof classNames == 'object') {
+    return Object.keys(classNames).filter(function (className) {
+      return classNames[className];
+    }).map(replace).join(' ');
+  }
+  return Array.prototype.map.call(arguments, replace).join(' ');
+}
+
+function replace(str) {
+  return str.replace(/\//g, '-');
+}
+
+module.exports = cx;
+
+/***/ }),
+/* 23 */
 /***/ (function(module, __webpack_exports__, __webpack_require__) {
 
 "use strict";
@@ -645,64 +7751,200 @@ var createPath = function createPath(location) {
 };
 
 /***/ }),
-/* 7 */
-/***/ (function(module, exports) {
+/* 24 */
+/***/ (function(module, exports, __webpack_require__) {
 
-var g;
+"use strict";
+/**
+ * Copyright (c) 2013-present, Facebook, Inc.
+ * All rights reserved.
+ *
+ * This source code is licensed under the BSD-style license found in the
+ * LICENSE file in the root directory of this source tree. An additional grant
+ * of patent rights can be found in the PATENTS file in the same directory.
+ *
+ * @providesModule BlockMapBuilder
+ * @format
+ * 
+ */
 
-// This works in non-strict mode
-g = (function() {
-	return this;
-})();
 
-try {
-	// This works if eval is allowed (see CSP)
-	g = g || Function("return this")() || (1,eval)("this");
-} catch(e) {
-	// This works if the window reference is available
-	if(typeof window === "object")
-		g = window;
-}
 
-// g can still be undefined, but nothing to do about it...
-// We return undefined, instead of nothing here, so it's
-// easier to handle this case. if(!global) { ...}
+var Immutable = __webpack_require__(1);
 
-module.exports = g;
+var OrderedMap = Immutable.OrderedMap;
 
+
+var BlockMapBuilder = {
+  createFromArray: function createFromArray(blocks) {
+    return OrderedMap(blocks.map(function (block) {
+      return [block.getKey(), block];
+    }));
+  }
+};
+
+module.exports = BlockMapBuilder;
 
 /***/ }),
-/* 8 */
+/* 25 */
+/***/ (function(module, exports, __webpack_require__) {
+
+"use strict";
+/**
+ * Copyright (c) 2013-present, Facebook, Inc.
+ * All rights reserved.
+ *
+ * This source code is licensed under the BSD-style license found in the
+ * LICENSE file in the root directory of this source tree. An additional grant
+ * of patent rights can be found in the PATENTS file in the same directory.
+ *
+ * @providesModule findRangesImmutable
+ * @format
+ * 
+ */
+
+
+
+/**
+ * Search through an array to find contiguous stretches of elements that
+ * match a specified filter function.
+ *
+ * When ranges are found, execute a specified `found` function to supply
+ * the values to the caller.
+ */
+function findRangesImmutable(haystack, areEqualFn, filterFn, foundFn) {
+  if (!haystack.size) {
+    return;
+  }
+
+  var cursor = 0;
+
+  haystack.reduce(function (value, nextValue, nextIndex) {
+    if (!areEqualFn(value, nextValue)) {
+      if (filterFn(value)) {
+        foundFn(cursor, nextIndex);
+      }
+      cursor = nextIndex;
+    }
+    return nextValue;
+  });
+
+  filterFn(haystack.last()) && foundFn(cursor, haystack.count());
+}
+
+module.exports = findRangesImmutable;
+
+/***/ }),
+/* 26 */
+/***/ (function(module, exports, __webpack_require__) {
+
+"use strict";
+/**
+ * Copyright (c) 2013-present, Facebook, Inc.
+ * All rights reserved.
+ *
+ * This source code is licensed under the BSD-style license found in the
+ * LICENSE file in the root directory of this source tree. An additional grant
+ * of patent rights can be found in the PATENTS file in the same directory.
+ *
+ * @providesModule isEventHandled
+ * @format
+ * 
+ */
+
+
+
+/**
+ * Utility method for determining whether or not the value returned
+ * from a handler indicates that it was handled.
+ */
+function isEventHandled(value) {
+  return value === 'handled' || value === true;
+}
+
+module.exports = isEventHandled;
+
+/***/ }),
+/* 27 */
+/***/ (function(module, exports, __webpack_require__) {
+
+"use strict";
+/**
+ * Copyright (c) 2013-present, Facebook, Inc.
+ * All rights reserved.
+ *
+ * This source code is licensed under the BSD-style license found in the
+ * LICENSE file in the root directory of this source tree. An additional grant
+ * of patent rights can be found in the PATENTS file in the same directory.
+ *
+ * @providesModule removeTextWithStrategy
+ * @format
+ * 
+ */
+
+
+
+var DraftModifier = __webpack_require__(6);
+
+/**
+ * For a collapsed selection state, remove text based on the specified strategy.
+ * If the selection state is not collapsed, remove the entire selected range.
+ */
+function removeTextWithStrategy(editorState, strategy, direction) {
+  var selection = editorState.getSelection();
+  var content = editorState.getCurrentContent();
+  var target = selection;
+  if (selection.isCollapsed()) {
+    if (direction === 'forward') {
+      if (editorState.isSelectionAtEndOfContent()) {
+        return content;
+      }
+    } else if (editorState.isSelectionAtStartOfContent()) {
+      return content;
+    }
+
+    target = strategy(editorState);
+    if (target === selection) {
+      return content;
+    }
+  }
+  return DraftModifier.removeRange(content, target, direction);
+}
+
+module.exports = removeTextWithStrategy;
+
+/***/ }),
+/* 28 */
 /***/ (function(module, __webpack_exports__, __webpack_require__) {
 
 "use strict";
-/* harmony import */ var __WEBPACK_IMPORTED_MODULE_0__BrowserRouter__ = __webpack_require__(66);
+/* harmony import */ var __WEBPACK_IMPORTED_MODULE_0__BrowserRouter__ = __webpack_require__(126);
 /* harmony reexport (binding) */ __webpack_require__.d(__webpack_exports__, "a", function() { return __WEBPACK_IMPORTED_MODULE_0__BrowserRouter__["a"]; });
-/* harmony import */ var __WEBPACK_IMPORTED_MODULE_1__HashRouter__ = __webpack_require__(73);
+/* harmony import */ var __WEBPACK_IMPORTED_MODULE_1__HashRouter__ = __webpack_require__(133);
 /* unused harmony reexport HashRouter */
-/* harmony import */ var __WEBPACK_IMPORTED_MODULE_2__Link__ = __webpack_require__(27);
+/* harmony import */ var __WEBPACK_IMPORTED_MODULE_2__Link__ = __webpack_require__(64);
 /* harmony reexport (binding) */ __webpack_require__.d(__webpack_exports__, "b", function() { return __WEBPACK_IMPORTED_MODULE_2__Link__["a"]; });
-/* harmony import */ var __WEBPACK_IMPORTED_MODULE_3__MemoryRouter__ = __webpack_require__(74);
+/* harmony import */ var __WEBPACK_IMPORTED_MODULE_3__MemoryRouter__ = __webpack_require__(134);
 /* unused harmony reexport MemoryRouter */
-/* harmony import */ var __WEBPACK_IMPORTED_MODULE_4__NavLink__ = __webpack_require__(76);
+/* harmony import */ var __WEBPACK_IMPORTED_MODULE_4__NavLink__ = __webpack_require__(136);
 /* unused harmony reexport NavLink */
-/* harmony import */ var __WEBPACK_IMPORTED_MODULE_5__Prompt__ = __webpack_require__(78);
+/* harmony import */ var __WEBPACK_IMPORTED_MODULE_5__Prompt__ = __webpack_require__(138);
 /* unused harmony reexport Prompt */
-/* harmony import */ var __WEBPACK_IMPORTED_MODULE_6__Redirect__ = __webpack_require__(80);
+/* harmony import */ var __WEBPACK_IMPORTED_MODULE_6__Redirect__ = __webpack_require__(140);
 /* unused harmony reexport Redirect */
-/* harmony import */ var __WEBPACK_IMPORTED_MODULE_7__Route__ = __webpack_require__(28);
+/* harmony import */ var __WEBPACK_IMPORTED_MODULE_7__Route__ = __webpack_require__(65);
 /* harmony reexport (binding) */ __webpack_require__.d(__webpack_exports__, "c", function() { return __WEBPACK_IMPORTED_MODULE_7__Route__["a"]; });
-/* harmony import */ var __WEBPACK_IMPORTED_MODULE_8__Router__ = __webpack_require__(15);
+/* harmony import */ var __WEBPACK_IMPORTED_MODULE_8__Router__ = __webpack_require__(37);
 /* unused harmony reexport Router */
-/* harmony import */ var __WEBPACK_IMPORTED_MODULE_9__StaticRouter__ = __webpack_require__(82);
+/* harmony import */ var __WEBPACK_IMPORTED_MODULE_9__StaticRouter__ = __webpack_require__(142);
 /* unused harmony reexport StaticRouter */
-/* harmony import */ var __WEBPACK_IMPORTED_MODULE_10__Switch__ = __webpack_require__(84);
+/* harmony import */ var __WEBPACK_IMPORTED_MODULE_10__Switch__ = __webpack_require__(144);
 /* harmony reexport (binding) */ __webpack_require__.d(__webpack_exports__, "d", function() { return __WEBPACK_IMPORTED_MODULE_10__Switch__["a"]; });
-/* harmony import */ var __WEBPACK_IMPORTED_MODULE_11__generatePath__ = __webpack_require__(86);
+/* harmony import */ var __WEBPACK_IMPORTED_MODULE_11__generatePath__ = __webpack_require__(146);
 /* unused harmony reexport generatePath */
-/* harmony import */ var __WEBPACK_IMPORTED_MODULE_12__matchPath__ = __webpack_require__(87);
+/* harmony import */ var __WEBPACK_IMPORTED_MODULE_12__matchPath__ = __webpack_require__(147);
 /* unused harmony reexport matchPath */
-/* harmony import */ var __WEBPACK_IMPORTED_MODULE_13__withRouter__ = __webpack_require__(88);
+/* harmony import */ var __WEBPACK_IMPORTED_MODULE_13__withRouter__ = __webpack_require__(148);
 /* unused harmony reexport withRouter */
 
 
@@ -734,7 +7976,7 @@ module.exports = g;
 
 
 /***/ }),
-/* 9 */
+/* 29 */
 /***/ (function(module, exports, __webpack_require__) {
 
 "use strict";
@@ -801,15 +8043,15 @@ module.exports = warning;
 
 
 /***/ }),
-/* 10 */
+/* 30 */
 /***/ (function(module, __webpack_exports__, __webpack_require__) {
 
 "use strict";
 /* harmony export (binding) */ __webpack_require__.d(__webpack_exports__, "a", function() { return createLocation; });
 /* harmony export (binding) */ __webpack_require__.d(__webpack_exports__, "b", function() { return locationsAreEqual; });
-/* harmony import */ var __WEBPACK_IMPORTED_MODULE_0_resolve_pathname__ = __webpack_require__(69);
-/* harmony import */ var __WEBPACK_IMPORTED_MODULE_1_value_equal__ = __webpack_require__(70);
-/* harmony import */ var __WEBPACK_IMPORTED_MODULE_2__PathUtils__ = __webpack_require__(6);
+/* harmony import */ var __WEBPACK_IMPORTED_MODULE_0_resolve_pathname__ = __webpack_require__(129);
+/* harmony import */ var __WEBPACK_IMPORTED_MODULE_1_value_equal__ = __webpack_require__(130);
+/* harmony import */ var __WEBPACK_IMPORTED_MODULE_2__PathUtils__ = __webpack_require__(23);
 var _extends = Object.assign || function (target) { for (var i = 1; i < arguments.length; i++) { var source = arguments[i]; for (var key in source) { if (Object.prototype.hasOwnProperty.call(source, key)) { target[key] = source[key]; } } } return target; };
 
 
@@ -877,14 +8119,327 @@ var locationsAreEqual = function locationsAreEqual(a, b) {
 };
 
 /***/ }),
-/* 11 */
+/* 31 */
+/***/ (function(module, exports, __webpack_require__) {
+
+"use strict";
+/**
+ * Copyright (c) 2013-present, Facebook, Inc.
+ * All rights reserved.
+ *
+ * This source code is licensed under the BSD-style license found in the
+ * LICENSE file in the root directory of this source tree. An additional grant
+ * of patent rights can be found in the PATENTS file in the same directory.
+ *
+ * @providesModule getContentStateFragment
+ * @format
+ * 
+ */
+
+
+
+var randomizeBlockMapKeys = __webpack_require__(69);
+var removeEntitiesAtEdges = __webpack_require__(70);
+
+var getContentStateFragment = function getContentStateFragment(contentState, selectionState) {
+  var startKey = selectionState.getStartKey();
+  var startOffset = selectionState.getStartOffset();
+  var endKey = selectionState.getEndKey();
+  var endOffset = selectionState.getEndOffset();
+
+  // Edge entities should be stripped to ensure that we don't preserve
+  // invalid partial entities when the fragment is reused. We do, however,
+  // preserve entities that are entirely within the selection range.
+  var contentWithoutEdgeEntities = removeEntitiesAtEdges(contentState, selectionState);
+
+  var blockMap = contentWithoutEdgeEntities.getBlockMap();
+  var blockKeys = blockMap.keySeq();
+  var startIndex = blockKeys.indexOf(startKey);
+  var endIndex = blockKeys.indexOf(endKey) + 1;
+
+  return randomizeBlockMapKeys(blockMap.slice(startIndex, endIndex).map(function (block, blockKey) {
+    var text = block.getText();
+    var chars = block.getCharacterList();
+
+    if (startKey === endKey) {
+      return block.merge({
+        text: text.slice(startOffset, endOffset),
+        characterList: chars.slice(startOffset, endOffset)
+      });
+    }
+
+    if (blockKey === startKey) {
+      return block.merge({
+        text: text.slice(startOffset),
+        characterList: chars.slice(startOffset)
+      });
+    }
+
+    if (blockKey === endKey) {
+      return block.merge({
+        text: text.slice(0, endOffset),
+        characterList: chars.slice(0, endOffset)
+      });
+    }
+
+    return block;
+  }));
+};
+
+module.exports = getContentStateFragment;
+
+/***/ }),
+/* 32 */
+/***/ (function(module, exports, __webpack_require__) {
+
+"use strict";
+
+
+var _assign = __webpack_require__(5);
+
+var _extends = _assign || function (target) { for (var i = 1; i < arguments.length; i++) { var source = arguments[i]; for (var key in source) { if (Object.prototype.hasOwnProperty.call(source, key)) { target[key] = source[key]; } } } return target; };
+
+/**
+ * Copyright (c) 2013-present, Facebook, Inc.
+ * All rights reserved.
+ *
+ * This source code is licensed under the BSD-style license found in the
+ * LICENSE file in the root directory of this source tree. An additional grant
+ * of patent rights can be found in the PATENTS file in the same directory.
+ *
+ * @providesModule DraftEntity
+ * @format
+ * 
+ */
+
+var DraftEntityInstance = __webpack_require__(74);
+var Immutable = __webpack_require__(1);
+
+var invariant = __webpack_require__(2);
+
+var Map = Immutable.Map;
+
+
+var instances = Map();
+var instanceKey = 0;
+
+/**
+ * Temporary utility for generating the warnings
+ */
+function logWarning(oldMethodCall, newMethodCall) {
+  console.warn('WARNING: ' + oldMethodCall + ' will be deprecated soon!\nPlease use "' + newMethodCall + '" instead.');
+}
+
+/**
+ * A "document entity" is an object containing metadata associated with a
+ * piece of text in a ContentBlock.
+ *
+ * For example, a `link` entity might include a `uri` property. When a
+ * ContentBlock is rendered in the browser, text that refers to that link
+ * entity may be rendered as an anchor, with the `uri` as the href value.
+ *
+ * In a ContentBlock, every position in the text may correspond to zero
+ * or one entities. This correspondence is tracked using a key string,
+ * generated via DraftEntity.create() and used to obtain entity metadata
+ * via DraftEntity.get().
+ */
+var DraftEntity = {
+  /**
+   * WARNING: This method will be deprecated soon!
+   * Please use 'contentState.getLastCreatedEntityKey' instead.
+   * ---
+   * Get the random key string from whatever entity was last created.
+   * We need this to support the new API, as part of transitioning to put Entity
+   * storage in contentState.
+   */
+  getLastCreatedEntityKey: function getLastCreatedEntityKey() {
+    logWarning('DraftEntity.getLastCreatedEntityKey', 'contentState.getLastCreatedEntityKey');
+    return DraftEntity.__getLastCreatedEntityKey();
+  },
+
+  /**
+   * WARNING: This method will be deprecated soon!
+   * Please use 'contentState.createEntity' instead.
+   * ---
+   * Create a DraftEntityInstance and store it for later retrieval.
+   *
+   * A random key string will be generated and returned. This key may
+   * be used to track the entity's usage in a ContentBlock, and for
+   * retrieving data about the entity at render time.
+   */
+  create: function create(type, mutability, data) {
+    logWarning('DraftEntity.create', 'contentState.createEntity');
+    return DraftEntity.__create(type, mutability, data);
+  },
+
+  /**
+   * WARNING: This method will be deprecated soon!
+   * Please use 'contentState.addEntity' instead.
+   * ---
+   * Add an existing DraftEntityInstance to the DraftEntity map. This is
+   * useful when restoring instances from the server.
+   */
+  add: function add(instance) {
+    logWarning('DraftEntity.add', 'contentState.addEntity');
+    return DraftEntity.__add(instance);
+  },
+
+  /**
+   * WARNING: This method will be deprecated soon!
+   * Please use 'contentState.getEntity' instead.
+   * ---
+   * Retrieve the entity corresponding to the supplied key string.
+   */
+  get: function get(key) {
+    logWarning('DraftEntity.get', 'contentState.getEntity');
+    return DraftEntity.__get(key);
+  },
+
+  /**
+   * WARNING: This method will be deprecated soon!
+   * Please use 'contentState.mergeEntityData' instead.
+   * ---
+   * Entity instances are immutable. If you need to update the data for an
+   * instance, this method will merge your data updates and return a new
+   * instance.
+   */
+  mergeData: function mergeData(key, toMerge) {
+    logWarning('DraftEntity.mergeData', 'contentState.mergeEntityData');
+    return DraftEntity.__mergeData(key, toMerge);
+  },
+
+  /**
+   * WARNING: This method will be deprecated soon!
+   * Please use 'contentState.replaceEntityData' instead.
+   * ---
+   * Completely replace the data for a given instance.
+   */
+  replaceData: function replaceData(key, newData) {
+    logWarning('DraftEntity.replaceData', 'contentState.replaceEntityData');
+    return DraftEntity.__replaceData(key, newData);
+  },
+
+  // ***********************************WARNING******************************
+  // --- the above public API will be deprecated in the next version of Draft!
+  // The methods below this line are private - don't call them directly.
+
+  /**
+   * Get the random key string from whatever entity was last created.
+   * We need this to support the new API, as part of transitioning to put Entity
+   * storage in contentState.
+   */
+  __getLastCreatedEntityKey: function __getLastCreatedEntityKey() {
+    return '' + instanceKey;
+  },
+
+  /**
+   * Create a DraftEntityInstance and store it for later retrieval.
+   *
+   * A random key string will be generated and returned. This key may
+   * be used to track the entity's usage in a ContentBlock, and for
+   * retrieving data about the entity at render time.
+   */
+  __create: function __create(type, mutability, data) {
+    return DraftEntity.__add(new DraftEntityInstance({ type: type, mutability: mutability, data: data || {} }));
+  },
+
+  /**
+   * Add an existing DraftEntityInstance to the DraftEntity map. This is
+   * useful when restoring instances from the server.
+   */
+  __add: function __add(instance) {
+    var key = '' + ++instanceKey;
+    instances = instances.set(key, instance);
+    return key;
+  },
+
+  /**
+   * Retrieve the entity corresponding to the supplied key string.
+   */
+  __get: function __get(key) {
+    var instance = instances.get(key);
+    !!!instance ?  true ? invariant(false, 'Unknown DraftEntity key: %s.', key) : invariant(false) : void 0;
+    return instance;
+  },
+
+  /**
+   * Entity instances are immutable. If you need to update the data for an
+   * instance, this method will merge your data updates and return a new
+   * instance.
+   */
+  __mergeData: function __mergeData(key, toMerge) {
+    var instance = DraftEntity.__get(key);
+    var newData = _extends({}, instance.getData(), toMerge);
+    var newInstance = instance.set('data', newData);
+    instances = instances.set(key, newInstance);
+    return newInstance;
+  },
+
+  /**
+   * Completely replace the data for a given instance.
+   */
+  __replaceData: function __replaceData(key, newData) {
+    var instance = DraftEntity.__get(key);
+    var newInstance = instance.set('data', newData);
+    instances = instances.set(key, newInstance);
+    return newInstance;
+  }
+};
+
+module.exports = DraftEntity;
+
+/***/ }),
+/* 33 */
+/***/ (function(module, exports, __webpack_require__) {
+
+"use strict";
+/**
+ * Copyright (c) 2013-present, Facebook, Inc.
+ * All rights reserved.
+ *
+ * This source code is licensed under the BSD-style license found in the
+ * LICENSE file in the root directory of this source tree. An additional grant
+ * of patent rights can be found in the PATENTS file in the same directory.
+ *
+ * @providesModule DraftOffsetKey
+ * @format
+ * 
+ */
+
+
+
+var KEY_DELIMITER = '-';
+
+var DraftOffsetKey = {
+  encode: function encode(blockKey, decoratorKey, leafKey) {
+    return blockKey + KEY_DELIMITER + decoratorKey + KEY_DELIMITER + leafKey;
+  },
+
+  decode: function decode(offsetKey) {
+    var _offsetKey$split = offsetKey.split(KEY_DELIMITER),
+        blockKey = _offsetKey$split[0],
+        decoratorKey = _offsetKey$split[1],
+        leafKey = _offsetKey$split[2];
+
+    return {
+      blockKey: blockKey,
+      decoratorKey: parseInt(decoratorKey, 10),
+      leafKey: parseInt(leafKey, 10)
+    };
+  }
+};
+
+module.exports = DraftOffsetKey;
+
+/***/ }),
+/* 34 */
 /***/ (function(module, exports, __webpack_require__) {
 
 "use strict";
 /* WEBPACK VAR INJECTION */(function(process) {
 
-var utils = __webpack_require__(2);
-var normalizeHeaderName = __webpack_require__(44);
+var utils = __webpack_require__(9);
+var normalizeHeaderName = __webpack_require__(104);
 
 var DEFAULT_CONTENT_TYPE = {
   'Content-Type': 'application/x-www-form-urlencoded'
@@ -900,10 +8455,10 @@ function getDefaultAdapter() {
   var adapter;
   if (typeof XMLHttpRequest !== 'undefined') {
     // For browsers use XHR adapter
-    adapter = __webpack_require__(20);
+    adapter = __webpack_require__(58);
   } else if (typeof process !== 'undefined') {
     // For node use HTTP adapter
-    adapter = __webpack_require__(20);
+    adapter = __webpack_require__(58);
   }
   return adapter;
 }
@@ -978,107 +8533,10 @@ utils.forEach(['post', 'put', 'patch'], function forEachMethodWithData(method) {
 
 module.exports = defaults;
 
-/* WEBPACK VAR INJECTION */}.call(exports, __webpack_require__(43)))
+/* WEBPACK VAR INJECTION */}.call(exports, __webpack_require__(57)))
 
 /***/ }),
-/* 12 */
-/***/ (function(module, exports, __webpack_require__) {
-
-"use strict";
-/*
-object-assign
-(c) Sindre Sorhus
-@license MIT
-*/
-
-
-/* eslint-disable no-unused-vars */
-var getOwnPropertySymbols = Object.getOwnPropertySymbols;
-var hasOwnProperty = Object.prototype.hasOwnProperty;
-var propIsEnumerable = Object.prototype.propertyIsEnumerable;
-
-function toObject(val) {
-	if (val === null || val === undefined) {
-		throw new TypeError('Object.assign cannot be called with null or undefined');
-	}
-
-	return Object(val);
-}
-
-function shouldUseNative() {
-	try {
-		if (!Object.assign) {
-			return false;
-		}
-
-		// Detect buggy property enumeration order in older V8 versions.
-
-		// https://bugs.chromium.org/p/v8/issues/detail?id=4118
-		var test1 = new String('abc');  // eslint-disable-line no-new-wrappers
-		test1[5] = 'de';
-		if (Object.getOwnPropertyNames(test1)[0] === '5') {
-			return false;
-		}
-
-		// https://bugs.chromium.org/p/v8/issues/detail?id=3056
-		var test2 = {};
-		for (var i = 0; i < 10; i++) {
-			test2['_' + String.fromCharCode(i)] = i;
-		}
-		var order2 = Object.getOwnPropertyNames(test2).map(function (n) {
-			return test2[n];
-		});
-		if (order2.join('') !== '0123456789') {
-			return false;
-		}
-
-		// https://bugs.chromium.org/p/v8/issues/detail?id=3056
-		var test3 = {};
-		'abcdefghijklmnopqrst'.split('').forEach(function (letter) {
-			test3[letter] = letter;
-		});
-		if (Object.keys(Object.assign({}, test3)).join('') !==
-				'abcdefghijklmnopqrst') {
-			return false;
-		}
-
-		return true;
-	} catch (err) {
-		// We don't expect any of the above to throw, but better to be safe.
-		return false;
-	}
-}
-
-module.exports = shouldUseNative() ? Object.assign : function (target, source) {
-	var from;
-	var to = toObject(target);
-	var symbols;
-
-	for (var s = 1; s < arguments.length; s++) {
-		from = Object(arguments[s]);
-
-		for (var key in from) {
-			if (hasOwnProperty.call(from, key)) {
-				to[key] = from[key];
-			}
-		}
-
-		if (getOwnPropertySymbols) {
-			symbols = getOwnPropertySymbols(from);
-			for (var i = 0; i < symbols.length; i++) {
-				if (propIsEnumerable.call(from, symbols[i])) {
-					to[symbols[i]] = from[symbols[i]];
-				}
-			}
-		}
-	}
-
-	return to;
-};
-
-
-/***/ }),
-/* 13 */
+/* 35 */
 /***/ (function(module, exports, __webpack_require__) {
 
 "use strict";
@@ -1094,7 +8552,7 @@ module.exports = shouldUseNative() ? Object.assign : function (target, source) {
 var printWarning = function() {};
 
 if (true) {
-  var ReactPropTypesSecret = __webpack_require__(24);
+  var ReactPropTypesSecret = __webpack_require__(62);
   var loggedTypeFailures = {};
 
   printWarning = function(text) {
@@ -1176,11 +8634,11 @@ module.exports = checkPropTypes;
 
 
 /***/ }),
-/* 14 */
+/* 36 */
 /***/ (function(module, __webpack_exports__, __webpack_require__) {
 
 "use strict";
-/* harmony import */ var __WEBPACK_IMPORTED_MODULE_0_warning__ = __webpack_require__(9);
+/* harmony import */ var __WEBPACK_IMPORTED_MODULE_0_warning__ = __webpack_require__(29);
 /* harmony import */ var __WEBPACK_IMPORTED_MODULE_0_warning___default = __webpack_require__.n(__WEBPACK_IMPORTED_MODULE_0_warning__);
 
 
@@ -1261,28 +8719,28 @@ var createTransitionManager = function createTransitionManager() {
 /* harmony default export */ __webpack_exports__["a"] = (createTransitionManager);
 
 /***/ }),
-/* 15 */
+/* 37 */
 /***/ (function(module, __webpack_exports__, __webpack_require__) {
 
 "use strict";
-/* harmony import */ var __WEBPACK_IMPORTED_MODULE_0_react_router_es_Router__ = __webpack_require__(16);
+/* harmony import */ var __WEBPACK_IMPORTED_MODULE_0_react_router_es_Router__ = __webpack_require__(38);
 // Written in this round about way for babel-transform-imports
 
 
 /* harmony default export */ __webpack_exports__["a"] = (__WEBPACK_IMPORTED_MODULE_0_react_router_es_Router__["a" /* default */]);
 
 /***/ }),
-/* 16 */
+/* 38 */
 /***/ (function(module, __webpack_exports__, __webpack_require__) {
 
 "use strict";
-/* harmony import */ var __WEBPACK_IMPORTED_MODULE_0_warning__ = __webpack_require__(4);
+/* harmony import */ var __WEBPACK_IMPORTED_MODULE_0_warning__ = __webpack_require__(15);
 /* harmony import */ var __WEBPACK_IMPORTED_MODULE_0_warning___default = __webpack_require__.n(__WEBPACK_IMPORTED_MODULE_0_warning__);
-/* harmony import */ var __WEBPACK_IMPORTED_MODULE_1_invariant__ = __webpack_require__(3);
+/* harmony import */ var __WEBPACK_IMPORTED_MODULE_1_invariant__ = __webpack_require__(13);
 /* harmony import */ var __WEBPACK_IMPORTED_MODULE_1_invariant___default = __webpack_require__.n(__WEBPACK_IMPORTED_MODULE_1_invariant__);
 /* harmony import */ var __WEBPACK_IMPORTED_MODULE_2_react__ = __webpack_require__(0);
 /* harmony import */ var __WEBPACK_IMPORTED_MODULE_2_react___default = __webpack_require__.n(__WEBPACK_IMPORTED_MODULE_2_react__);
-/* harmony import */ var __WEBPACK_IMPORTED_MODULE_3_prop_types__ = __webpack_require__(1);
+/* harmony import */ var __WEBPACK_IMPORTED_MODULE_3_prop_types__ = __webpack_require__(4);
 /* harmony import */ var __WEBPACK_IMPORTED_MODULE_3_prop_types___default = __webpack_require__.n(__WEBPACK_IMPORTED_MODULE_3_prop_types__);
 var _extends = Object.assign || function (target) { for (var i = 1; i < arguments.length; i++) { var source = arguments[i]; for (var key in source) { if (Object.prototype.hasOwnProperty.call(source, key)) { target[key] = source[key]; } } } return target; };
 
@@ -1391,11 +8849,11 @@ Router.childContextTypes = {
 /* harmony default export */ __webpack_exports__["a"] = (Router);
 
 /***/ }),
-/* 17 */
+/* 39 */
 /***/ (function(module, __webpack_exports__, __webpack_require__) {
 
 "use strict";
-/* harmony import */ var __WEBPACK_IMPORTED_MODULE_0_path_to_regexp__ = __webpack_require__(30);
+/* harmony import */ var __WEBPACK_IMPORTED_MODULE_0_path_to_regexp__ = __webpack_require__(67);
 /* harmony import */ var __WEBPACK_IMPORTED_MODULE_0_path_to_regexp___default = __webpack_require__.n(__WEBPACK_IMPORTED_MODULE_0_path_to_regexp__);
 
 
@@ -1471,7 +8929,7 @@ var matchPath = function matchPath(pathname) {
 /* harmony default export */ __webpack_exports__["a"] = (matchPath);
 
 /***/ }),
-/* 18 */
+/* 40 */
 /***/ (function(module, __webpack_exports__, __webpack_require__) {
 
 "use strict";
@@ -1565,20 +9023,20 @@ var matchPath = function matchPath(pathname) {
 /* unused harmony export Util */
 /* harmony import */ var __WEBPACK_IMPORTED_MODULE_0_react__ = __webpack_require__(0);
 /* harmony import */ var __WEBPACK_IMPORTED_MODULE_0_react___default = __webpack_require__.n(__WEBPACK_IMPORTED_MODULE_0_react__);
-/* harmony import */ var __WEBPACK_IMPORTED_MODULE_1_prop_types__ = __webpack_require__(1);
+/* harmony import */ var __WEBPACK_IMPORTED_MODULE_1_prop_types__ = __webpack_require__(4);
 /* harmony import */ var __WEBPACK_IMPORTED_MODULE_1_prop_types___default = __webpack_require__.n(__WEBPACK_IMPORTED_MODULE_1_prop_types__);
-/* harmony import */ var __WEBPACK_IMPORTED_MODULE_2_classnames__ = __webpack_require__(92);
+/* harmony import */ var __WEBPACK_IMPORTED_MODULE_2_classnames__ = __webpack_require__(152);
 /* harmony import */ var __WEBPACK_IMPORTED_MODULE_2_classnames___default = __webpack_require__.n(__WEBPACK_IMPORTED_MODULE_2_classnames__);
-/* harmony import */ var __WEBPACK_IMPORTED_MODULE_3_lodash_isfunction__ = __webpack_require__(93);
+/* harmony import */ var __WEBPACK_IMPORTED_MODULE_3_lodash_isfunction__ = __webpack_require__(153);
 /* harmony import */ var __WEBPACK_IMPORTED_MODULE_3_lodash_isfunction___default = __webpack_require__.n(__WEBPACK_IMPORTED_MODULE_3_lodash_isfunction__);
-/* harmony import */ var __WEBPACK_IMPORTED_MODULE_4_lodash_isobject__ = __webpack_require__(94);
+/* harmony import */ var __WEBPACK_IMPORTED_MODULE_4_lodash_isobject__ = __webpack_require__(154);
 /* harmony import */ var __WEBPACK_IMPORTED_MODULE_4_lodash_isobject___default = __webpack_require__.n(__WEBPACK_IMPORTED_MODULE_4_lodash_isobject__);
-/* harmony import */ var __WEBPACK_IMPORTED_MODULE_5_react_dom__ = __webpack_require__(25);
+/* harmony import */ var __WEBPACK_IMPORTED_MODULE_5_react_dom__ = __webpack_require__(17);
 /* harmony import */ var __WEBPACK_IMPORTED_MODULE_5_react_dom___default = __webpack_require__.n(__WEBPACK_IMPORTED_MODULE_5_react_dom__);
-/* harmony import */ var __WEBPACK_IMPORTED_MODULE_6_react_popper__ = __webpack_require__(95);
-/* harmony import */ var __WEBPACK_IMPORTED_MODULE_7_lodash_tonumber__ = __webpack_require__(101);
+/* harmony import */ var __WEBPACK_IMPORTED_MODULE_6_react_popper__ = __webpack_require__(155);
+/* harmony import */ var __WEBPACK_IMPORTED_MODULE_7_lodash_tonumber__ = __webpack_require__(161);
 /* harmony import */ var __WEBPACK_IMPORTED_MODULE_7_lodash_tonumber___default = __webpack_require__.n(__WEBPACK_IMPORTED_MODULE_7_lodash_tonumber__);
-/* harmony import */ var __WEBPACK_IMPORTED_MODULE_8_react_lifecycles_compat__ = __webpack_require__(102);
+/* harmony import */ var __WEBPACK_IMPORTED_MODULE_8_react_lifecycles_compat__ = __webpack_require__(162);
 
 
 
@@ -7773,7 +15231,1319 @@ var UncontrolledTooltip = function (_Component) {
 
 
 /***/ }),
-/* 19 */
+/* 41 */
+/***/ (function(module, exports) {
+
+/*
+	MIT License http://www.opensource.org/licenses/mit-license.php
+	Author Tobias Koppers @sokra
+*/
+// css base code, injected by the css-loader
+module.exports = function(useSourceMap) {
+	var list = [];
+
+	// return the list of modules as css string
+	list.toString = function toString() {
+		return this.map(function (item) {
+			var content = cssWithMappingToString(item, useSourceMap);
+			if(item[2]) {
+				return "@media " + item[2] + "{" + content + "}";
+			} else {
+				return content;
+			}
+		}).join("");
+	};
+
+	// import a list of modules into the list
+	list.i = function(modules, mediaQuery) {
+		if(typeof modules === "string")
+			modules = [[null, modules, ""]];
+		var alreadyImportedModules = {};
+		for(var i = 0; i < this.length; i++) {
+			var id = this[i][0];
+			if(typeof id === "number")
+				alreadyImportedModules[id] = true;
+		}
+		for(i = 0; i < modules.length; i++) {
+			var item = modules[i];
+			// skip already imported module
+			// this implementation is not 100% perfect for weird media query combinations
+			//  when a module is imported multiple times with different media queries.
+			//  I hope this will never occur (Hey this way we have smaller bundles)
+			if(typeof item[0] !== "number" || !alreadyImportedModules[item[0]]) {
+				if(mediaQuery && !item[2]) {
+					item[2] = mediaQuery;
+				} else if(mediaQuery) {
+					item[2] = "(" + item[2] + ") and (" + mediaQuery + ")";
+				}
+				list.push(item);
+			}
+		}
+	};
+	return list;
+};
+
+function cssWithMappingToString(item, useSourceMap) {
+	var content = item[1] || '';
+	var cssMapping = item[3];
+	if (!cssMapping) {
+		return content;
+	}
+
+	if (useSourceMap && typeof btoa === 'function') {
+		var sourceMapping = toComment(cssMapping);
+		var sourceURLs = cssMapping.sources.map(function (source) {
+			return '/*# sourceURL=' + cssMapping.sourceRoot + source + ' */'
+		});
+
+		return [content].concat(sourceURLs).concat([sourceMapping]).join('\n');
+	}
+
+	return [content].join('\n');
+}
+
+// Adapted from convert-source-map (MIT)
+function toComment(sourceMap) {
+	// eslint-disable-next-line no-undef
+	var base64 = btoa(unescape(encodeURIComponent(JSON.stringify(sourceMap))));
+	var data = 'sourceMappingURL=data:application/json;charset=utf-8;base64,' + base64;
+
+	return '/*# ' + data + ' */';
+}
+
+
+/***/ }),
+/* 42 */
+/***/ (function(module, exports, __webpack_require__) {
+
+/*
+	MIT License http://www.opensource.org/licenses/mit-license.php
+	Author Tobias Koppers @sokra
+*/
+
+var stylesInDom = {};
+
+var	memoize = function (fn) {
+	var memo;
+
+	return function () {
+		if (typeof memo === "undefined") memo = fn.apply(this, arguments);
+		return memo;
+	};
+};
+
+var isOldIE = memoize(function () {
+	// Test for IE <= 9 as proposed by Browserhacks
+	// @see http://browserhacks.com/#hack-e71d8692f65334173fee715c222cb805
+	// Tests for existence of standard globals is to allow style-loader
+	// to operate correctly into non-standard environments
+	// @see https://github.com/webpack-contrib/style-loader/issues/177
+	return window && document && document.all && !window.atob;
+});
+
+var getElement = (function (fn) {
+	var memo = {};
+
+	return function(selector) {
+		if (typeof memo[selector] === "undefined") {
+			memo[selector] = fn.call(this, selector);
+		}
+
+		return memo[selector]
+	};
+})(function (target) {
+	return document.querySelector(target)
+});
+
+var singleton = null;
+var	singletonCounter = 0;
+var	stylesInsertedAtTop = [];
+
+var	fixUrls = __webpack_require__(165);
+
+module.exports = function(list, options) {
+	if (typeof DEBUG !== "undefined" && DEBUG) {
+		if (typeof document !== "object") throw new Error("The style-loader cannot be used in a non-browser environment");
+	}
+
+	options = options || {};
+
+	options.attrs = typeof options.attrs === "object" ? options.attrs : {};
+
+	// Force single-tag solution on IE6-9, which has a hard limit on the # of <style>
+	// tags it will allow on a page
+	if (!options.singleton) options.singleton = isOldIE();
+
+	// By default, add <style> tags to the <head> element
+	if (!options.insertInto) options.insertInto = "head";
+
+	// By default, add <style> tags to the bottom of the target
+	if (!options.insertAt) options.insertAt = "bottom";
+
+	var styles = listToStyles(list, options);
+
+	addStylesToDom(styles, options);
+
+	return function update (newList) {
+		var mayRemove = [];
+
+		for (var i = 0; i < styles.length; i++) {
+			var item = styles[i];
+			var domStyle = stylesInDom[item.id];
+
+			domStyle.refs--;
+			mayRemove.push(domStyle);
+		}
+
+		if(newList) {
+			var newStyles = listToStyles(newList, options);
+			addStylesToDom(newStyles, options);
+		}
+
+		for (var i = 0; i < mayRemove.length; i++) {
+			var domStyle = mayRemove[i];
+
+			if(domStyle.refs === 0) {
+				for (var j = 0; j < domStyle.parts.length; j++) domStyle.parts[j]();
+
+				delete stylesInDom[domStyle.id];
+			}
+		}
+	};
+};
+
+function addStylesToDom (styles, options) {
+	for (var i = 0; i < styles.length; i++) {
+		var item = styles[i];
+		var domStyle = stylesInDom[item.id];
+
+		if(domStyle) {
+			domStyle.refs++;
+
+			for(var j = 0; j < domStyle.parts.length; j++) {
+				domStyle.parts[j](item.parts[j]);
+			}
+
+			for(; j < item.parts.length; j++) {
+				domStyle.parts.push(addStyle(item.parts[j], options));
+			}
+		} else {
+			var parts = [];
+
+			for(var j = 0; j < item.parts.length; j++) {
+				parts.push(addStyle(item.parts[j], options));
+			}
+
+			stylesInDom[item.id] = {id: item.id, refs: 1, parts: parts};
+		}
+	}
+}
+
+function listToStyles (list, options) {
+	var styles = [];
+	var newStyles = {};
+
+	for (var i = 0; i < list.length; i++) {
+		var item = list[i];
+		var id = options.base ? item[0] + options.base : item[0];
+		var css = item[1];
+		var media = item[2];
+		var sourceMap = item[3];
+		var part = {css: css, media: media, sourceMap: sourceMap};
+
+		if(!newStyles[id]) styles.push(newStyles[id] = {id: id, parts: [part]});
+		else newStyles[id].parts.push(part);
+	}
+
+	return styles;
+}
+
+function insertStyleElement (options, style) {
+	var target = getElement(options.insertInto)
+
+	if (!target) {
+		throw new Error("Couldn't find a style target. This probably means that the value for the 'insertInto' parameter is invalid.");
+	}
+
+	var lastStyleElementInsertedAtTop = stylesInsertedAtTop[stylesInsertedAtTop.length - 1];
+
+	if (options.insertAt === "top") {
+		if (!lastStyleElementInsertedAtTop) {
+			target.insertBefore(style, target.firstChild);
+		} else if (lastStyleElementInsertedAtTop.nextSibling) {
+			target.insertBefore(style, lastStyleElementInsertedAtTop.nextSibling);
+		} else {
+			target.appendChild(style);
+		}
+		stylesInsertedAtTop.push(style);
+	} else if (options.insertAt === "bottom") {
+		target.appendChild(style);
+	} else {
+		throw new Error("Invalid value for parameter 'insertAt'. Must be 'top' or 'bottom'.");
+	}
+}
+
+function removeStyleElement (style) {
+	if (style.parentNode === null) return false;
+	style.parentNode.removeChild(style);
+
+	var idx = stylesInsertedAtTop.indexOf(style);
+	if(idx >= 0) {
+		stylesInsertedAtTop.splice(idx, 1);
+	}
+}
+
+function createStyleElement (options) {
+	var style = document.createElement("style");
+
+	options.attrs.type = "text/css";
+
+	addAttrs(style, options.attrs);
+	insertStyleElement(options, style);
+
+	return style;
+}
+
+function createLinkElement (options) {
+	var link = document.createElement("link");
+
+	options.attrs.type = "text/css";
+	options.attrs.rel = "stylesheet";
+
+	addAttrs(link, options.attrs);
+	insertStyleElement(options, link);
+
+	return link;
+}
+
+function addAttrs (el, attrs) {
+	Object.keys(attrs).forEach(function (key) {
+		el.setAttribute(key, attrs[key]);
+	});
+}
+
+function addStyle (obj, options) {
+	var style, update, remove, result;
+
+	// If a transform function was defined, run it on the css
+	if (options.transform && obj.css) {
+	    result = options.transform(obj.css);
+
+	    if (result) {
+	    	// If transform returns a value, use that instead of the original css.
+	    	// This allows running runtime transformations on the css.
+	    	obj.css = result;
+	    } else {
+	    	// If the transform function returns a falsy value, don't add this css.
+	    	// This allows conditional loading of css
+	    	return function() {
+	    		// noop
+	    	};
+	    }
+	}
+
+	if (options.singleton) {
+		var styleIndex = singletonCounter++;
+
+		style = singleton || (singleton = createStyleElement(options));
+
+		update = applyToSingletonTag.bind(null, style, styleIndex, false);
+		remove = applyToSingletonTag.bind(null, style, styleIndex, true);
+
+	} else if (
+		obj.sourceMap &&
+		typeof URL === "function" &&
+		typeof URL.createObjectURL === "function" &&
+		typeof URL.revokeObjectURL === "function" &&
+		typeof Blob === "function" &&
+		typeof btoa === "function"
+	) {
+		style = createLinkElement(options);
+		update = updateLink.bind(null, style, options);
+		remove = function () {
+			removeStyleElement(style);
+
+			if(style.href) URL.revokeObjectURL(style.href);
+		};
+	} else {
+		style = createStyleElement(options);
+		update = applyToTag.bind(null, style);
+		remove = function () {
+			removeStyleElement(style);
+		};
+	}
+
+	update(obj);
+
+	return function updateStyle (newObj) {
+		if (newObj) {
+			if (
+				newObj.css === obj.css &&
+				newObj.media === obj.media &&
+				newObj.sourceMap === obj.sourceMap
+			) {
+				return;
+			}
+
+			update(obj = newObj);
+		} else {
+			remove();
+		}
+	};
+}
+
+var replaceText = (function () {
+	var textStore = [];
+
+	return function (index, replacement) {
+		textStore[index] = replacement;
+
+		return textStore.filter(Boolean).join('\n');
+	};
+})();
+
+function applyToSingletonTag (style, index, remove, obj) {
+	var css = remove ? "" : obj.css;
+
+	if (style.styleSheet) {
+		style.styleSheet.cssText = replaceText(index, css);
+	} else {
+		var cssNode = document.createTextNode(css);
+		var childNodes = style.childNodes;
+
+		if (childNodes[index]) style.removeChild(childNodes[index]);
+
+		if (childNodes.length) {
+			style.insertBefore(cssNode, childNodes[index]);
+		} else {
+			style.appendChild(cssNode);
+		}
+	}
+}
+
+function applyToTag (style, obj) {
+	var css = obj.css;
+	var media = obj.media;
+
+	if(media) {
+		style.setAttribute("media", media)
+	}
+
+	if(style.styleSheet) {
+		style.styleSheet.cssText = css;
+	} else {
+		while(style.firstChild) {
+			style.removeChild(style.firstChild);
+		}
+
+		style.appendChild(document.createTextNode(css));
+	}
+}
+
+function updateLink (link, options, obj) {
+	var css = obj.css;
+	var sourceMap = obj.sourceMap;
+
+	/*
+		If convertToAbsoluteUrls isn't defined, but sourcemaps are enabled
+		and there is no publicPath defined then lets turn convertToAbsoluteUrls
+		on by default.  Otherwise default to the convertToAbsoluteUrls option
+		directly
+	*/
+	var autoFixUrls = options.convertToAbsoluteUrls === undefined && sourceMap;
+
+	if (options.convertToAbsoluteUrls || autoFixUrls) {
+		css = fixUrls(css);
+	}
+
+	if (sourceMap) {
+		// http://stackoverflow.com/a/26603875
+		css += "\n/*# sourceMappingURL=data:application/json;base64," + btoa(unescape(encodeURIComponent(JSON.stringify(sourceMap)))) + " */";
+	}
+
+	var blob = new Blob([css], { type: "text/css" });
+
+	var oldSrc = link.href;
+
+	link.href = URL.createObjectURL(blob);
+
+	if(oldSrc) URL.revokeObjectURL(oldSrc);
+}
+
+
+/***/ }),
+/* 43 */
+/***/ (function(module, exports, __webpack_require__) {
+
+"use strict";
+
+
+/**
+ * Copyright (c) 2013-present, Facebook, Inc.
+ *
+ * This source code is licensed under the MIT license found in the
+ * LICENSE file in the root directory of this source tree.
+ *
+ * 
+ */
+
+function makeEmptyFunction(arg) {
+  return function () {
+    return arg;
+  };
+}
+
+/**
+ * This function accepts and discards inputs; it has no side effects. This is
+ * primarily useful idiomatically for overridable function endpoints which
+ * always need to be callable, since JS lacks a null-call idiom ala Cocoa.
+ */
+var emptyFunction = function emptyFunction() {};
+
+emptyFunction.thatReturns = makeEmptyFunction;
+emptyFunction.thatReturnsFalse = makeEmptyFunction(false);
+emptyFunction.thatReturnsTrue = makeEmptyFunction(true);
+emptyFunction.thatReturnsNull = makeEmptyFunction(null);
+emptyFunction.thatReturnsThis = function () {
+  return this;
+};
+emptyFunction.thatReturnsArgument = function (arg) {
+  return arg;
+};
+
+module.exports = emptyFunction;
+
+/***/ }),
+/* 44 */
+/***/ (function(module, exports, __webpack_require__) {
+
+"use strict";
+/**
+ * Copyright (c) 2013-present, Facebook, Inc.
+ * All rights reserved.
+ *
+ * This source code is licensed under the BSD-style license found in the
+ * LICENSE file in the root directory of this source tree. An additional grant
+ * of patent rights can be found in the PATENTS file in the same directory.
+ *
+ * @providesModule ContentState
+ * @format
+ * 
+ */
+
+
+
+function _classCallCheck(instance, Constructor) { if (!(instance instanceof Constructor)) { throw new TypeError("Cannot call a class as a function"); } }
+
+function _possibleConstructorReturn(self, call) { if (!self) { throw new ReferenceError("this hasn't been initialised - super() hasn't been called"); } return call && (typeof call === "object" || typeof call === "function") ? call : self; }
+
+function _inherits(subClass, superClass) { if (typeof superClass !== "function" && superClass !== null) { throw new TypeError("Super expression must either be null or a function, not " + typeof superClass); } subClass.prototype = Object.create(superClass && superClass.prototype, { constructor: { value: subClass, enumerable: false, writable: true, configurable: true } }); if (superClass) Object.setPrototypeOf ? Object.setPrototypeOf(subClass, superClass) : subClass.__proto__ = superClass; }
+
+var BlockMapBuilder = __webpack_require__(24);
+var CharacterMetadata = __webpack_require__(8);
+var ContentBlock = __webpack_require__(18);
+var ContentBlockNode = __webpack_require__(10);
+var DraftEntity = __webpack_require__(32);
+var DraftFeatureFlags = __webpack_require__(16);
+var Immutable = __webpack_require__(1);
+var SelectionState = __webpack_require__(21);
+
+var generateRandomKey = __webpack_require__(14);
+var sanitizeDraftText = __webpack_require__(45);
+
+var List = Immutable.List,
+    Record = Immutable.Record,
+    Repeat = Immutable.Repeat;
+
+
+var experimentalTreeDataSupport = DraftFeatureFlags.draft_tree_data_support;
+
+var defaultRecord = {
+  entityMap: null,
+  blockMap: null,
+  selectionBefore: null,
+  selectionAfter: null
+};
+
+var ContentBlockNodeRecord = experimentalTreeDataSupport ? ContentBlockNode : ContentBlock;
+
+var ContentStateRecord = Record(defaultRecord);
+
+var ContentState = function (_ContentStateRecord) {
+  _inherits(ContentState, _ContentStateRecord);
+
+  function ContentState() {
+    _classCallCheck(this, ContentState);
+
+    return _possibleConstructorReturn(this, _ContentStateRecord.apply(this, arguments));
+  }
+
+  ContentState.prototype.getEntityMap = function getEntityMap() {
+    // TODO: update this when we fully remove DraftEntity
+    return DraftEntity;
+  };
+
+  ContentState.prototype.getBlockMap = function getBlockMap() {
+    return this.get('blockMap');
+  };
+
+  ContentState.prototype.getSelectionBefore = function getSelectionBefore() {
+    return this.get('selectionBefore');
+  };
+
+  ContentState.prototype.getSelectionAfter = function getSelectionAfter() {
+    return this.get('selectionAfter');
+  };
+
+  ContentState.prototype.getBlockForKey = function getBlockForKey(key) {
+    var block = this.getBlockMap().get(key);
+    return block;
+  };
+
+  ContentState.prototype.getKeyBefore = function getKeyBefore(key) {
+    return this.getBlockMap().reverse().keySeq().skipUntil(function (v) {
+      return v === key;
+    }).skip(1).first();
+  };
+
+  ContentState.prototype.getKeyAfter = function getKeyAfter(key) {
+    return this.getBlockMap().keySeq().skipUntil(function (v) {
+      return v === key;
+    }).skip(1).first();
+  };
+
+  ContentState.prototype.getBlockAfter = function getBlockAfter(key) {
+    return this.getBlockMap().skipUntil(function (_, k) {
+      return k === key;
+    }).skip(1).first();
+  };
+
+  ContentState.prototype.getBlockBefore = function getBlockBefore(key) {
+    return this.getBlockMap().reverse().skipUntil(function (_, k) {
+      return k === key;
+    }).skip(1).first();
+  };
+
+  ContentState.prototype.getBlocksAsArray = function getBlocksAsArray() {
+    return this.getBlockMap().toArray();
+  };
+
+  ContentState.prototype.getFirstBlock = function getFirstBlock() {
+    return this.getBlockMap().first();
+  };
+
+  ContentState.prototype.getLastBlock = function getLastBlock() {
+    return this.getBlockMap().last();
+  };
+
+  ContentState.prototype.getPlainText = function getPlainText(delimiter) {
+    return this.getBlockMap().map(function (block) {
+      return block ? block.getText() : '';
+    }).join(delimiter || '\n');
+  };
+
+  ContentState.prototype.getLastCreatedEntityKey = function getLastCreatedEntityKey() {
+    // TODO: update this when we fully remove DraftEntity
+    return DraftEntity.__getLastCreatedEntityKey();
+  };
+
+  ContentState.prototype.hasText = function hasText() {
+    var blockMap = this.getBlockMap();
+    return blockMap.size > 1 || blockMap.first().getLength() > 0;
+  };
+
+  ContentState.prototype.createEntity = function createEntity(type, mutability, data) {
+    // TODO: update this when we fully remove DraftEntity
+    DraftEntity.__create(type, mutability, data);
+    return this;
+  };
+
+  ContentState.prototype.mergeEntityData = function mergeEntityData(key, toMerge) {
+    // TODO: update this when we fully remove DraftEntity
+    DraftEntity.__mergeData(key, toMerge);
+    return this;
+  };
+
+  ContentState.prototype.replaceEntityData = function replaceEntityData(key, newData) {
+    // TODO: update this when we fully remove DraftEntity
+    DraftEntity.__replaceData(key, newData);
+    return this;
+  };
+
+  ContentState.prototype.addEntity = function addEntity(instance) {
+    // TODO: update this when we fully remove DraftEntity
+    DraftEntity.__add(instance);
+    return this;
+  };
+
+  ContentState.prototype.getEntity = function getEntity(key) {
+    // TODO: update this when we fully remove DraftEntity
+    return DraftEntity.__get(key);
+  };
+
+  ContentState.createFromBlockArray = function createFromBlockArray(
+  // TODO: update flow type when we completely deprecate the old entity API
+  blocks, entityMap) {
+    // TODO: remove this when we completely deprecate the old entity API
+    var theBlocks = Array.isArray(blocks) ? blocks : blocks.contentBlocks;
+    var blockMap = BlockMapBuilder.createFromArray(theBlocks);
+    var selectionState = blockMap.isEmpty() ? new SelectionState() : SelectionState.createEmpty(blockMap.first().getKey());
+    return new ContentState({
+      blockMap: blockMap,
+      entityMap: entityMap || DraftEntity,
+      selectionBefore: selectionState,
+      selectionAfter: selectionState
+    });
+  };
+
+  ContentState.createFromText = function createFromText(text) {
+    var delimiter = arguments.length > 1 && arguments[1] !== undefined ? arguments[1] : /\r\n?|\n/g;
+
+    var strings = text.split(delimiter);
+    var blocks = strings.map(function (block) {
+      block = sanitizeDraftText(block);
+      return new ContentBlockNodeRecord({
+        key: generateRandomKey(),
+        text: block,
+        type: 'unstyled',
+        characterList: List(Repeat(CharacterMetadata.EMPTY, block.length))
+      });
+    });
+    return ContentState.createFromBlockArray(blocks);
+  };
+
+  return ContentState;
+}(ContentStateRecord);
+
+module.exports = ContentState;
+
+/***/ }),
+/* 45 */
+/***/ (function(module, exports, __webpack_require__) {
+
+"use strict";
+/**
+ * Copyright (c) 2013-present, Facebook, Inc.
+ * All rights reserved.
+ *
+ * This source code is licensed under the BSD-style license found in the
+ * LICENSE file in the root directory of this source tree. An additional grant
+ * of patent rights can be found in the PATENTS file in the same directory.
+ *
+ * @providesModule sanitizeDraftText
+ * @format
+ * 
+ */
+
+
+
+var REGEX_BLOCK_DELIMITER = new RegExp('\r', 'g');
+
+function sanitizeDraftText(input) {
+  return input.replace(REGEX_BLOCK_DELIMITER, '');
+}
+
+module.exports = sanitizeDraftText;
+
+/***/ }),
+/* 46 */
+/***/ (function(module, exports, __webpack_require__) {
+
+"use strict";
+/**
+ * Copyright (c) 2013-present, Facebook, Inc.
+ *
+ * This source code is licensed under the MIT license found in the
+ * LICENSE file in the root directory of this source tree.
+ *
+ * @typechecks
+ * 
+ */
+
+/**
+ * Constants to represent text directionality
+ *
+ * Also defines a *global* direciton, to be used in bidi algorithms as a
+ * default fallback direciton, when no better direction is found or provided.
+ *
+ * NOTE: Use `setGlobalDir()`, or update `initGlobalDir()`, to set the initial
+ *       global direction value based on the application.
+ *
+ * Part of the implementation of Unicode Bidirectional Algorithm (UBA)
+ * Unicode Standard Annex #9 (UAX9)
+ * http://www.unicode.org/reports/tr9/
+ */
+
+
+
+var invariant = __webpack_require__(2);
+
+var NEUTRAL = 'NEUTRAL'; // No strong direction
+var LTR = 'LTR'; // Left-to-Right direction
+var RTL = 'RTL'; // Right-to-Left direction
+
+var globalDir = null;
+
+// == Helpers ==
+
+/**
+ * Check if a directionality value is a Strong one
+ */
+function isStrong(dir) {
+  return dir === LTR || dir === RTL;
+}
+
+/**
+ * Get string value to be used for `dir` HTML attribute or `direction` CSS
+ * property.
+ */
+function getHTMLDir(dir) {
+  !isStrong(dir) ?  true ? invariant(false, '`dir` must be a strong direction to be converted to HTML Direction') : invariant(false) : void 0;
+  return dir === LTR ? 'ltr' : 'rtl';
+}
+
+/**
+ * Get string value to be used for `dir` HTML attribute or `direction` CSS
+ * property, but returns null if `dir` has same value as `otherDir`.
+ * `null`.
+ */
+function getHTMLDirIfDifferent(dir, otherDir) {
+  !isStrong(dir) ?  true ? invariant(false, '`dir` must be a strong direction to be converted to HTML Direction') : invariant(false) : void 0;
+  !isStrong(otherDir) ?  true ? invariant(false, '`otherDir` must be a strong direction to be converted to HTML Direction') : invariant(false) : void 0;
+  return dir === otherDir ? null : getHTMLDir(dir);
+}
+
+// == Global Direction ==
+
+/**
+ * Set the global direction.
+ */
+function setGlobalDir(dir) {
+  globalDir = dir;
+}
+
+/**
+ * Initialize the global direction
+ */
+function initGlobalDir() {
+  setGlobalDir(LTR);
+}
+
+/**
+ * Get the global direction
+ */
+function getGlobalDir() {
+  if (!globalDir) {
+    this.initGlobalDir();
+  }
+  !globalDir ?  true ? invariant(false, 'Global direction not set.') : invariant(false) : void 0;
+  return globalDir;
+}
+
+var UnicodeBidiDirection = {
+  // Values
+  NEUTRAL: NEUTRAL,
+  LTR: LTR,
+  RTL: RTL,
+  // Helpers
+  isStrong: isStrong,
+  getHTMLDir: getHTMLDir,
+  getHTMLDirIfDifferent: getHTMLDirIfDifferent,
+  // Global Direction
+  setGlobalDir: setGlobalDir,
+  initGlobalDir: initGlobalDir,
+  getGlobalDir: getGlobalDir
+};
+
+module.exports = UnicodeBidiDirection;
+
+/***/ }),
+/* 47 */
+/***/ (function(module, exports, __webpack_require__) {
+
+"use strict";
+/**
+ * Copyright (c) 2013-present, Facebook, Inc.
+ * All rights reserved.
+ *
+ * This source code is licensed under the BSD-style license found in the
+ * LICENSE file in the root directory of this source tree. An additional grant
+ * of patent rights can be found in the PATENTS file in the same directory.
+ *
+ * @providesModule DefaultDraftBlockRenderMap
+ * @format
+ * 
+ */
+
+
+
+var _require = __webpack_require__(1),
+    Map = _require.Map;
+
+var React = __webpack_require__(0);
+
+var cx = __webpack_require__(22);
+
+var UL_WRAP = React.createElement('ul', { className: cx('public/DraftStyleDefault/ul') });
+var OL_WRAP = React.createElement('ol', { className: cx('public/DraftStyleDefault/ol') });
+var PRE_WRAP = React.createElement('pre', { className: cx('public/DraftStyleDefault/pre') });
+
+var DefaultDraftBlockRenderMap = Map({
+  'header-one': {
+    element: 'h1'
+  },
+  'header-two': {
+    element: 'h2'
+  },
+  'header-three': {
+    element: 'h3'
+  },
+  'header-four': {
+    element: 'h4'
+  },
+  'header-five': {
+    element: 'h5'
+  },
+  'header-six': {
+    element: 'h6'
+  },
+  'unordered-list-item': {
+    element: 'li',
+    wrapper: UL_WRAP
+  },
+  'ordered-list-item': {
+    element: 'li',
+    wrapper: OL_WRAP
+  },
+  blockquote: {
+    element: 'blockquote'
+  },
+  atomic: {
+    element: 'figure'
+  },
+  'code-block': {
+    element: 'pre',
+    wrapper: PRE_WRAP
+  },
+  unstyled: {
+    element: 'div',
+    aliasedElements: ['p']
+  }
+});
+
+module.exports = DefaultDraftBlockRenderMap;
+
+/***/ }),
+/* 48 */
+/***/ (function(module, exports, __webpack_require__) {
+
+"use strict";
+
+
+/**
+ * Copyright (c) 2013-present, Facebook, Inc.
+ *
+ * This source code is licensed under the MIT license found in the
+ * LICENSE file in the root directory of this source tree.
+ *
+ */
+
+module.exports = {
+  BACKSPACE: 8,
+  TAB: 9,
+  RETURN: 13,
+  ALT: 18,
+  ESC: 27,
+  SPACE: 32,
+  PAGE_UP: 33,
+  PAGE_DOWN: 34,
+  END: 35,
+  HOME: 36,
+  LEFT: 37,
+  UP: 38,
+  RIGHT: 39,
+  DOWN: 40,
+  DELETE: 46,
+  COMMA: 188,
+  PERIOD: 190,
+  A: 65,
+  Z: 90,
+  ZERO: 48,
+  NUMPAD_0: 96,
+  NUMPAD_9: 105
+};
+
+/***/ }),
+/* 49 */
+/***/ (function(module, exports, __webpack_require__) {
+
+"use strict";
+/**
+ * Copyright (c) 2013-present, Facebook, Inc.
+ * All rights reserved.
+ *
+ * This source code is licensed under the BSD-style license found in the
+ * LICENSE file in the root directory of this source tree. An additional grant
+ * of patent rights can be found in the PATENTS file in the same directory.
+ *
+ * @providesModule getEntityKeyForSelection
+ * @format
+ * 
+ */
+
+
+
+/**
+ * Return the entity key that should be used when inserting text for the
+ * specified target selection, only if the entity is `MUTABLE`. `IMMUTABLE`
+ * and `SEGMENTED` entities should not be used for insertion behavior.
+ */
+function getEntityKeyForSelection(contentState, targetSelection) {
+  var entityKey;
+
+  if (targetSelection.isCollapsed()) {
+    var key = targetSelection.getAnchorKey();
+    var offset = targetSelection.getAnchorOffset();
+    if (offset > 0) {
+      entityKey = contentState.getBlockForKey(key).getEntityAt(offset - 1);
+      if (entityKey !== contentState.getBlockForKey(key).getEntityAt(offset)) {
+        return null;
+      }
+      return filterKey(contentState.getEntityMap(), entityKey);
+    }
+    return null;
+  }
+
+  var startKey = targetSelection.getStartKey();
+  var startOffset = targetSelection.getStartOffset();
+  var startBlock = contentState.getBlockForKey(startKey);
+
+  entityKey = startOffset === startBlock.getLength() ? null : startBlock.getEntityAt(startOffset);
+
+  return filterKey(contentState.getEntityMap(), entityKey);
+}
+
+/**
+ * Determine whether an entity key corresponds to a `MUTABLE` entity. If so,
+ * return it. If not, return null.
+ */
+function filterKey(entityMap, entityKey) {
+  if (entityKey) {
+    var entity = entityMap.__get(entityKey);
+    return entity.getMutability() === 'MUTABLE' ? entityKey : null;
+  }
+  return null;
+}
+
+module.exports = getEntityKeyForSelection;
+
+/***/ }),
+/* 50 */
+/***/ (function(module, exports, __webpack_require__) {
+
+"use strict";
+
+
+/**
+ * Copyright (c) 2013-present, Facebook, Inc.
+ *
+ * This source code is licensed under the MIT license found in the
+ * LICENSE file in the root directory of this source tree.
+ *
+ * 
+ */
+
+var isTextNode = __webpack_require__(204);
+
+/*eslint-disable no-bitwise */
+
+/**
+ * Checks if a given DOM node contains or is another DOM node.
+ */
+function containsNode(outerNode, innerNode) {
+  if (!outerNode || !innerNode) {
+    return false;
+  } else if (outerNode === innerNode) {
+    return true;
+  } else if (isTextNode(outerNode)) {
+    return false;
+  } else if (isTextNode(innerNode)) {
+    return containsNode(outerNode, innerNode.parentNode);
+  } else if ('contains' in outerNode) {
+    return outerNode.contains(innerNode);
+  } else if (outerNode.compareDocumentPosition) {
+    return !!(outerNode.compareDocumentPosition(innerNode) & 16);
+  } else {
+    return false;
+  }
+}
+
+module.exports = containsNode;
+
+/***/ }),
+/* 51 */
+/***/ (function(module, exports, __webpack_require__) {
+
+"use strict";
+
+
+/**
+ * Copyright (c) 2013-present, Facebook, Inc.
+ *
+ * This source code is licensed under the MIT license found in the
+ * LICENSE file in the root directory of this source tree.
+ *
+ * @typechecks
+ */
+
+var getStyleProperty = __webpack_require__(206);
+
+/**
+ * @param {DOMNode} element [description]
+ * @param {string} name Overflow style property name.
+ * @return {boolean} True if the supplied ndoe is scrollable.
+ */
+function _isNodeScrollable(element, name) {
+  var overflow = Style.get(element, name);
+  return overflow === 'auto' || overflow === 'scroll';
+}
+
+/**
+ * Utilities for querying and mutating style properties.
+ */
+var Style = {
+  /**
+   * Gets the style property for the supplied node. This will return either the
+   * computed style, if available, or the declared style.
+   *
+   * @param {DOMNode} node
+   * @param {string} name Style property name.
+   * @return {?string} Style property value.
+   */
+  get: getStyleProperty,
+
+  /**
+   * Determines the nearest ancestor of a node that is scrollable.
+   *
+   * NOTE: This can be expensive if used repeatedly or on a node nested deeply.
+   *
+   * @param {?DOMNode} node Node from which to start searching.
+   * @return {?DOMWindow|DOMElement} Scroll parent of the supplied node.
+   */
+  getScrollParent: function getScrollParent(node) {
+    if (!node) {
+      return null;
+    }
+    var ownerDocument = node.ownerDocument;
+    while (node && node !== ownerDocument.body) {
+      if (_isNodeScrollable(node, 'overflow') || _isNodeScrollable(node, 'overflowY') || _isNodeScrollable(node, 'overflowX')) {
+        return node;
+      }
+      node = node.parentNode;
+    }
+    return ownerDocument.defaultView || ownerDocument.parentWindow;
+  }
+
+};
+
+module.exports = Style;
+
+/***/ }),
+/* 52 */
+/***/ (function(module, exports, __webpack_require__) {
+
+"use strict";
+/**
+ * Copyright (c) 2013-present, Facebook, Inc.
+ *
+ * This source code is licensed under the MIT license found in the
+ * LICENSE file in the root directory of this source tree.
+ *
+ * @typechecks
+ */
+
+
+
+var getDocumentScrollElement = __webpack_require__(211);
+var getUnboundedScrollPosition = __webpack_require__(212);
+
+/**
+ * Gets the scroll position of the supplied element or window.
+ *
+ * The return values are bounded. This means that if the scroll position is
+ * negative or exceeds the element boundaries (which is possible using inertial
+ * scrolling), you will get zero or the maximum scroll position, respectively.
+ *
+ * If you need the unbound scroll position, use `getUnboundedScrollPosition`.
+ *
+ * @param {DOMWindow|DOMElement} scrollable
+ * @return {object} Map with `x` and `y` keys.
+ */
+function getScrollPosition(scrollable) {
+  var documentScrollElement = getDocumentScrollElement(scrollable.ownerDocument || scrollable.document);
+  if (scrollable.Window && scrollable instanceof scrollable.Window) {
+    scrollable = documentScrollElement;
+  }
+  var scrollPosition = getUnboundedScrollPosition(scrollable);
+
+  var viewport = scrollable === documentScrollElement ? scrollable.ownerDocument.documentElement : scrollable;
+
+  var xMax = scrollable.scrollWidth - viewport.clientWidth;
+  var yMax = scrollable.scrollHeight - viewport.clientHeight;
+
+  scrollPosition.x = Math.max(0, Math.min(scrollPosition.x, xMax));
+  scrollPosition.y = Math.max(0, Math.min(scrollPosition.y, yMax));
+
+  return scrollPosition;
+}
+
+module.exports = getScrollPosition;
+
+/***/ }),
+/* 53 */
+/***/ (function(module, exports, __webpack_require__) {
+
+"use strict";
+/**
+ * Copyright (c) 2013-present, Facebook, Inc.
+ * All rights reserved.
+ *
+ * This source code is licensed under the BSD-style license found in the
+ * LICENSE file in the root directory of this source tree. An additional grant
+ * of patent rights can be found in the PATENTS file in the same directory.
+ *
+ * @providesModule findAncestorOffsetKey
+ * @format
+ * 
+ */
+
+
+
+var getSelectionOffsetKeyForNode = __webpack_require__(82);
+
+/**
+ * Get the key from the node's nearest offset-aware ancestor.
+ */
+function findAncestorOffsetKey(node) {
+  var searchNode = node;
+  while (searchNode && searchNode !== document.documentElement) {
+    var key = getSelectionOffsetKeyForNode(searchNode);
+    if (key != null) {
+      return key;
+    }
+    searchNode = searchNode.parentNode;
+  }
+  return null;
+}
+
+module.exports = findAncestorOffsetKey;
+
+/***/ }),
+/* 54 */
+/***/ (function(module, exports, __webpack_require__) {
+
+"use strict";
+/**
+ * Copyright (c) 2013-present, Facebook, Inc.
+ * All rights reserved.
+ *
+ * This source code is licensed under the BSD-style license found in the
+ * LICENSE file in the root directory of this source tree. An additional grant
+ * of patent rights can be found in the PATENTS file in the same directory.
+ *
+ * @providesModule KeyBindingUtil
+ * @format
+ * 
+ */
+
+
+
+var UserAgent = __webpack_require__(12);
+
+var isOSX = UserAgent.isPlatform('Mac OS X');
+
+var KeyBindingUtil = {
+  /**
+   * Check whether the ctrlKey modifier is *not* being used in conjunction with
+   * the altKey modifier. If they are combined, the result is an `altGraph`
+   * key modifier, which should not be handled by this set of key bindings.
+   */
+  isCtrlKeyCommand: function isCtrlKeyCommand(e) {
+    return !!e.ctrlKey && !e.altKey;
+  },
+
+  isOptionKeyCommand: function isOptionKeyCommand(e) {
+    return isOSX && e.altKey;
+  },
+
+  hasCommandModifier: function hasCommandModifier(e) {
+    return isOSX ? !!e.metaKey && !e.altKey : KeyBindingUtil.isCtrlKeyCommand(e);
+  }
+};
+
+module.exports = KeyBindingUtil;
+
+/***/ }),
+/* 55 */
+/***/ (function(module, exports, __webpack_require__) {
+
+"use strict";
+/**
+ * Copyright (c) 2013-present, Facebook, Inc.
+ * All rights reserved.
+ *
+ * This source code is licensed under the BSD-style license found in the
+ * LICENSE file in the root directory of this source tree. An additional grant
+ * of patent rights can be found in the PATENTS file in the same directory.
+ *
+ * @providesModule moveSelectionBackward
+ * @format
+ * 
+ */
+
+
+
+/**
+ * Given a collapsed selection, move the focus `maxDistance` backward within
+ * the selected block. If the selection will go beyond the start of the block,
+ * move focus to the end of the previous block, but no further.
+ *
+ * This function is not Unicode-aware, so surrogate pairs will be treated
+ * as having length 2.
+ */
+function moveSelectionBackward(editorState, maxDistance) {
+  var selection = editorState.getSelection();
+  var content = editorState.getCurrentContent();
+  var key = selection.getStartKey();
+  var offset = selection.getStartOffset();
+
+  var focusKey = key;
+  var focusOffset = 0;
+
+  if (maxDistance > offset) {
+    var keyBefore = content.getKeyBefore(key);
+    if (keyBefore == null) {
+      focusKey = key;
+    } else {
+      focusKey = keyBefore;
+      var blockBefore = content.getBlockForKey(keyBefore);
+      focusOffset = blockBefore.getText().length;
+    }
+  } else {
+    focusOffset = offset - maxDistance;
+  }
+
+  return selection.merge({
+    focusKey: focusKey,
+    focusOffset: focusOffset,
+    isBackward: true
+  });
+}
+
+module.exports = moveSelectionBackward;
+
+/***/ }),
+/* 56 */
 /***/ (function(module, exports, __webpack_require__) {
 
 "use strict";
@@ -7791,19 +16561,209 @@ module.exports = function bind(fn, thisArg) {
 
 
 /***/ }),
-/* 20 */
+/* 57 */
+/***/ (function(module, exports) {
+
+// shim for using process in browser
+var process = module.exports = {};
+
+// cached from whatever global is present so that test runners that stub it
+// don't break things.  But we need to wrap it in a try catch in case it is
+// wrapped in strict mode code which doesn't define any globals.  It's inside a
+// function because try/catches deoptimize in certain engines.
+
+var cachedSetTimeout;
+var cachedClearTimeout;
+
+function defaultSetTimout() {
+    throw new Error('setTimeout has not been defined');
+}
+function defaultClearTimeout () {
+    throw new Error('clearTimeout has not been defined');
+}
+(function () {
+    try {
+        if (typeof setTimeout === 'function') {
+            cachedSetTimeout = setTimeout;
+        } else {
+            cachedSetTimeout = defaultSetTimout;
+        }
+    } catch (e) {
+        cachedSetTimeout = defaultSetTimout;
+    }
+    try {
+        if (typeof clearTimeout === 'function') {
+            cachedClearTimeout = clearTimeout;
+        } else {
+            cachedClearTimeout = defaultClearTimeout;
+        }
+    } catch (e) {
+        cachedClearTimeout = defaultClearTimeout;
+    }
+} ())
+function runTimeout(fun) {
+    if (cachedSetTimeout === setTimeout) {
+        //normal enviroments in sane situations
+        return setTimeout(fun, 0);
+    }
+    // if setTimeout wasn't available but was latter defined
+    if ((cachedSetTimeout === defaultSetTimout || !cachedSetTimeout) && setTimeout) {
+        cachedSetTimeout = setTimeout;
+        return setTimeout(fun, 0);
+    }
+    try {
+        // when when somebody has screwed with setTimeout but no I.E. maddness
+        return cachedSetTimeout(fun, 0);
+    } catch(e){
+        try {
+            // When we are in I.E. but the script has been evaled so I.E. doesn't trust the global object when called normally
+            return cachedSetTimeout.call(null, fun, 0);
+        } catch(e){
+            // same as above but when it's a version of I.E. that must have the global object for 'this', hopfully our context correct otherwise it will throw a global error
+            return cachedSetTimeout.call(this, fun, 0);
+        }
+    }
+
+
+}
+function runClearTimeout(marker) {
+    if (cachedClearTimeout === clearTimeout) {
+        //normal enviroments in sane situations
+        return clearTimeout(marker);
+    }
+    // if clearTimeout wasn't available but was latter defined
+    if ((cachedClearTimeout === defaultClearTimeout || !cachedClearTimeout) && clearTimeout) {
+        cachedClearTimeout = clearTimeout;
+        return clearTimeout(marker);
+    }
+    try {
+        // when when somebody has screwed with setTimeout but no I.E. maddness
+        return cachedClearTimeout(marker);
+    } catch (e){
+        try {
+            // When we are in I.E. but the script has been evaled so I.E. doesn't  trust the global object when called normally
+            return cachedClearTimeout.call(null, marker);
+        } catch (e){
+            // same as above but when it's a version of I.E. that must have the global object for 'this', hopfully our context correct otherwise it will throw a global error.
+            // Some versions of I.E. have different rules for clearTimeout vs setTimeout
+            return cachedClearTimeout.call(this, marker);
+        }
+    }
+
+
+
+}
+var queue = [];
+var draining = false;
+var currentQueue;
+var queueIndex = -1;
+
+function cleanUpNextTick() {
+    if (!draining || !currentQueue) {
+        return;
+    }
+    draining = false;
+    if (currentQueue.length) {
+        queue = currentQueue.concat(queue);
+    } else {
+        queueIndex = -1;
+    }
+    if (queue.length) {
+        drainQueue();
+    }
+}
+
+function drainQueue() {
+    if (draining) {
+        return;
+    }
+    var timeout = runTimeout(cleanUpNextTick);
+    draining = true;
+
+    var len = queue.length;
+    while(len) {
+        currentQueue = queue;
+        queue = [];
+        while (++queueIndex < len) {
+            if (currentQueue) {
+                currentQueue[queueIndex].run();
+            }
+        }
+        queueIndex = -1;
+        len = queue.length;
+    }
+    currentQueue = null;
+    draining = false;
+    runClearTimeout(timeout);
+}
+
+process.nextTick = function (fun) {
+    var args = new Array(arguments.length - 1);
+    if (arguments.length > 1) {
+        for (var i = 1; i < arguments.length; i++) {
+            args[i - 1] = arguments[i];
+        }
+    }
+    queue.push(new Item(fun, args));
+    if (queue.length === 1 && !draining) {
+        runTimeout(drainQueue);
+    }
+};
+
+// v8 likes predictible objects
+function Item(fun, array) {
+    this.fun = fun;
+    this.array = array;
+}
+Item.prototype.run = function () {
+    this.fun.apply(null, this.array);
+};
+process.title = 'browser';
+process.browser = true;
+process.env = {};
+process.argv = [];
+process.version = ''; // empty string to avoid regexp issues
+process.versions = {};
+
+function noop() {}
+
+process.on = noop;
+process.addListener = noop;
+process.once = noop;
+process.off = noop;
+process.removeListener = noop;
+process.removeAllListeners = noop;
+process.emit = noop;
+process.prependListener = noop;
+process.prependOnceListener = noop;
+
+process.listeners = function (name) { return [] }
+
+process.binding = function (name) {
+    throw new Error('process.binding is not supported');
+};
+
+process.cwd = function () { return '/' };
+process.chdir = function (dir) {
+    throw new Error('process.chdir is not supported');
+};
+process.umask = function() { return 0; };
+
+
+/***/ }),
+/* 58 */
 /***/ (function(module, exports, __webpack_require__) {
 
 "use strict";
 
 
-var utils = __webpack_require__(2);
-var settle = __webpack_require__(45);
-var buildURL = __webpack_require__(47);
-var parseHeaders = __webpack_require__(48);
-var isURLSameOrigin = __webpack_require__(49);
-var createError = __webpack_require__(21);
-var btoa = (typeof window !== 'undefined' && window.btoa && window.btoa.bind(window)) || __webpack_require__(50);
+var utils = __webpack_require__(9);
+var settle = __webpack_require__(105);
+var buildURL = __webpack_require__(107);
+var parseHeaders = __webpack_require__(108);
+var isURLSameOrigin = __webpack_require__(109);
+var createError = __webpack_require__(59);
+var btoa = (typeof window !== 'undefined' && window.btoa && window.btoa.bind(window)) || __webpack_require__(110);
 
 module.exports = function xhrAdapter(config) {
   return new Promise(function dispatchXhrRequest(resolve, reject) {
@@ -7900,7 +16860,7 @@ module.exports = function xhrAdapter(config) {
     // This is only done if running in a standard browser environment.
     // Specifically not if we're in a web worker, or react-native.
     if (utils.isStandardBrowserEnv()) {
-      var cookies = __webpack_require__(51);
+      var cookies = __webpack_require__(111);
 
       // Add xsrf header
       var xsrfValue = (config.withCredentials || isURLSameOrigin(config.url)) && config.xsrfCookieName ?
@@ -7978,13 +16938,13 @@ module.exports = function xhrAdapter(config) {
 
 
 /***/ }),
-/* 21 */
+/* 59 */
 /***/ (function(module, exports, __webpack_require__) {
 
 "use strict";
 
 
-var enhanceError = __webpack_require__(46);
+var enhanceError = __webpack_require__(106);
 
 /**
  * Create an Error with the specified message, config, error code, request and response.
@@ -8003,7 +16963,7 @@ module.exports = function createError(message, config, code, request, response) 
 
 
 /***/ }),
-/* 22 */
+/* 60 */
 /***/ (function(module, exports, __webpack_require__) {
 
 "use strict";
@@ -8015,7 +16975,7 @@ module.exports = function isCancel(value) {
 
 
 /***/ }),
-/* 23 */
+/* 61 */
 /***/ (function(module, exports, __webpack_require__) {
 
 "use strict";
@@ -8041,7 +17001,7 @@ module.exports = Cancel;
 
 
 /***/ }),
-/* 24 */
+/* 62 */
 /***/ (function(module, exports, __webpack_require__) {
 
 "use strict";
@@ -8060,52 +17020,7 @@ module.exports = ReactPropTypesSecret;
 
 
 /***/ }),
-/* 25 */
-/***/ (function(module, exports, __webpack_require__) {
-
-"use strict";
-
-
-function checkDCE() {
-  /* global __REACT_DEVTOOLS_GLOBAL_HOOK__ */
-  if (
-    typeof __REACT_DEVTOOLS_GLOBAL_HOOK__ === 'undefined' ||
-    typeof __REACT_DEVTOOLS_GLOBAL_HOOK__.checkDCE !== 'function'
-  ) {
-    return;
-  }
-  if (true) {
-    // This branch is unreachable because this function is only called
-    // in production, but the condition is true only in development.
-    // Therefore if the branch is still here, dead code elimination wasn't
-    // properly applied.
-    // Don't change the message. React DevTools relies on it. Also make sure
-    // this message doesn't occur elsewhere in this function, or it will cause
-    // a false positive.
-    throw new Error('^_^');
-  }
-  try {
-    // Verify that the code above has been dead code eliminated (DCE'd).
-    __REACT_DEVTOOLS_GLOBAL_HOOK__.checkDCE(checkDCE);
-  } catch (err) {
-    // DevTools shouldn't crash React, no matter what.
-    // We should still report in case we break this code.
-    console.error(err);
-  }
-}
-
-if (false) {
-  // DCE check should happen before ReactDOM bundle executes so that
-  // DevTools can report bad minification during injection.
-  checkDCE();
-  module.exports = require('./cjs/react-dom.production.min.js');
-} else {
-  module.exports = __webpack_require__(61);
-}
-
-
-/***/ }),
-/* 26 */
+/* 63 */
 /***/ (function(module, __webpack_exports__, __webpack_require__) {
 
 "use strict";
@@ -8171,17 +17086,17 @@ var isExtraneousPopstateEvent = function isExtraneousPopstateEvent(event) {
 };
 
 /***/ }),
-/* 27 */
+/* 64 */
 /***/ (function(module, __webpack_exports__, __webpack_require__) {
 
 "use strict";
 /* harmony import */ var __WEBPACK_IMPORTED_MODULE_0_react__ = __webpack_require__(0);
 /* harmony import */ var __WEBPACK_IMPORTED_MODULE_0_react___default = __webpack_require__.n(__WEBPACK_IMPORTED_MODULE_0_react__);
-/* harmony import */ var __WEBPACK_IMPORTED_MODULE_1_prop_types__ = __webpack_require__(1);
+/* harmony import */ var __WEBPACK_IMPORTED_MODULE_1_prop_types__ = __webpack_require__(4);
 /* harmony import */ var __WEBPACK_IMPORTED_MODULE_1_prop_types___default = __webpack_require__.n(__WEBPACK_IMPORTED_MODULE_1_prop_types__);
-/* harmony import */ var __WEBPACK_IMPORTED_MODULE_2_invariant__ = __webpack_require__(3);
+/* harmony import */ var __WEBPACK_IMPORTED_MODULE_2_invariant__ = __webpack_require__(13);
 /* harmony import */ var __WEBPACK_IMPORTED_MODULE_2_invariant___default = __webpack_require__.n(__WEBPACK_IMPORTED_MODULE_2_invariant__);
-/* harmony import */ var __WEBPACK_IMPORTED_MODULE_3_history__ = __webpack_require__(5);
+/* harmony import */ var __WEBPACK_IMPORTED_MODULE_3_history__ = __webpack_require__(20);
 var _extends = Object.assign || function (target) { for (var i = 1; i < arguments.length; i++) { var source = arguments[i]; for (var key in source) { if (Object.prototype.hasOwnProperty.call(source, key)) { target[key] = source[key]; } } } return target; };
 
 function _objectWithoutProperties(obj, keys) { var target = {}; for (var i in obj) { if (keys.indexOf(i) >= 0) continue; if (!Object.prototype.hasOwnProperty.call(obj, i)) continue; target[i] = obj[i]; } return target; }
@@ -8288,30 +17203,30 @@ Link.contextTypes = {
 /* harmony default export */ __webpack_exports__["a"] = (Link);
 
 /***/ }),
-/* 28 */
+/* 65 */
 /***/ (function(module, __webpack_exports__, __webpack_require__) {
 
 "use strict";
-/* harmony import */ var __WEBPACK_IMPORTED_MODULE_0_react_router_es_Route__ = __webpack_require__(29);
+/* harmony import */ var __WEBPACK_IMPORTED_MODULE_0_react_router_es_Route__ = __webpack_require__(66);
 // Written in this round about way for babel-transform-imports
 
 
 /* harmony default export */ __webpack_exports__["a"] = (__WEBPACK_IMPORTED_MODULE_0_react_router_es_Route__["a" /* default */]);
 
 /***/ }),
-/* 29 */
+/* 66 */
 /***/ (function(module, __webpack_exports__, __webpack_require__) {
 
 "use strict";
-/* harmony import */ var __WEBPACK_IMPORTED_MODULE_0_warning__ = __webpack_require__(4);
+/* harmony import */ var __WEBPACK_IMPORTED_MODULE_0_warning__ = __webpack_require__(15);
 /* harmony import */ var __WEBPACK_IMPORTED_MODULE_0_warning___default = __webpack_require__.n(__WEBPACK_IMPORTED_MODULE_0_warning__);
-/* harmony import */ var __WEBPACK_IMPORTED_MODULE_1_invariant__ = __webpack_require__(3);
+/* harmony import */ var __WEBPACK_IMPORTED_MODULE_1_invariant__ = __webpack_require__(13);
 /* harmony import */ var __WEBPACK_IMPORTED_MODULE_1_invariant___default = __webpack_require__.n(__WEBPACK_IMPORTED_MODULE_1_invariant__);
 /* harmony import */ var __WEBPACK_IMPORTED_MODULE_2_react__ = __webpack_require__(0);
 /* harmony import */ var __WEBPACK_IMPORTED_MODULE_2_react___default = __webpack_require__.n(__WEBPACK_IMPORTED_MODULE_2_react__);
-/* harmony import */ var __WEBPACK_IMPORTED_MODULE_3_prop_types__ = __webpack_require__(1);
+/* harmony import */ var __WEBPACK_IMPORTED_MODULE_3_prop_types__ = __webpack_require__(4);
 /* harmony import */ var __WEBPACK_IMPORTED_MODULE_3_prop_types___default = __webpack_require__.n(__WEBPACK_IMPORTED_MODULE_3_prop_types__);
-/* harmony import */ var __WEBPACK_IMPORTED_MODULE_4__matchPath__ = __webpack_require__(17);
+/* harmony import */ var __WEBPACK_IMPORTED_MODULE_4__matchPath__ = __webpack_require__(39);
 var _extends = Object.assign || function (target) { for (var i = 1; i < arguments.length; i++) { var source = arguments[i]; for (var key in source) { if (Object.prototype.hasOwnProperty.call(source, key)) { target[key] = source[key]; } } } return target; };
 
 function _classCallCheck(instance, Constructor) { if (!(instance instanceof Constructor)) { throw new TypeError("Cannot call a class as a function"); } }
@@ -8453,10 +17368,10 @@ Route.childContextTypes = {
 /* harmony default export */ __webpack_exports__["a"] = (Route);
 
 /***/ }),
-/* 30 */
+/* 67 */
 /***/ (function(module, exports, __webpack_require__) {
 
-var isarray = __webpack_require__(77)
+var isarray = __webpack_require__(137)
 
 /**
  * Expose `pathToRegexp`.
@@ -8885,11 +17800,11 @@ function pathToRegexp (path, keys, options) {
 
 
 /***/ }),
-/* 31 */
+/* 68 */
 /***/ (function(module, __webpack_exports__, __webpack_require__) {
 
 "use strict";
-/* harmony import */ var __WEBPACK_IMPORTED_MODULE_0_path_to_regexp__ = __webpack_require__(30);
+/* harmony import */ var __WEBPACK_IMPORTED_MODULE_0_path_to_regexp__ = __webpack_require__(67);
 /* harmony import */ var __WEBPACK_IMPORTED_MODULE_0_path_to_regexp___default = __webpack_require__.n(__WEBPACK_IMPORTED_MODULE_0_path_to_regexp__);
 
 
@@ -8930,456 +17845,3155 @@ var generatePath = function generatePath() {
 /* harmony default export */ __webpack_exports__["a"] = (generatePath);
 
 /***/ }),
-/* 32 */
-/***/ (function(module, exports) {
-
-/*
-	MIT License http://www.opensource.org/licenses/mit-license.php
-	Author Tobias Koppers @sokra
-*/
-// css base code, injected by the css-loader
-module.exports = function(useSourceMap) {
-	var list = [];
-
-	// return the list of modules as css string
-	list.toString = function toString() {
-		return this.map(function (item) {
-			var content = cssWithMappingToString(item, useSourceMap);
-			if(item[2]) {
-				return "@media " + item[2] + "{" + content + "}";
-			} else {
-				return content;
-			}
-		}).join("");
-	};
-
-	// import a list of modules into the list
-	list.i = function(modules, mediaQuery) {
-		if(typeof modules === "string")
-			modules = [[null, modules, ""]];
-		var alreadyImportedModules = {};
-		for(var i = 0; i < this.length; i++) {
-			var id = this[i][0];
-			if(typeof id === "number")
-				alreadyImportedModules[id] = true;
-		}
-		for(i = 0; i < modules.length; i++) {
-			var item = modules[i];
-			// skip already imported module
-			// this implementation is not 100% perfect for weird media query combinations
-			//  when a module is imported multiple times with different media queries.
-			//  I hope this will never occur (Hey this way we have smaller bundles)
-			if(typeof item[0] !== "number" || !alreadyImportedModules[item[0]]) {
-				if(mediaQuery && !item[2]) {
-					item[2] = mediaQuery;
-				} else if(mediaQuery) {
-					item[2] = "(" + item[2] + ") and (" + mediaQuery + ")";
-				}
-				list.push(item);
-			}
-		}
-	};
-	return list;
-};
-
-function cssWithMappingToString(item, useSourceMap) {
-	var content = item[1] || '';
-	var cssMapping = item[3];
-	if (!cssMapping) {
-		return content;
-	}
-
-	if (useSourceMap && typeof btoa === 'function') {
-		var sourceMapping = toComment(cssMapping);
-		var sourceURLs = cssMapping.sources.map(function (source) {
-			return '/*# sourceURL=' + cssMapping.sourceRoot + source + ' */'
-		});
-
-		return [content].concat(sourceURLs).concat([sourceMapping]).join('\n');
-	}
-
-	return [content].join('\n');
-}
-
-// Adapted from convert-source-map (MIT)
-function toComment(sourceMap) {
-	// eslint-disable-next-line no-undef
-	var base64 = btoa(unescape(encodeURIComponent(JSON.stringify(sourceMap))));
-	var data = 'sourceMappingURL=data:application/json;charset=utf-8;base64,' + base64;
-
-	return '/*# ' + data + ' */';
-}
-
-
-/***/ }),
-/* 33 */
+/* 69 */
 /***/ (function(module, exports, __webpack_require__) {
 
-/*
-	MIT License http://www.opensource.org/licenses/mit-license.php
-	Author Tobias Koppers @sokra
-*/
+"use strict";
+/**
+ * Copyright (c) 2013-present, Facebook, Inc.
+ * All rights reserved.
+ *
+ * This source code is licensed under the BSD-style license found in the
+ * LICENSE file in the root directory of this source tree. An additional grant
+ * of patent rights can be found in the PATENTS file in the same directory.
+ *
+ * @providesModule randomizeBlockMapKeys
+ * @format
+ * 
+ */
 
-var stylesInDom = {};
 
-var	memoize = function (fn) {
-	var memo;
 
-	return function () {
-		if (typeof memo === "undefined") memo = fn.apply(this, arguments);
-		return memo;
-	};
+var ContentBlockNode = __webpack_require__(10);
+var Immutable = __webpack_require__(1);
+
+var generateRandomKey = __webpack_require__(14);
+
+var OrderedMap = Immutable.OrderedMap;
+
+
+var randomizeContentBlockNodeKeys = function randomizeContentBlockNodeKeys(blockMap) {
+  var newKeysRef = {};
+
+  // we keep track of root blocks in order to update subsequent sibling links
+  var lastRootBlock = void 0;
+
+  return OrderedMap(blockMap.withMutations(function (blockMapState) {
+    blockMapState.forEach(function (block, index) {
+      var oldKey = block.getKey();
+      var nextKey = block.getNextSiblingKey();
+      var prevKey = block.getPrevSiblingKey();
+      var childrenKeys = block.getChildKeys();
+      var parentKey = block.getParentKey();
+
+      // new key that we will use to build linking
+      var key = generateRandomKey();
+
+      // we will add it here to re-use it later
+      newKeysRef[oldKey] = key;
+
+      if (nextKey) {
+        var nextBlock = blockMapState.get(nextKey);
+        if (nextBlock) {
+          blockMapState.setIn([nextKey, 'prevSibling'], key);
+        } else {
+          // this can happen when generating random keys for fragments
+          blockMapState.setIn([oldKey, 'nextSibling'], null);
+        }
+      }
+
+      if (prevKey) {
+        var prevBlock = blockMapState.get(prevKey);
+        if (prevBlock) {
+          blockMapState.setIn([prevKey, 'nextSibling'], key);
+        } else {
+          // this can happen when generating random keys for fragments
+          blockMapState.setIn([oldKey, 'prevSibling'], null);
+        }
+      }
+
+      if (parentKey && blockMapState.get(parentKey)) {
+        var parentBlock = blockMapState.get(parentKey);
+        var parentChildrenList = parentBlock.getChildKeys();
+        blockMapState.setIn([parentKey, 'children'], parentChildrenList.set(parentChildrenList.indexOf(block.getKey()), key));
+      } else {
+        // blocks will then be treated as root block nodes
+        blockMapState.setIn([oldKey, 'parent'], null);
+
+        if (lastRootBlock) {
+          blockMapState.setIn([lastRootBlock.getKey(), 'nextSibling'], key);
+          blockMapState.setIn([oldKey, 'prevSibling'], newKeysRef[lastRootBlock.getKey()]);
+        }
+
+        lastRootBlock = blockMapState.get(oldKey);
+      }
+
+      childrenKeys.forEach(function (childKey) {
+        var childBlock = blockMapState.get(childKey);
+        if (childBlock) {
+          blockMapState.setIn([childKey, 'parent'], key);
+        } else {
+          blockMapState.setIn([oldKey, 'children'], block.getChildKeys().filter(function (child) {
+            return child !== childKey;
+          }));
+        }
+      });
+    });
+  }).toArray().map(function (block) {
+    return [newKeysRef[block.getKey()], block.set('key', newKeysRef[block.getKey()])];
+  }));
 };
 
-var isOldIE = memoize(function () {
-	// Test for IE <= 9 as proposed by Browserhacks
-	// @see http://browserhacks.com/#hack-e71d8692f65334173fee715c222cb805
-	// Tests for existence of standard globals is to allow style-loader
-	// to operate correctly into non-standard environments
-	// @see https://github.com/webpack-contrib/style-loader/issues/177
-	return window && document && document.all && !window.atob;
-});
-
-var getElement = (function (fn) {
-	var memo = {};
-
-	return function(selector) {
-		if (typeof memo[selector] === "undefined") {
-			memo[selector] = fn.call(this, selector);
-		}
-
-		return memo[selector]
-	};
-})(function (target) {
-	return document.querySelector(target)
-});
-
-var singleton = null;
-var	singletonCounter = 0;
-var	stylesInsertedAtTop = [];
-
-var	fixUrls = __webpack_require__(105);
-
-module.exports = function(list, options) {
-	if (typeof DEBUG !== "undefined" && DEBUG) {
-		if (typeof document !== "object") throw new Error("The style-loader cannot be used in a non-browser environment");
-	}
-
-	options = options || {};
-
-	options.attrs = typeof options.attrs === "object" ? options.attrs : {};
-
-	// Force single-tag solution on IE6-9, which has a hard limit on the # of <style>
-	// tags it will allow on a page
-	if (!options.singleton) options.singleton = isOldIE();
-
-	// By default, add <style> tags to the <head> element
-	if (!options.insertInto) options.insertInto = "head";
-
-	// By default, add <style> tags to the bottom of the target
-	if (!options.insertAt) options.insertAt = "bottom";
-
-	var styles = listToStyles(list, options);
-
-	addStylesToDom(styles, options);
-
-	return function update (newList) {
-		var mayRemove = [];
-
-		for (var i = 0; i < styles.length; i++) {
-			var item = styles[i];
-			var domStyle = stylesInDom[item.id];
-
-			domStyle.refs--;
-			mayRemove.push(domStyle);
-		}
-
-		if(newList) {
-			var newStyles = listToStyles(newList, options);
-			addStylesToDom(newStyles, options);
-		}
-
-		for (var i = 0; i < mayRemove.length; i++) {
-			var domStyle = mayRemove[i];
-
-			if(domStyle.refs === 0) {
-				for (var j = 0; j < domStyle.parts.length; j++) domStyle.parts[j]();
-
-				delete stylesInDom[domStyle.id];
-			}
-		}
-	};
+var randomizeContentBlockKeys = function randomizeContentBlockKeys(blockMap) {
+  return OrderedMap(blockMap.toArray().map(function (block) {
+    var key = generateRandomKey();
+    return [key, block.set('key', key)];
+  }));
 };
 
-function addStylesToDom (styles, options) {
-	for (var i = 0; i < styles.length; i++) {
-		var item = styles[i];
-		var domStyle = stylesInDom[item.id];
+var randomizeBlockMapKeys = function randomizeBlockMapKeys(blockMap) {
+  var isTreeBasedBlockMap = blockMap.first() instanceof ContentBlockNode;
 
-		if(domStyle) {
-			domStyle.refs++;
+  if (!isTreeBasedBlockMap) {
+    return randomizeContentBlockKeys(blockMap);
+  }
 
-			for(var j = 0; j < domStyle.parts.length; j++) {
-				domStyle.parts[j](item.parts[j]);
-			}
+  return randomizeContentBlockNodeKeys(blockMap);
+};
 
-			for(; j < item.parts.length; j++) {
-				domStyle.parts.push(addStyle(item.parts[j], options));
-			}
-		} else {
-			var parts = [];
-
-			for(var j = 0; j < item.parts.length; j++) {
-				parts.push(addStyle(item.parts[j], options));
-			}
-
-			stylesInDom[item.id] = {id: item.id, refs: 1, parts: parts};
-		}
-	}
-}
-
-function listToStyles (list, options) {
-	var styles = [];
-	var newStyles = {};
-
-	for (var i = 0; i < list.length; i++) {
-		var item = list[i];
-		var id = options.base ? item[0] + options.base : item[0];
-		var css = item[1];
-		var media = item[2];
-		var sourceMap = item[3];
-		var part = {css: css, media: media, sourceMap: sourceMap};
-
-		if(!newStyles[id]) styles.push(newStyles[id] = {id: id, parts: [part]});
-		else newStyles[id].parts.push(part);
-	}
-
-	return styles;
-}
-
-function insertStyleElement (options, style) {
-	var target = getElement(options.insertInto)
-
-	if (!target) {
-		throw new Error("Couldn't find a style target. This probably means that the value for the 'insertInto' parameter is invalid.");
-	}
-
-	var lastStyleElementInsertedAtTop = stylesInsertedAtTop[stylesInsertedAtTop.length - 1];
-
-	if (options.insertAt === "top") {
-		if (!lastStyleElementInsertedAtTop) {
-			target.insertBefore(style, target.firstChild);
-		} else if (lastStyleElementInsertedAtTop.nextSibling) {
-			target.insertBefore(style, lastStyleElementInsertedAtTop.nextSibling);
-		} else {
-			target.appendChild(style);
-		}
-		stylesInsertedAtTop.push(style);
-	} else if (options.insertAt === "bottom") {
-		target.appendChild(style);
-	} else {
-		throw new Error("Invalid value for parameter 'insertAt'. Must be 'top' or 'bottom'.");
-	}
-}
-
-function removeStyleElement (style) {
-	if (style.parentNode === null) return false;
-	style.parentNode.removeChild(style);
-
-	var idx = stylesInsertedAtTop.indexOf(style);
-	if(idx >= 0) {
-		stylesInsertedAtTop.splice(idx, 1);
-	}
-}
-
-function createStyleElement (options) {
-	var style = document.createElement("style");
-
-	options.attrs.type = "text/css";
-
-	addAttrs(style, options.attrs);
-	insertStyleElement(options, style);
-
-	return style;
-}
-
-function createLinkElement (options) {
-	var link = document.createElement("link");
-
-	options.attrs.type = "text/css";
-	options.attrs.rel = "stylesheet";
-
-	addAttrs(link, options.attrs);
-	insertStyleElement(options, link);
-
-	return link;
-}
-
-function addAttrs (el, attrs) {
-	Object.keys(attrs).forEach(function (key) {
-		el.setAttribute(key, attrs[key]);
-	});
-}
-
-function addStyle (obj, options) {
-	var style, update, remove, result;
-
-	// If a transform function was defined, run it on the css
-	if (options.transform && obj.css) {
-	    result = options.transform(obj.css);
-
-	    if (result) {
-	    	// If transform returns a value, use that instead of the original css.
-	    	// This allows running runtime transformations on the css.
-	    	obj.css = result;
-	    } else {
-	    	// If the transform function returns a falsy value, don't add this css.
-	    	// This allows conditional loading of css
-	    	return function() {
-	    		// noop
-	    	};
-	    }
-	}
-
-	if (options.singleton) {
-		var styleIndex = singletonCounter++;
-
-		style = singleton || (singleton = createStyleElement(options));
-
-		update = applyToSingletonTag.bind(null, style, styleIndex, false);
-		remove = applyToSingletonTag.bind(null, style, styleIndex, true);
-
-	} else if (
-		obj.sourceMap &&
-		typeof URL === "function" &&
-		typeof URL.createObjectURL === "function" &&
-		typeof URL.revokeObjectURL === "function" &&
-		typeof Blob === "function" &&
-		typeof btoa === "function"
-	) {
-		style = createLinkElement(options);
-		update = updateLink.bind(null, style, options);
-		remove = function () {
-			removeStyleElement(style);
-
-			if(style.href) URL.revokeObjectURL(style.href);
-		};
-	} else {
-		style = createStyleElement(options);
-		update = applyToTag.bind(null, style);
-		remove = function () {
-			removeStyleElement(style);
-		};
-	}
-
-	update(obj);
-
-	return function updateStyle (newObj) {
-		if (newObj) {
-			if (
-				newObj.css === obj.css &&
-				newObj.media === obj.media &&
-				newObj.sourceMap === obj.sourceMap
-			) {
-				return;
-			}
-
-			update(obj = newObj);
-		} else {
-			remove();
-		}
-	};
-}
-
-var replaceText = (function () {
-	var textStore = [];
-
-	return function (index, replacement) {
-		textStore[index] = replacement;
-
-		return textStore.filter(Boolean).join('\n');
-	};
-})();
-
-function applyToSingletonTag (style, index, remove, obj) {
-	var css = remove ? "" : obj.css;
-
-	if (style.styleSheet) {
-		style.styleSheet.cssText = replaceText(index, css);
-	} else {
-		var cssNode = document.createTextNode(css);
-		var childNodes = style.childNodes;
-
-		if (childNodes[index]) style.removeChild(childNodes[index]);
-
-		if (childNodes.length) {
-			style.insertBefore(cssNode, childNodes[index]);
-		} else {
-			style.appendChild(cssNode);
-		}
-	}
-}
-
-function applyToTag (style, obj) {
-	var css = obj.css;
-	var media = obj.media;
-
-	if(media) {
-		style.setAttribute("media", media)
-	}
-
-	if(style.styleSheet) {
-		style.styleSheet.cssText = css;
-	} else {
-		while(style.firstChild) {
-			style.removeChild(style.firstChild);
-		}
-
-		style.appendChild(document.createTextNode(css));
-	}
-}
-
-function updateLink (link, options, obj) {
-	var css = obj.css;
-	var sourceMap = obj.sourceMap;
-
-	/*
-		If convertToAbsoluteUrls isn't defined, but sourcemaps are enabled
-		and there is no publicPath defined then lets turn convertToAbsoluteUrls
-		on by default.  Otherwise default to the convertToAbsoluteUrls option
-		directly
-	*/
-	var autoFixUrls = options.convertToAbsoluteUrls === undefined && sourceMap;
-
-	if (options.convertToAbsoluteUrls || autoFixUrls) {
-		css = fixUrls(css);
-	}
-
-	if (sourceMap) {
-		// http://stackoverflow.com/a/26603875
-		css += "\n/*# sourceMappingURL=data:application/json;base64," + btoa(unescape(encodeURIComponent(JSON.stringify(sourceMap)))) + " */";
-	}
-
-	var blob = new Blob([css], { type: "text/css" });
-
-	var oldSrc = link.href;
-
-	link.href = URL.createObjectURL(blob);
-
-	if(oldSrc) URL.revokeObjectURL(oldSrc);
-}
-
+module.exports = randomizeBlockMapKeys;
 
 /***/ }),
-/* 34 */
+/* 70 */
 /***/ (function(module, exports, __webpack_require__) {
 
-__webpack_require__(35);
-module.exports = __webpack_require__(113);
+"use strict";
+/**
+ * Copyright (c) 2013-present, Facebook, Inc.
+ * All rights reserved.
+ *
+ * This source code is licensed under the BSD-style license found in the
+ * LICENSE file in the root directory of this source tree. An additional grant
+ * of patent rights can be found in the PATENTS file in the same directory.
+ *
+ * @providesModule removeEntitiesAtEdges
+ * @format
+ * 
+ */
+
+
+
+var CharacterMetadata = __webpack_require__(8);
+
+var findRangesImmutable = __webpack_require__(25);
+var invariant = __webpack_require__(2);
+
+function removeEntitiesAtEdges(contentState, selectionState) {
+  var blockMap = contentState.getBlockMap();
+  var entityMap = contentState.getEntityMap();
+
+  var updatedBlocks = {};
+
+  var startKey = selectionState.getStartKey();
+  var startOffset = selectionState.getStartOffset();
+  var startBlock = blockMap.get(startKey);
+  var updatedStart = removeForBlock(entityMap, startBlock, startOffset);
+
+  if (updatedStart !== startBlock) {
+    updatedBlocks[startKey] = updatedStart;
+  }
+
+  var endKey = selectionState.getEndKey();
+  var endOffset = selectionState.getEndOffset();
+  var endBlock = blockMap.get(endKey);
+  if (startKey === endKey) {
+    endBlock = updatedStart;
+  }
+
+  var updatedEnd = removeForBlock(entityMap, endBlock, endOffset);
+
+  if (updatedEnd !== endBlock) {
+    updatedBlocks[endKey] = updatedEnd;
+  }
+
+  if (!Object.keys(updatedBlocks).length) {
+    return contentState.set('selectionAfter', selectionState);
+  }
+
+  return contentState.merge({
+    blockMap: blockMap.merge(updatedBlocks),
+    selectionAfter: selectionState
+  });
+}
+
+function getRemovalRange(characters, key, offset) {
+  var removalRange;
+  findRangesImmutable(characters, function (a, b) {
+    return a.getEntity() === b.getEntity();
+  }, function (element) {
+    return element.getEntity() === key;
+  }, function (start, end) {
+    if (start <= offset && end >= offset) {
+      removalRange = { start: start, end: end };
+    }
+  });
+  !(typeof removalRange === 'object') ?  true ? invariant(false, 'Removal range must exist within character list.') : invariant(false) : void 0;
+  return removalRange;
+}
+
+function removeForBlock(entityMap, block, offset) {
+  var chars = block.getCharacterList();
+  var charBefore = offset > 0 ? chars.get(offset - 1) : undefined;
+  var charAfter = offset < chars.count() ? chars.get(offset) : undefined;
+  var entityBeforeCursor = charBefore ? charBefore.getEntity() : undefined;
+  var entityAfterCursor = charAfter ? charAfter.getEntity() : undefined;
+
+  if (entityAfterCursor && entityAfterCursor === entityBeforeCursor) {
+    var entity = entityMap.__get(entityAfterCursor);
+    if (entity.getMutability() !== 'MUTABLE') {
+      var _getRemovalRange = getRemovalRange(chars, entityAfterCursor, offset),
+          start = _getRemovalRange.start,
+          end = _getRemovalRange.end;
+
+      var current;
+      while (start < end) {
+        current = chars.get(start);
+        chars = chars.set(start, CharacterMetadata.applyEntity(current, null));
+        start++;
+      }
+      return block.set('characterList', chars);
+    }
+  }
+
+  return block;
+}
+
+module.exports = removeEntitiesAtEdges;
+
+/***/ }),
+/* 71 */
+/***/ (function(module, exports, __webpack_require__) {
+
+"use strict";
+/**
+ * Copyright (c) 2013-present, Facebook, Inc.
+ * All rights reserved.
+ *
+ * This source code is licensed under the BSD-style license found in the
+ * LICENSE file in the root directory of this source tree. An additional grant
+ * of patent rights can be found in the PATENTS file in the same directory.
+ *
+ * @providesModule insertIntoList
+ * @format
+ * 
+ */
+
+
+
+/**
+ * Maintain persistence for target list when appending and prepending.
+ */
+function insertIntoList(targetList, toInsert, offset) {
+  if (offset === targetList.count()) {
+    toInsert.forEach(function (c) {
+      targetList = targetList.push(c);
+    });
+  } else if (offset === 0) {
+    toInsert.reverse().forEach(function (c) {
+      targetList = targetList.unshift(c);
+    });
+  } else {
+    var head = targetList.slice(0, offset);
+    var tail = targetList.slice(offset);
+    targetList = head.concat(toInsert, tail).toList();
+  }
+  return targetList;
+}
+
+module.exports = insertIntoList;
+
+/***/ }),
+/* 72 */
+/***/ (function(module, exports, __webpack_require__) {
+
+"use strict";
+
+
+/**
+ * Copyright (c) 2013-present, Facebook, Inc.
+ * All rights reserved.
+ *
+ * This source code is licensed under the BSD-style license found in the
+ * LICENSE file in the root directory of this source tree. An additional grant
+ * of patent rights can be found in the PATENTS file in the same directory.
+ *
+ * @providesModule getNextDelimiterBlockKey
+ * @format
+ * 
+ *
+ * This is unstable and not part of the public API and should not be used by
+ * production systems. This file may be update/removed without notice.
+ */
+
+var ContentBlockNode = __webpack_require__(10);
+
+var getNextDelimiterBlockKey = function getNextDelimiterBlockKey(block, blockMap) {
+  var isExperimentalTreeBlock = block instanceof ContentBlockNode;
+
+  if (!isExperimentalTreeBlock) {
+    return null;
+  }
+
+  var nextSiblingKey = block.getNextSiblingKey();
+
+  if (nextSiblingKey) {
+    return nextSiblingKey;
+  }
+
+  var parent = block.getParentKey();
+
+  if (!parent) {
+    return null;
+  }
+
+  var nextNonDescendantBlock = blockMap.get(parent);
+  while (nextNonDescendantBlock && !nextNonDescendantBlock.getNextSiblingKey()) {
+    var parentKey = nextNonDescendantBlock.getParentKey();
+    nextNonDescendantBlock = parentKey ? blockMap.get(parentKey) : null;
+  }
+
+  if (!nextNonDescendantBlock) {
+    return null;
+  }
+
+  return nextNonDescendantBlock.getNextSiblingKey();
+};
+
+module.exports = getNextDelimiterBlockKey;
+
+/***/ }),
+/* 73 */
+/***/ (function(module, exports, __webpack_require__) {
+
+"use strict";
+/**
+ * Copyright (c) 2013-present, Facebook, Inc.
+ * All rights reserved.
+ *
+ * This source code is licensed under the BSD-style license found in the
+ * LICENSE file in the root directory of this source tree. An additional grant
+ * of patent rights can be found in the PATENTS file in the same directory.
+ *
+ * @providesModule BlockTree
+ * @format
+ * 
+ */
+
+
+
+var Immutable = __webpack_require__(1);
+
+var emptyFunction = __webpack_require__(43);
+var findRangesImmutable = __webpack_require__(25);
+
+var List = Immutable.List,
+    Repeat = Immutable.Repeat,
+    Record = Immutable.Record;
+
+
+var returnTrue = emptyFunction.thatReturnsTrue;
+
+var FINGERPRINT_DELIMITER = '-';
+
+var defaultLeafRange = {
+  start: null,
+  end: null
+};
+
+var LeafRange = Record(defaultLeafRange);
+
+var defaultDecoratorRange = {
+  start: null,
+  end: null,
+  decoratorKey: null,
+  leaves: null
+};
+
+var DecoratorRange = Record(defaultDecoratorRange);
+
+var BlockTree = {
+  /**
+   * Generate a block tree for a given ContentBlock/decorator pair.
+   */
+  generate: function generate(contentState, block, decorator) {
+    var textLength = block.getLength();
+    if (!textLength) {
+      return List.of(new DecoratorRange({
+        start: 0,
+        end: 0,
+        decoratorKey: null,
+        leaves: List.of(new LeafRange({ start: 0, end: 0 }))
+      }));
+    }
+
+    var leafSets = [];
+    var decorations = decorator ? decorator.getDecorations(block, contentState) : List(Repeat(null, textLength));
+
+    var chars = block.getCharacterList();
+
+    findRangesImmutable(decorations, areEqual, returnTrue, function (start, end) {
+      leafSets.push(new DecoratorRange({
+        start: start,
+        end: end,
+        decoratorKey: decorations.get(start),
+        leaves: generateLeaves(chars.slice(start, end).toList(), start)
+      }));
+    });
+
+    return List(leafSets);
+  },
+
+  /**
+   * Create a string representation of the given tree map. This allows us
+   * to rapidly determine whether a tree has undergone a significant
+   * structural change.
+   */
+  getFingerprint: function getFingerprint(tree) {
+    return tree.map(function (leafSet) {
+      var decoratorKey = leafSet.get('decoratorKey');
+      var fingerprintString = decoratorKey !== null ? decoratorKey + '.' + (leafSet.get('end') - leafSet.get('start')) : '';
+      return '' + fingerprintString + '.' + leafSet.get('leaves').size;
+    }).join(FINGERPRINT_DELIMITER);
+  }
+};
+
+/**
+ * Generate LeafRange records for a given character list.
+ */
+function generateLeaves(characters, offset) {
+  var leaves = [];
+  var inlineStyles = characters.map(function (c) {
+    return c.getStyle();
+  }).toList();
+  findRangesImmutable(inlineStyles, areEqual, returnTrue, function (start, end) {
+    leaves.push(new LeafRange({
+      start: start + offset,
+      end: end + offset
+    }));
+  });
+  return List(leaves);
+}
+
+function areEqual(a, b) {
+  return a === b;
+}
+
+module.exports = BlockTree;
+
+/***/ }),
+/* 74 */
+/***/ (function(module, exports, __webpack_require__) {
+
+"use strict";
+/**
+ * Copyright (c) 2013-present, Facebook, Inc.
+ * All rights reserved.
+ *
+ * This source code is licensed under the BSD-style license found in the
+ * LICENSE file in the root directory of this source tree. An additional grant
+ * of patent rights can be found in the PATENTS file in the same directory.
+ *
+ * @providesModule DraftEntityInstance
+ * @legacyServerCallableInstance
+ * @format
+ * 
+ */
+
+
+
+function _classCallCheck(instance, Constructor) { if (!(instance instanceof Constructor)) { throw new TypeError("Cannot call a class as a function"); } }
+
+function _possibleConstructorReturn(self, call) { if (!self) { throw new ReferenceError("this hasn't been initialised - super() hasn't been called"); } return call && (typeof call === "object" || typeof call === "function") ? call : self; }
+
+function _inherits(subClass, superClass) { if (typeof superClass !== "function" && superClass !== null) { throw new TypeError("Super expression must either be null or a function, not " + typeof superClass); } subClass.prototype = Object.create(superClass && superClass.prototype, { constructor: { value: subClass, enumerable: false, writable: true, configurable: true } }); if (superClass) Object.setPrototypeOf ? Object.setPrototypeOf(subClass, superClass) : subClass.__proto__ = superClass; }
+
+var Immutable = __webpack_require__(1);
+
+var Record = Immutable.Record;
+
+
+var DraftEntityInstanceRecord = Record({
+  type: 'TOKEN',
+  mutability: 'IMMUTABLE',
+  data: Object
+});
+
+/**
+ * An instance of a document entity, consisting of a `type` and relevant
+ * `data`, metadata about the entity.
+ *
+ * For instance, a "link" entity might provide a URI, and a "mention"
+ * entity might provide the mentioned user's ID. These pieces of data
+ * may be used when rendering the entity as part of a ContentBlock DOM
+ * representation. For a link, the data would be used as an href for
+ * the rendered anchor. For a mention, the ID could be used to retrieve
+ * a hovercard.
+ */
+
+var DraftEntityInstance = function (_DraftEntityInstanceR) {
+  _inherits(DraftEntityInstance, _DraftEntityInstanceR);
+
+  function DraftEntityInstance() {
+    _classCallCheck(this, DraftEntityInstance);
+
+    return _possibleConstructorReturn(this, _DraftEntityInstanceR.apply(this, arguments));
+  }
+
+  DraftEntityInstance.prototype.getType = function getType() {
+    return this.get('type');
+  };
+
+  DraftEntityInstance.prototype.getMutability = function getMutability() {
+    return this.get('mutability');
+  };
+
+  DraftEntityInstance.prototype.getData = function getData() {
+    return this.get('data');
+  };
+
+  return DraftEntityInstance;
+}(DraftEntityInstanceRecord);
+
+module.exports = DraftEntityInstance;
+
+/***/ }),
+/* 75 */
+/***/ (function(module, exports, __webpack_require__) {
+
+"use strict";
+/**
+ * Copyright (c) 2013-present, Facebook, Inc.
+ *
+ * This source code is licensed under the MIT license found in the
+ * LICENSE file in the root directory of this source tree.
+ *
+ * @typechecks
+ * 
+ */
+
+/**
+ * Basic (stateless) API for text direction detection
+ *
+ * Part of our implementation of Unicode Bidirectional Algorithm (UBA)
+ * Unicode Standard Annex #9 (UAX9)
+ * http://www.unicode.org/reports/tr9/
+ */
+
+
+
+var UnicodeBidiDirection = __webpack_require__(46);
+
+var invariant = __webpack_require__(2);
+
+/**
+ * RegExp ranges of characters with a *Strong* Bidi_Class value.
+ *
+ * Data is based on DerivedBidiClass.txt in UCD version 7.0.0.
+ *
+ * NOTE: For performance reasons, we only support Unicode's
+ *       Basic Multilingual Plane (BMP) for now.
+ */
+var RANGE_BY_BIDI_TYPE = {
+
+  L: 'A-Za-z\xAA\xB5\xBA\xC0-\xD6\xD8-\xF6\xF8-\u01BA\u01BB' + '\u01BC-\u01BF\u01C0-\u01C3\u01C4-\u0293\u0294\u0295-\u02AF\u02B0-\u02B8' + '\u02BB-\u02C1\u02D0-\u02D1\u02E0-\u02E4\u02EE\u0370-\u0373\u0376-\u0377' + '\u037A\u037B-\u037D\u037F\u0386\u0388-\u038A\u038C\u038E-\u03A1' + '\u03A3-\u03F5\u03F7-\u0481\u0482\u048A-\u052F\u0531-\u0556\u0559' + '\u055A-\u055F\u0561-\u0587\u0589\u0903\u0904-\u0939\u093B\u093D' + '\u093E-\u0940\u0949-\u094C\u094E-\u094F\u0950\u0958-\u0961\u0964-\u0965' + '\u0966-\u096F\u0970\u0971\u0972-\u0980\u0982-\u0983\u0985-\u098C' + '\u098F-\u0990\u0993-\u09A8\u09AA-\u09B0\u09B2\u09B6-\u09B9\u09BD' + '\u09BE-\u09C0\u09C7-\u09C8\u09CB-\u09CC\u09CE\u09D7\u09DC-\u09DD' + '\u09DF-\u09E1\u09E6-\u09EF\u09F0-\u09F1\u09F4-\u09F9\u09FA\u0A03' + '\u0A05-\u0A0A\u0A0F-\u0A10\u0A13-\u0A28\u0A2A-\u0A30\u0A32-\u0A33' + '\u0A35-\u0A36\u0A38-\u0A39\u0A3E-\u0A40\u0A59-\u0A5C\u0A5E\u0A66-\u0A6F' + '\u0A72-\u0A74\u0A83\u0A85-\u0A8D\u0A8F-\u0A91\u0A93-\u0AA8\u0AAA-\u0AB0' + '\u0AB2-\u0AB3\u0AB5-\u0AB9\u0ABD\u0ABE-\u0AC0\u0AC9\u0ACB-\u0ACC\u0AD0' + '\u0AE0-\u0AE1\u0AE6-\u0AEF\u0AF0\u0B02-\u0B03\u0B05-\u0B0C\u0B0F-\u0B10' + '\u0B13-\u0B28\u0B2A-\u0B30\u0B32-\u0B33\u0B35-\u0B39\u0B3D\u0B3E\u0B40' + '\u0B47-\u0B48\u0B4B-\u0B4C\u0B57\u0B5C-\u0B5D\u0B5F-\u0B61\u0B66-\u0B6F' + '\u0B70\u0B71\u0B72-\u0B77\u0B83\u0B85-\u0B8A\u0B8E-\u0B90\u0B92-\u0B95' + '\u0B99-\u0B9A\u0B9C\u0B9E-\u0B9F\u0BA3-\u0BA4\u0BA8-\u0BAA\u0BAE-\u0BB9' + '\u0BBE-\u0BBF\u0BC1-\u0BC2\u0BC6-\u0BC8\u0BCA-\u0BCC\u0BD0\u0BD7' + '\u0BE6-\u0BEF\u0BF0-\u0BF2\u0C01-\u0C03\u0C05-\u0C0C\u0C0E-\u0C10' + '\u0C12-\u0C28\u0C2A-\u0C39\u0C3D\u0C41-\u0C44\u0C58-\u0C59\u0C60-\u0C61' + '\u0C66-\u0C6F\u0C7F\u0C82-\u0C83\u0C85-\u0C8C\u0C8E-\u0C90\u0C92-\u0CA8' + '\u0CAA-\u0CB3\u0CB5-\u0CB9\u0CBD\u0CBE\u0CBF\u0CC0-\u0CC4\u0CC6' + '\u0CC7-\u0CC8\u0CCA-\u0CCB\u0CD5-\u0CD6\u0CDE\u0CE0-\u0CE1\u0CE6-\u0CEF' + '\u0CF1-\u0CF2\u0D02-\u0D03\u0D05-\u0D0C\u0D0E-\u0D10\u0D12-\u0D3A\u0D3D' + '\u0D3E-\u0D40\u0D46-\u0D48\u0D4A-\u0D4C\u0D4E\u0D57\u0D60-\u0D61' + '\u0D66-\u0D6F\u0D70-\u0D75\u0D79\u0D7A-\u0D7F\u0D82-\u0D83\u0D85-\u0D96' + '\u0D9A-\u0DB1\u0DB3-\u0DBB\u0DBD\u0DC0-\u0DC6\u0DCF-\u0DD1\u0DD8-\u0DDF' + '\u0DE6-\u0DEF\u0DF2-\u0DF3\u0DF4\u0E01-\u0E30\u0E32-\u0E33\u0E40-\u0E45' + '\u0E46\u0E4F\u0E50-\u0E59\u0E5A-\u0E5B\u0E81-\u0E82\u0E84\u0E87-\u0E88' + '\u0E8A\u0E8D\u0E94-\u0E97\u0E99-\u0E9F\u0EA1-\u0EA3\u0EA5\u0EA7' + '\u0EAA-\u0EAB\u0EAD-\u0EB0\u0EB2-\u0EB3\u0EBD\u0EC0-\u0EC4\u0EC6' + '\u0ED0-\u0ED9\u0EDC-\u0EDF\u0F00\u0F01-\u0F03\u0F04-\u0F12\u0F13\u0F14' + '\u0F15-\u0F17\u0F1A-\u0F1F\u0F20-\u0F29\u0F2A-\u0F33\u0F34\u0F36\u0F38' + '\u0F3E-\u0F3F\u0F40-\u0F47\u0F49-\u0F6C\u0F7F\u0F85\u0F88-\u0F8C' + '\u0FBE-\u0FC5\u0FC7-\u0FCC\u0FCE-\u0FCF\u0FD0-\u0FD4\u0FD5-\u0FD8' + '\u0FD9-\u0FDA\u1000-\u102A\u102B-\u102C\u1031\u1038\u103B-\u103C\u103F' + '\u1040-\u1049\u104A-\u104F\u1050-\u1055\u1056-\u1057\u105A-\u105D\u1061' + '\u1062-\u1064\u1065-\u1066\u1067-\u106D\u106E-\u1070\u1075-\u1081' + '\u1083-\u1084\u1087-\u108C\u108E\u108F\u1090-\u1099\u109A-\u109C' + '\u109E-\u109F\u10A0-\u10C5\u10C7\u10CD\u10D0-\u10FA\u10FB\u10FC' + '\u10FD-\u1248\u124A-\u124D\u1250-\u1256\u1258\u125A-\u125D\u1260-\u1288' + '\u128A-\u128D\u1290-\u12B0\u12B2-\u12B5\u12B8-\u12BE\u12C0\u12C2-\u12C5' + '\u12C8-\u12D6\u12D8-\u1310\u1312-\u1315\u1318-\u135A\u1360-\u1368' + '\u1369-\u137C\u1380-\u138F\u13A0-\u13F4\u1401-\u166C\u166D-\u166E' + '\u166F-\u167F\u1681-\u169A\u16A0-\u16EA\u16EB-\u16ED\u16EE-\u16F0' + '\u16F1-\u16F8\u1700-\u170C\u170E-\u1711\u1720-\u1731\u1735-\u1736' + '\u1740-\u1751\u1760-\u176C\u176E-\u1770\u1780-\u17B3\u17B6\u17BE-\u17C5' + '\u17C7-\u17C8\u17D4-\u17D6\u17D7\u17D8-\u17DA\u17DC\u17E0-\u17E9' + '\u1810-\u1819\u1820-\u1842\u1843\u1844-\u1877\u1880-\u18A8\u18AA' + '\u18B0-\u18F5\u1900-\u191E\u1923-\u1926\u1929-\u192B\u1930-\u1931' + '\u1933-\u1938\u1946-\u194F\u1950-\u196D\u1970-\u1974\u1980-\u19AB' + '\u19B0-\u19C0\u19C1-\u19C7\u19C8-\u19C9\u19D0-\u19D9\u19DA\u1A00-\u1A16' + '\u1A19-\u1A1A\u1A1E-\u1A1F\u1A20-\u1A54\u1A55\u1A57\u1A61\u1A63-\u1A64' + '\u1A6D-\u1A72\u1A80-\u1A89\u1A90-\u1A99\u1AA0-\u1AA6\u1AA7\u1AA8-\u1AAD' + '\u1B04\u1B05-\u1B33\u1B35\u1B3B\u1B3D-\u1B41\u1B43-\u1B44\u1B45-\u1B4B' + '\u1B50-\u1B59\u1B5A-\u1B60\u1B61-\u1B6A\u1B74-\u1B7C\u1B82\u1B83-\u1BA0' + '\u1BA1\u1BA6-\u1BA7\u1BAA\u1BAE-\u1BAF\u1BB0-\u1BB9\u1BBA-\u1BE5\u1BE7' + '\u1BEA-\u1BEC\u1BEE\u1BF2-\u1BF3\u1BFC-\u1BFF\u1C00-\u1C23\u1C24-\u1C2B' + '\u1C34-\u1C35\u1C3B-\u1C3F\u1C40-\u1C49\u1C4D-\u1C4F\u1C50-\u1C59' + '\u1C5A-\u1C77\u1C78-\u1C7D\u1C7E-\u1C7F\u1CC0-\u1CC7\u1CD3\u1CE1' + '\u1CE9-\u1CEC\u1CEE-\u1CF1\u1CF2-\u1CF3\u1CF5-\u1CF6\u1D00-\u1D2B' + '\u1D2C-\u1D6A\u1D6B-\u1D77\u1D78\u1D79-\u1D9A\u1D9B-\u1DBF\u1E00-\u1F15' + '\u1F18-\u1F1D\u1F20-\u1F45\u1F48-\u1F4D\u1F50-\u1F57\u1F59\u1F5B\u1F5D' + '\u1F5F-\u1F7D\u1F80-\u1FB4\u1FB6-\u1FBC\u1FBE\u1FC2-\u1FC4\u1FC6-\u1FCC' + '\u1FD0-\u1FD3\u1FD6-\u1FDB\u1FE0-\u1FEC\u1FF2-\u1FF4\u1FF6-\u1FFC\u200E' + '\u2071\u207F\u2090-\u209C\u2102\u2107\u210A-\u2113\u2115\u2119-\u211D' + '\u2124\u2126\u2128\u212A-\u212D\u212F-\u2134\u2135-\u2138\u2139' + '\u213C-\u213F\u2145-\u2149\u214E\u214F\u2160-\u2182\u2183-\u2184' + '\u2185-\u2188\u2336-\u237A\u2395\u249C-\u24E9\u26AC\u2800-\u28FF' + '\u2C00-\u2C2E\u2C30-\u2C5E\u2C60-\u2C7B\u2C7C-\u2C7D\u2C7E-\u2CE4' + '\u2CEB-\u2CEE\u2CF2-\u2CF3\u2D00-\u2D25\u2D27\u2D2D\u2D30-\u2D67\u2D6F' + '\u2D70\u2D80-\u2D96\u2DA0-\u2DA6\u2DA8-\u2DAE\u2DB0-\u2DB6\u2DB8-\u2DBE' + '\u2DC0-\u2DC6\u2DC8-\u2DCE\u2DD0-\u2DD6\u2DD8-\u2DDE\u3005\u3006\u3007' + '\u3021-\u3029\u302E-\u302F\u3031-\u3035\u3038-\u303A\u303B\u303C' + '\u3041-\u3096\u309D-\u309E\u309F\u30A1-\u30FA\u30FC-\u30FE\u30FF' + '\u3105-\u312D\u3131-\u318E\u3190-\u3191\u3192-\u3195\u3196-\u319F' + '\u31A0-\u31BA\u31F0-\u31FF\u3200-\u321C\u3220-\u3229\u322A-\u3247' + '\u3248-\u324F\u3260-\u327B\u327F\u3280-\u3289\u328A-\u32B0\u32C0-\u32CB' + '\u32D0-\u32FE\u3300-\u3376\u337B-\u33DD\u33E0-\u33FE\u3400-\u4DB5' + '\u4E00-\u9FCC\uA000-\uA014\uA015\uA016-\uA48C\uA4D0-\uA4F7\uA4F8-\uA4FD' + '\uA4FE-\uA4FF\uA500-\uA60B\uA60C\uA610-\uA61F\uA620-\uA629\uA62A-\uA62B' + '\uA640-\uA66D\uA66E\uA680-\uA69B\uA69C-\uA69D\uA6A0-\uA6E5\uA6E6-\uA6EF' + '\uA6F2-\uA6F7\uA722-\uA76F\uA770\uA771-\uA787\uA789-\uA78A\uA78B-\uA78E' + '\uA790-\uA7AD\uA7B0-\uA7B1\uA7F7\uA7F8-\uA7F9\uA7FA\uA7FB-\uA801' + '\uA803-\uA805\uA807-\uA80A\uA80C-\uA822\uA823-\uA824\uA827\uA830-\uA835' + '\uA836-\uA837\uA840-\uA873\uA880-\uA881\uA882-\uA8B3\uA8B4-\uA8C3' + '\uA8CE-\uA8CF\uA8D0-\uA8D9\uA8F2-\uA8F7\uA8F8-\uA8FA\uA8FB\uA900-\uA909' + '\uA90A-\uA925\uA92E-\uA92F\uA930-\uA946\uA952-\uA953\uA95F\uA960-\uA97C' + '\uA983\uA984-\uA9B2\uA9B4-\uA9B5\uA9BA-\uA9BB\uA9BD-\uA9C0\uA9C1-\uA9CD' + '\uA9CF\uA9D0-\uA9D9\uA9DE-\uA9DF\uA9E0-\uA9E4\uA9E6\uA9E7-\uA9EF' + '\uA9F0-\uA9F9\uA9FA-\uA9FE\uAA00-\uAA28\uAA2F-\uAA30\uAA33-\uAA34' + '\uAA40-\uAA42\uAA44-\uAA4B\uAA4D\uAA50-\uAA59\uAA5C-\uAA5F\uAA60-\uAA6F' + '\uAA70\uAA71-\uAA76\uAA77-\uAA79\uAA7A\uAA7B\uAA7D\uAA7E-\uAAAF\uAAB1' + '\uAAB5-\uAAB6\uAAB9-\uAABD\uAAC0\uAAC2\uAADB-\uAADC\uAADD\uAADE-\uAADF' + '\uAAE0-\uAAEA\uAAEB\uAAEE-\uAAEF\uAAF0-\uAAF1\uAAF2\uAAF3-\uAAF4\uAAF5' + '\uAB01-\uAB06\uAB09-\uAB0E\uAB11-\uAB16\uAB20-\uAB26\uAB28-\uAB2E' + '\uAB30-\uAB5A\uAB5B\uAB5C-\uAB5F\uAB64-\uAB65\uABC0-\uABE2\uABE3-\uABE4' + '\uABE6-\uABE7\uABE9-\uABEA\uABEB\uABEC\uABF0-\uABF9\uAC00-\uD7A3' + '\uD7B0-\uD7C6\uD7CB-\uD7FB\uE000-\uF8FF\uF900-\uFA6D\uFA70-\uFAD9' + '\uFB00-\uFB06\uFB13-\uFB17\uFF21-\uFF3A\uFF41-\uFF5A\uFF66-\uFF6F\uFF70' + '\uFF71-\uFF9D\uFF9E-\uFF9F\uFFA0-\uFFBE\uFFC2-\uFFC7\uFFCA-\uFFCF' + '\uFFD2-\uFFD7\uFFDA-\uFFDC',
+
+  R: '\u0590\u05BE\u05C0\u05C3\u05C6\u05C8-\u05CF\u05D0-\u05EA\u05EB-\u05EF' + '\u05F0-\u05F2\u05F3-\u05F4\u05F5-\u05FF\u07C0-\u07C9\u07CA-\u07EA' + '\u07F4-\u07F5\u07FA\u07FB-\u07FF\u0800-\u0815\u081A\u0824\u0828' + '\u082E-\u082F\u0830-\u083E\u083F\u0840-\u0858\u085C-\u085D\u085E' + '\u085F-\u089F\u200F\uFB1D\uFB1F-\uFB28\uFB2A-\uFB36\uFB37\uFB38-\uFB3C' + '\uFB3D\uFB3E\uFB3F\uFB40-\uFB41\uFB42\uFB43-\uFB44\uFB45\uFB46-\uFB4F',
+
+  AL: '\u0608\u060B\u060D\u061B\u061C\u061D\u061E-\u061F\u0620-\u063F\u0640' + '\u0641-\u064A\u066D\u066E-\u066F\u0671-\u06D3\u06D4\u06D5\u06E5-\u06E6' + '\u06EE-\u06EF\u06FA-\u06FC\u06FD-\u06FE\u06FF\u0700-\u070D\u070E\u070F' + '\u0710\u0712-\u072F\u074B-\u074C\u074D-\u07A5\u07B1\u07B2-\u07BF' + '\u08A0-\u08B2\u08B3-\u08E3\uFB50-\uFBB1\uFBB2-\uFBC1\uFBC2-\uFBD2' + '\uFBD3-\uFD3D\uFD40-\uFD4F\uFD50-\uFD8F\uFD90-\uFD91\uFD92-\uFDC7' + '\uFDC8-\uFDCF\uFDF0-\uFDFB\uFDFC\uFDFE-\uFDFF\uFE70-\uFE74\uFE75' + '\uFE76-\uFEFC\uFEFD-\uFEFE'
+
+};
+
+var REGEX_STRONG = new RegExp('[' + RANGE_BY_BIDI_TYPE.L + RANGE_BY_BIDI_TYPE.R + RANGE_BY_BIDI_TYPE.AL + ']');
+
+var REGEX_RTL = new RegExp('[' + RANGE_BY_BIDI_TYPE.R + RANGE_BY_BIDI_TYPE.AL + ']');
+
+/**
+ * Returns the first strong character (has Bidi_Class value of L, R, or AL).
+ *
+ * @param str  A text block; e.g. paragraph, table cell, tag
+ * @return     A character with strong bidi direction, or null if not found
+ */
+function firstStrongChar(str) {
+  var match = REGEX_STRONG.exec(str);
+  return match == null ? null : match[0];
+}
+
+/**
+ * Returns the direction of a block of text, based on the direction of its
+ * first strong character (has Bidi_Class value of L, R, or AL).
+ *
+ * @param str  A text block; e.g. paragraph, table cell, tag
+ * @return     The resolved direction
+ */
+function firstStrongCharDir(str) {
+  var strongChar = firstStrongChar(str);
+  if (strongChar == null) {
+    return UnicodeBidiDirection.NEUTRAL;
+  }
+  return REGEX_RTL.exec(strongChar) ? UnicodeBidiDirection.RTL : UnicodeBidiDirection.LTR;
+}
+
+/**
+ * Returns the direction of a block of text, based on the direction of its
+ * first strong character (has Bidi_Class value of L, R, or AL), or a fallback
+ * direction, if no strong character is found.
+ *
+ * This function is supposed to be used in respect to Higher-Level Protocol
+ * rule HL1. (http://www.unicode.org/reports/tr9/#HL1)
+ *
+ * @param str       A text block; e.g. paragraph, table cell, tag
+ * @param fallback  Fallback direction, used if no strong direction detected
+ *                  for the block (default = NEUTRAL)
+ * @return          The resolved direction
+ */
+function resolveBlockDir(str, fallback) {
+  fallback = fallback || UnicodeBidiDirection.NEUTRAL;
+  if (!str.length) {
+    return fallback;
+  }
+  var blockDir = firstStrongCharDir(str);
+  return blockDir === UnicodeBidiDirection.NEUTRAL ? fallback : blockDir;
+}
+
+/**
+ * Returns the direction of a block of text, based on the direction of its
+ * first strong character (has Bidi_Class value of L, R, or AL), or a fallback
+ * direction, if no strong character is found.
+ *
+ * NOTE: This function is similar to resolveBlockDir(), but uses the global
+ * direction as the fallback, so it *always* returns a Strong direction,
+ * making it useful for integration in places that you need to make the final
+ * decision, like setting some CSS class.
+ *
+ * This function is supposed to be used in respect to Higher-Level Protocol
+ * rule HL1. (http://www.unicode.org/reports/tr9/#HL1)
+ *
+ * @param str             A text block; e.g. paragraph, table cell
+ * @param strongFallback  Fallback direction, used if no strong direction
+ *                        detected for the block (default = global direction)
+ * @return                The resolved Strong direction
+ */
+function getDirection(str, strongFallback) {
+  if (!strongFallback) {
+    strongFallback = UnicodeBidiDirection.getGlobalDir();
+  }
+  !UnicodeBidiDirection.isStrong(strongFallback) ?  true ? invariant(false, 'Fallback direction must be a strong direction') : invariant(false) : void 0;
+  return resolveBlockDir(str, strongFallback);
+}
+
+/**
+ * Returns true if getDirection(arguments...) returns LTR.
+ *
+ * @param str             A text block; e.g. paragraph, table cell
+ * @param strongFallback  Fallback direction, used if no strong direction
+ *                        detected for the block (default = global direction)
+ * @return                True if the resolved direction is LTR
+ */
+function isDirectionLTR(str, strongFallback) {
+  return getDirection(str, strongFallback) === UnicodeBidiDirection.LTR;
+}
+
+/**
+ * Returns true if getDirection(arguments...) returns RTL.
+ *
+ * @param str             A text block; e.g. paragraph, table cell
+ * @param strongFallback  Fallback direction, used if no strong direction
+ *                        detected for the block (default = global direction)
+ * @return                True if the resolved direction is RTL
+ */
+function isDirectionRTL(str, strongFallback) {
+  return getDirection(str, strongFallback) === UnicodeBidiDirection.RTL;
+}
+
+var UnicodeBidi = {
+  firstStrongChar: firstStrongChar,
+  firstStrongCharDir: firstStrongCharDir,
+  resolveBlockDir: resolveBlockDir,
+  getDirection: getDirection,
+  isDirectionLTR: isDirectionLTR,
+  isDirectionRTL: isDirectionRTL
+};
+
+module.exports = UnicodeBidi;
+
+/***/ }),
+/* 76 */
+/***/ (function(module, exports, __webpack_require__) {
+
+"use strict";
+/**
+ * Copyright (c) 2013-present, Facebook, Inc.
+ * All rights reserved.
+ *
+ * This source code is licensed under the BSD-style license found in the
+ * LICENSE file in the root directory of this source tree. An additional grant
+ * of patent rights can be found in the PATENTS file in the same directory.
+ *
+ * @providesModule DefaultDraftInlineStyle
+ * @format
+ * 
+ */
+
+
+
+module.exports = {
+  BOLD: {
+    fontWeight: 'bold'
+  },
+
+  CODE: {
+    fontFamily: 'monospace',
+    wordWrap: 'break-word'
+  },
+
+  ITALIC: {
+    fontStyle: 'italic'
+  },
+
+  STRIKETHROUGH: {
+    textDecoration: 'line-through'
+  },
+
+  UNDERLINE: {
+    textDecoration: 'underline'
+  }
+};
+
+/***/ }),
+/* 77 */
+/***/ (function(module, exports, __webpack_require__) {
+
+"use strict";
+/**
+ * Copyright (c) 2013-present, Facebook, Inc.
+ * All rights reserved.
+ *
+ * This source code is licensed under the BSD-style license found in the
+ * LICENSE file in the root directory of this source tree. An additional grant
+ * of patent rights can be found in the PATENTS file in the same directory.
+ *
+ * @providesModule isSelectionAtLeafStart
+ * @format
+ * 
+ */
+
+
+
+function isSelectionAtLeafStart(editorState) {
+  var selection = editorState.getSelection();
+  var anchorKey = selection.getAnchorKey();
+  var blockTree = editorState.getBlockTree(anchorKey);
+  var offset = selection.getStartOffset();
+
+  var isAtStart = false;
+
+  blockTree.some(function (leafSet) {
+    if (offset === leafSet.get('start')) {
+      isAtStart = true;
+      return true;
+    }
+
+    if (offset < leafSet.get('end')) {
+      return leafSet.get('leaves').some(function (leaf) {
+        var leafStart = leaf.get('start');
+        if (offset === leafStart) {
+          isAtStart = true;
+          return true;
+        }
+
+        return false;
+      });
+    }
+
+    return false;
+  });
+
+  return isAtStart;
+}
+
+module.exports = isSelectionAtLeafStart;
+
+/***/ }),
+/* 78 */
+/***/ (function(module, exports, __webpack_require__) {
+
+"use strict";
+/**
+ * Copyright (c) 2013-present, Facebook, Inc.
+ * All rights reserved.
+ *
+ * This source code is licensed under the BSD-style license found in the
+ * LICENSE file in the root directory of this source tree. An additional grant
+ * of patent rights can be found in the PATENTS file in the same directory.
+ *
+ * @providesModule DraftEditorBlock.react
+ * @format
+ * 
+ */
+
+
+
+var _assign = __webpack_require__(5);
+
+var _extends = _assign || function (target) { for (var i = 1; i < arguments.length; i++) { var source = arguments[i]; for (var key in source) { if (Object.prototype.hasOwnProperty.call(source, key)) { target[key] = source[key]; } } } return target; };
+
+function _classCallCheck(instance, Constructor) { if (!(instance instanceof Constructor)) { throw new TypeError("Cannot call a class as a function"); } }
+
+function _possibleConstructorReturn(self, call) { if (!self) { throw new ReferenceError("this hasn't been initialised - super() hasn't been called"); } return call && (typeof call === "object" || typeof call === "function") ? call : self; }
+
+function _inherits(subClass, superClass) { if (typeof superClass !== "function" && superClass !== null) { throw new TypeError("Super expression must either be null or a function, not " + typeof superClass); } subClass.prototype = Object.create(superClass && superClass.prototype, { constructor: { value: subClass, enumerable: false, writable: true, configurable: true } }); if (superClass) Object.setPrototypeOf ? Object.setPrototypeOf(subClass, superClass) : subClass.__proto__ = superClass; }
+
+var DraftEditorLeaf = __webpack_require__(194);
+var DraftOffsetKey = __webpack_require__(33);
+var React = __webpack_require__(0);
+var ReactDOM = __webpack_require__(17);
+var Scroll = __webpack_require__(80);
+var Style = __webpack_require__(51);
+var UnicodeBidi = __webpack_require__(75);
+var UnicodeBidiDirection = __webpack_require__(46);
+
+var cx = __webpack_require__(22);
+var getElementPosition = __webpack_require__(209);
+var getScrollPosition = __webpack_require__(52);
+var getViewportDimensions = __webpack_require__(213);
+var invariant = __webpack_require__(2);
+var nullthrows = __webpack_require__(11);
+
+var SCROLL_BUFFER = 10;
+
+/**
+ * Return whether a block overlaps with either edge of the `SelectionState`.
+ */
+var isBlockOnSelectionEdge = function isBlockOnSelectionEdge(selection, key) {
+  return selection.getAnchorKey() === key || selection.getFocusKey() === key;
+};
+
+/**
+ * The default block renderer for a `DraftEditor` component.
+ *
+ * A `DraftEditorBlock` is able to render a given `ContentBlock` to its
+ * appropriate decorator and inline style components.
+ */
+
+var DraftEditorBlock = function (_React$Component) {
+  _inherits(DraftEditorBlock, _React$Component);
+
+  function DraftEditorBlock() {
+    _classCallCheck(this, DraftEditorBlock);
+
+    return _possibleConstructorReturn(this, _React$Component.apply(this, arguments));
+  }
+
+  DraftEditorBlock.prototype.shouldComponentUpdate = function shouldComponentUpdate(nextProps) {
+    return this.props.block !== nextProps.block || this.props.tree !== nextProps.tree || this.props.direction !== nextProps.direction || isBlockOnSelectionEdge(nextProps.selection, nextProps.block.getKey()) && nextProps.forceSelection;
+  };
+
+  /**
+   * When a block is mounted and overlaps the selection state, we need to make
+   * sure that the cursor is visible to match native behavior. This may not
+   * be the case if the user has pressed `RETURN` or pasted some content, since
+   * programatically creating these new blocks and setting the DOM selection
+   * will miss out on the browser natively scrolling to that position.
+   *
+   * To replicate native behavior, if the block overlaps the selection state
+   * on mount, force the scroll position. Check the scroll state of the scroll
+   * parent, and adjust it to align the entire block to the bottom of the
+   * scroll parent.
+   */
+
+
+  DraftEditorBlock.prototype.componentDidMount = function componentDidMount() {
+    var selection = this.props.selection;
+    var endKey = selection.getEndKey();
+    if (!selection.getHasFocus() || endKey !== this.props.block.getKey()) {
+      return;
+    }
+
+    var blockNode = ReactDOM.findDOMNode(this);
+    var scrollParent = Style.getScrollParent(blockNode);
+    var scrollPosition = getScrollPosition(scrollParent);
+    var scrollDelta = void 0;
+
+    if (scrollParent === window) {
+      var nodePosition = getElementPosition(blockNode);
+      var nodeBottom = nodePosition.y + nodePosition.height;
+      var viewportHeight = getViewportDimensions().height;
+      scrollDelta = nodeBottom - viewportHeight;
+      if (scrollDelta > 0) {
+        window.scrollTo(scrollPosition.x, scrollPosition.y + scrollDelta + SCROLL_BUFFER);
+      }
+    } else {
+      !(blockNode instanceof HTMLElement) ?  true ? invariant(false, 'blockNode is not an HTMLElement') : invariant(false) : void 0;
+      var blockBottom = blockNode.offsetHeight + blockNode.offsetTop;
+      var scrollBottom = scrollParent.offsetHeight + scrollPosition.y;
+      scrollDelta = blockBottom - scrollBottom;
+      if (scrollDelta > 0) {
+        Scroll.setTop(scrollParent, Scroll.getTop(scrollParent) + scrollDelta + SCROLL_BUFFER);
+      }
+    }
+  };
+
+  DraftEditorBlock.prototype._renderChildren = function _renderChildren() {
+    var _this2 = this;
+
+    var block = this.props.block;
+    var blockKey = block.getKey();
+    var text = block.getText();
+    var lastLeafSet = this.props.tree.size - 1;
+    var hasSelection = isBlockOnSelectionEdge(this.props.selection, blockKey);
+
+    return this.props.tree.map(function (leafSet, ii) {
+      var leavesForLeafSet = leafSet.get('leaves');
+      var lastLeaf = leavesForLeafSet.size - 1;
+      var leaves = leavesForLeafSet.map(function (leaf, jj) {
+        var offsetKey = DraftOffsetKey.encode(blockKey, ii, jj);
+        var start = leaf.get('start');
+        var end = leaf.get('end');
+        return React.createElement(DraftEditorLeaf, {
+          key: offsetKey,
+          offsetKey: offsetKey,
+          block: block,
+          start: start,
+          selection: hasSelection ? _this2.props.selection : null,
+          forceSelection: _this2.props.forceSelection,
+          text: text.slice(start, end),
+          styleSet: block.getInlineStyleAt(start),
+          customStyleMap: _this2.props.customStyleMap,
+          customStyleFn: _this2.props.customStyleFn,
+          isLast: ii === lastLeafSet && jj === lastLeaf
+        });
+      }).toArray();
+
+      var decoratorKey = leafSet.get('decoratorKey');
+      if (decoratorKey == null) {
+        return leaves;
+      }
+
+      if (!_this2.props.decorator) {
+        return leaves;
+      }
+
+      var decorator = nullthrows(_this2.props.decorator);
+
+      var DecoratorComponent = decorator.getComponentForKey(decoratorKey);
+      if (!DecoratorComponent) {
+        return leaves;
+      }
+
+      var decoratorProps = decorator.getPropsForKey(decoratorKey);
+      var decoratorOffsetKey = DraftOffsetKey.encode(blockKey, ii, 0);
+      var decoratedText = text.slice(leavesForLeafSet.first().get('start'), leavesForLeafSet.last().get('end'));
+
+      // Resetting dir to the same value on a child node makes Chrome/Firefox
+      // confused on cursor movement. See http://jsfiddle.net/d157kLck/3/
+      var dir = UnicodeBidiDirection.getHTMLDirIfDifferent(UnicodeBidi.getDirection(decoratedText), _this2.props.direction);
+
+      return React.createElement(
+        DecoratorComponent,
+        _extends({}, decoratorProps, {
+          contentState: _this2.props.contentState,
+          decoratedText: decoratedText,
+          dir: dir,
+          key: decoratorOffsetKey,
+          entityKey: block.getEntityAt(leafSet.get('start')),
+          offsetKey: decoratorOffsetKey }),
+        leaves
+      );
+    }).toArray();
+  };
+
+  DraftEditorBlock.prototype.render = function render() {
+    var _props = this.props,
+        direction = _props.direction,
+        offsetKey = _props.offsetKey;
+
+    var className = cx({
+      'public/DraftStyleDefault/block': true,
+      'public/DraftStyleDefault/ltr': direction === 'LTR',
+      'public/DraftStyleDefault/rtl': direction === 'RTL'
+    });
+
+    return React.createElement(
+      'div',
+      { 'data-offset-key': offsetKey, className: className },
+      this._renderChildren()
+    );
+  };
+
+  return DraftEditorBlock;
+}(React.Component);
+
+module.exports = DraftEditorBlock;
+
+/***/ }),
+/* 79 */
+/***/ (function(module, exports, __webpack_require__) {
+
+"use strict";
+
+
+/**
+ * Copyright (c) 2013-present, Facebook, Inc.
+ *
+ * This source code is licensed under the MIT license found in the
+ * LICENSE file in the root directory of this source tree.
+ *
+ * @typechecks
+ */
+
+/* eslint-disable fb-www/typeof-undefined */
+
+/**
+ * Same as document.activeElement but wraps in a try-catch block. In IE it is
+ * not safe to call document.activeElement if there is nothing focused.
+ *
+ * The activeElement will be null only if the document or document body is not
+ * yet defined.
+ *
+ * @param {?DOMDocument} doc Defaults to current document.
+ * @return {?DOMElement}
+ */
+function getActiveElement(doc) /*?DOMElement*/{
+  doc = doc || (typeof document !== 'undefined' ? document : undefined);
+  if (typeof doc === 'undefined') {
+    return null;
+  }
+  try {
+    return doc.activeElement || doc.body;
+  } catch (e) {
+    return doc.body;
+  }
+}
+
+module.exports = getActiveElement;
+
+/***/ }),
+/* 80 */
+/***/ (function(module, exports, __webpack_require__) {
+
+"use strict";
+
+
+/**
+ * Copyright (c) 2013-present, Facebook, Inc.
+ *
+ * This source code is licensed under the MIT license found in the
+ * LICENSE file in the root directory of this source tree.
+ *
+ */
+
+/**
+ * @param {DOMElement} element
+ * @param {DOMDocument} doc
+ * @return {boolean}
+ */
+function _isViewportScrollElement(element, doc) {
+  return !!doc && (element === doc.documentElement || element === doc.body);
+}
+
+/**
+ * Scroll Module. This class contains 4 simple static functions
+ * to be used to access Element.scrollTop/scrollLeft properties.
+ * To solve the inconsistencies between browsers when either
+ * document.body or document.documentElement is supplied,
+ * below logic will be used to alleviate the issue:
+ *
+ * 1. If 'element' is either 'document.body' or 'document.documentElement,
+ *    get whichever element's 'scroll{Top,Left}' is larger.
+ * 2. If 'element' is either 'document.body' or 'document.documentElement',
+ *    set the 'scroll{Top,Left}' on both elements.
+ */
+
+var Scroll = {
+  /**
+   * @param {DOMElement} element
+   * @return {number}
+   */
+  getTop: function getTop(element) {
+    var doc = element.ownerDocument;
+    return _isViewportScrollElement(element, doc) ?
+    // In practice, they will either both have the same value,
+    // or one will be zero and the other will be the scroll position
+    // of the viewport. So we can use `X || Y` instead of `Math.max(X, Y)`
+    doc.body.scrollTop || doc.documentElement.scrollTop : element.scrollTop;
+  },
+
+  /**
+   * @param {DOMElement} element
+   * @param {number} newTop
+   */
+  setTop: function setTop(element, newTop) {
+    var doc = element.ownerDocument;
+    if (_isViewportScrollElement(element, doc)) {
+      doc.body.scrollTop = doc.documentElement.scrollTop = newTop;
+    } else {
+      element.scrollTop = newTop;
+    }
+  },
+
+  /**
+   * @param {DOMElement} element
+   * @return {number}
+   */
+  getLeft: function getLeft(element) {
+    var doc = element.ownerDocument;
+    return _isViewportScrollElement(element, doc) ? doc.body.scrollLeft || doc.documentElement.scrollLeft : element.scrollLeft;
+  },
+
+  /**
+   * @param {DOMElement} element
+   * @param {number} newLeft
+   */
+  setLeft: function setLeft(element, newLeft) {
+    var doc = element.ownerDocument;
+    if (_isViewportScrollElement(element, doc)) {
+      doc.body.scrollLeft = doc.documentElement.scrollLeft = newLeft;
+    } else {
+      element.scrollLeft = newLeft;
+    }
+  }
+};
+
+module.exports = Scroll;
+
+/***/ }),
+/* 81 */
+/***/ (function(module, exports, __webpack_require__) {
+
+"use strict";
+
+
+function _classCallCheck(instance, Constructor) { if (!(instance instanceof Constructor)) { throw new TypeError("Cannot call a class as a function"); } }
+
+/**
+ * Copyright (c) 2013-present, Facebook, Inc.
+ *
+ * This source code is licensed under the MIT license found in the
+ * LICENSE file in the root directory of this source tree.
+ *
+ * @typechecks
+ */
+
+var PhotosMimeType = __webpack_require__(216);
+
+var createArrayFromMixed = __webpack_require__(217);
+var emptyFunction = __webpack_require__(43);
+
+var CR_LF_REGEX = new RegExp('\r\n', 'g');
+var LF_ONLY = '\n';
+
+var RICH_TEXT_TYPES = {
+  'text/rtf': 1,
+  'text/html': 1
+};
+
+/**
+ * If DataTransferItem is a file then return the Blob of data.
+ *
+ * @param {object} item
+ * @return {?blob}
+ */
+function getFileFromDataTransfer(item) {
+  if (item.kind == 'file') {
+    return item.getAsFile();
+  }
+}
+
+var DataTransfer = function () {
+  /**
+   * @param {object} data
+   */
+  function DataTransfer(data) {
+    _classCallCheck(this, DataTransfer);
+
+    this.data = data;
+
+    // Types could be DOMStringList or array
+    this.types = data.types ? createArrayFromMixed(data.types) : [];
+  }
+
+  /**
+   * Is this likely to be a rich text data transfer?
+   *
+   * @return {boolean}
+   */
+
+
+  DataTransfer.prototype.isRichText = function isRichText() {
+    // If HTML is available, treat this data as rich text. This way, we avoid
+    // using a pasted image if it is packaged with HTML -- this may occur with
+    // pastes from MS Word, for example.  However this is only rich text if
+    // there's accompanying text.
+    if (this.getHTML() && this.getText()) {
+      return true;
+    }
+
+    // When an image is copied from a preview window, you end up with two
+    // DataTransferItems one of which is a file's metadata as text.  Skip those.
+    if (this.isImage()) {
+      return false;
+    }
+
+    return this.types.some(function (type) {
+      return RICH_TEXT_TYPES[type];
+    });
+  };
+
+  /**
+   * Get raw text.
+   *
+   * @return {?string}
+   */
+
+
+  DataTransfer.prototype.getText = function getText() {
+    var text;
+    if (this.data.getData) {
+      if (!this.types.length) {
+        text = this.data.getData('Text');
+      } else if (this.types.indexOf('text/plain') != -1) {
+        text = this.data.getData('text/plain');
+      }
+    }
+    return text ? text.replace(CR_LF_REGEX, LF_ONLY) : null;
+  };
+
+  /**
+   * Get HTML paste data
+   *
+   * @return {?string}
+   */
+
+
+  DataTransfer.prototype.getHTML = function getHTML() {
+    if (this.data.getData) {
+      if (!this.types.length) {
+        return this.data.getData('Text');
+      } else if (this.types.indexOf('text/html') != -1) {
+        return this.data.getData('text/html');
+      }
+    }
+  };
+
+  /**
+   * Is this a link data transfer?
+   *
+   * @return {boolean}
+   */
+
+
+  DataTransfer.prototype.isLink = function isLink() {
+    return this.types.some(function (type) {
+      return type.indexOf('Url') != -1 || type.indexOf('text/uri-list') != -1 || type.indexOf('text/x-moz-url');
+    });
+  };
+
+  /**
+   * Get a link url.
+   *
+   * @return {?string}
+   */
+
+
+  DataTransfer.prototype.getLink = function getLink() {
+    if (this.data.getData) {
+      if (this.types.indexOf('text/x-moz-url') != -1) {
+        var url = this.data.getData('text/x-moz-url').split('\n');
+        return url[0];
+      }
+      return this.types.indexOf('text/uri-list') != -1 ? this.data.getData('text/uri-list') : this.data.getData('url');
+    }
+
+    return null;
+  };
+
+  /**
+   * Is this an image data transfer?
+   *
+   * @return {boolean}
+   */
+
+
+  DataTransfer.prototype.isImage = function isImage() {
+    var isImage = this.types.some(function (type) {
+      // Firefox will have a type of application/x-moz-file for images during
+      // dragging
+      return type.indexOf('application/x-moz-file') != -1;
+    });
+
+    if (isImage) {
+      return true;
+    }
+
+    var items = this.getFiles();
+    for (var i = 0; i < items.length; i++) {
+      var type = items[i].type;
+      if (!PhotosMimeType.isImage(type)) {
+        return false;
+      }
+    }
+
+    return true;
+  };
+
+  DataTransfer.prototype.getCount = function getCount() {
+    if (this.data.hasOwnProperty('items')) {
+      return this.data.items.length;
+    } else if (this.data.hasOwnProperty('mozItemCount')) {
+      return this.data.mozItemCount;
+    } else if (this.data.files) {
+      return this.data.files.length;
+    }
+    return null;
+  };
+
+  /**
+   * Get files.
+   *
+   * @return {array}
+   */
+
+
+  DataTransfer.prototype.getFiles = function getFiles() {
+    if (this.data.items) {
+      // createArrayFromMixed doesn't properly handle DataTransferItemLists.
+      return Array.prototype.slice.call(this.data.items).map(getFileFromDataTransfer).filter(emptyFunction.thatReturnsArgument);
+    } else if (this.data.files) {
+      return Array.prototype.slice.call(this.data.files);
+    } else {
+      return [];
+    }
+  };
+
+  /**
+   * Are there any files to fetch?
+   *
+   * @return {boolean}
+   */
+
+
+  DataTransfer.prototype.hasFiles = function hasFiles() {
+    return this.getFiles().length > 0;
+  };
+
+  return DataTransfer;
+}();
+
+module.exports = DataTransfer;
+
+/***/ }),
+/* 82 */
+/***/ (function(module, exports, __webpack_require__) {
+
+"use strict";
+/**
+ * Copyright (c) 2013-present, Facebook, Inc.
+ * All rights reserved.
+ *
+ * This source code is licensed under the BSD-style license found in the
+ * LICENSE file in the root directory of this source tree. An additional grant
+ * of patent rights can be found in the PATENTS file in the same directory.
+ *
+ * @providesModule getSelectionOffsetKeyForNode
+ * @format
+ * 
+ */
+
+
+
+/**
+ * Get offset key from a node or it's child nodes. Return the first offset key
+ * found on the DOM tree of given node.
+ */
+
+function getSelectionOffsetKeyForNode(node) {
+  if (node instanceof Element) {
+    var offsetKey = node.getAttribute('data-offset-key');
+    if (offsetKey) {
+      return offsetKey;
+    }
+    for (var ii = 0; ii < node.childNodes.length; ii++) {
+      var childOffsetKey = getSelectionOffsetKeyForNode(node.childNodes[ii]);
+      if (childOffsetKey) {
+        return childOffsetKey;
+      }
+    }
+  }
+  return null;
+}
+
+module.exports = getSelectionOffsetKeyForNode;
+
+/***/ }),
+/* 83 */
+/***/ (function(module, exports, __webpack_require__) {
+
+"use strict";
+/* WEBPACK VAR INJECTION */(function(global) {/**
+ * Copyright (c) 2013-present, Facebook, Inc.
+ * All rights reserved.
+ *
+ * This source code is licensed under the BSD-style license found in the
+ * LICENSE file in the root directory of this source tree. An additional grant
+ * of patent rights can be found in the PATENTS file in the same directory.
+ *
+ * @providesModule getTextContentFromFiles
+ * @format
+ * 
+ */
+
+
+
+var invariant = __webpack_require__(2);
+
+var TEXT_CLIPPING_REGEX = /\.textClipping$/;
+
+var TEXT_TYPES = {
+  'text/plain': true,
+  'text/html': true,
+  'text/rtf': true
+};
+
+// Somewhat arbitrary upper bound on text size. Let's not lock up the browser.
+var TEXT_SIZE_UPPER_BOUND = 5000;
+
+/**
+ * Extract the text content from a file list.
+ */
+function getTextContentFromFiles(files, callback) {
+  var readCount = 0;
+  var results = [];
+  files.forEach(function ( /*blob*/file) {
+    readFile(file, function ( /*string*/text) {
+      readCount++;
+      text && results.push(text.slice(0, TEXT_SIZE_UPPER_BOUND));
+      if (readCount == files.length) {
+        callback(results.join('\r'));
+      }
+    });
+  });
+}
+
+/**
+ * todo isaac: Do work to turn html/rtf into a content fragment.
+ */
+function readFile(file, callback) {
+  if (!global.FileReader || file.type && !(file.type in TEXT_TYPES)) {
+    callback('');
+    return;
+  }
+
+  if (file.type === '') {
+    var contents = '';
+    // Special-case text clippings, which have an empty type but include
+    // `.textClipping` in the file name. `readAsText` results in an empty
+    // string for text clippings, so we force the file name to serve
+    // as the text value for the file.
+    if (TEXT_CLIPPING_REGEX.test(file.name)) {
+      contents = file.name.replace(TEXT_CLIPPING_REGEX, '');
+    }
+    callback(contents);
+    return;
+  }
+
+  var reader = new FileReader();
+  reader.onload = function () {
+    var result = reader.result;
+    !(typeof result === 'string') ?  true ? invariant(false, 'We should be calling "FileReader.readAsText" which returns a string') : invariant(false) : void 0;
+    callback(result);
+  };
+  reader.onerror = function () {
+    callback('');
+  };
+  reader.readAsText(file);
+}
+
+module.exports = getTextContentFromFiles;
+/* WEBPACK VAR INJECTION */}.call(exports, __webpack_require__(7)))
+
+/***/ }),
+/* 84 */
+/***/ (function(module, exports, __webpack_require__) {
+
+"use strict";
+/**
+ * Copyright (c) 2013-present, Facebook, Inc.
+ * All rights reserved.
+ *
+ * This source code is licensed under the BSD-style license found in the
+ * LICENSE file in the root directory of this source tree. An additional grant
+ * of patent rights can be found in the PATENTS file in the same directory.
+ *
+ * @providesModule getUpdatedSelectionState
+ * @format
+ * 
+ */
+
+
+
+var DraftOffsetKey = __webpack_require__(33);
+
+var nullthrows = __webpack_require__(11);
+
+function getUpdatedSelectionState(editorState, anchorKey, anchorOffset, focusKey, focusOffset) {
+  var selection = nullthrows(editorState.getSelection());
+  if (true) {
+    if (!anchorKey || !focusKey) {
+      /*eslint-disable no-console */
+      console.warn('Invalid selection state.', arguments, editorState.toJS());
+      /*eslint-enable no-console */
+      return selection;
+    }
+  }
+
+  var anchorPath = DraftOffsetKey.decode(anchorKey);
+  var anchorBlockKey = anchorPath.blockKey;
+  var anchorLeaf = editorState.getBlockTree(anchorBlockKey).getIn([anchorPath.decoratorKey, 'leaves', anchorPath.leafKey]);
+
+  var focusPath = DraftOffsetKey.decode(focusKey);
+  var focusBlockKey = focusPath.blockKey;
+  var focusLeaf = editorState.getBlockTree(focusBlockKey).getIn([focusPath.decoratorKey, 'leaves', focusPath.leafKey]);
+
+  var anchorLeafStart = anchorLeaf.get('start');
+  var focusLeafStart = focusLeaf.get('start');
+
+  var anchorBlockOffset = anchorLeaf ? anchorLeafStart + anchorOffset : null;
+  var focusBlockOffset = focusLeaf ? focusLeafStart + focusOffset : null;
+
+  var areEqual = selection.getAnchorKey() === anchorBlockKey && selection.getAnchorOffset() === anchorBlockOffset && selection.getFocusKey() === focusBlockKey && selection.getFocusOffset() === focusBlockOffset;
+
+  if (areEqual) {
+    return selection;
+  }
+
+  var isBackward = false;
+  if (anchorBlockKey === focusBlockKey) {
+    var anchorLeafEnd = anchorLeaf.get('end');
+    var focusLeafEnd = focusLeaf.get('end');
+    if (focusLeafStart === anchorLeafStart && focusLeafEnd === anchorLeafEnd) {
+      isBackward = focusOffset < anchorOffset;
+    } else {
+      isBackward = focusLeafStart < anchorLeafStart;
+    }
+  } else {
+    var startKey = editorState.getCurrentContent().getBlockMap().keySeq().skipUntil(function (v) {
+      return v === anchorBlockKey || v === focusBlockKey;
+    }).first();
+    isBackward = startKey === focusBlockKey;
+  }
+
+  return selection.merge({
+    anchorKey: anchorBlockKey,
+    anchorOffset: anchorBlockOffset,
+    focusKey: focusBlockKey,
+    focusOffset: focusBlockOffset,
+    isBackward: isBackward
+  });
+}
+
+module.exports = getUpdatedSelectionState;
+
+/***/ }),
+/* 85 */
+/***/ (function(module, exports, __webpack_require__) {
+
+"use strict";
+/**
+ * Copyright (c) 2013-present, Facebook, Inc.
+ * All rights reserved.
+ *
+ * This source code is licensed under the BSD-style license found in the
+ * LICENSE file in the root directory of this source tree. An additional grant
+ * of patent rights can be found in the PATENTS file in the same directory.
+ *
+ * @providesModule getFragmentFromSelection
+ * @format
+ * 
+ */
+
+
+
+var getContentStateFragment = __webpack_require__(31);
+
+function getFragmentFromSelection(editorState) {
+  var selectionState = editorState.getSelection();
+
+  if (selectionState.isCollapsed()) {
+    return null;
+  }
+
+  return getContentStateFragment(editorState.getCurrentContent(), selectionState);
+}
+
+module.exports = getFragmentFromSelection;
+
+/***/ }),
+/* 86 */
+/***/ (function(module, exports, __webpack_require__) {
+
+"use strict";
+/**
+ * Copyright (c) 2013-present, Facebook, Inc.
+ * All rights reserved.
+ *
+ * This source code is licensed under the BSD-style license found in the
+ * LICENSE file in the root directory of this source tree. An additional grant
+ * of patent rights can be found in the PATENTS file in the same directory.
+ *
+ * @providesModule getRangeClientRects
+ * @format
+ * 
+ */
+
+
+
+var UserAgent = __webpack_require__(12);
+
+var invariant = __webpack_require__(2);
+
+var isChrome = UserAgent.isBrowser('Chrome');
+
+// In Chrome, the client rects will include the entire bounds of all nodes that
+// begin (have a start tag) within the selection, even if the selection does
+// not overlap the entire node. To resolve this, we split the range at each
+// start tag and join the client rects together.
+// https://code.google.com/p/chromium/issues/detail?id=324437
+/* eslint-disable consistent-return */
+function getRangeClientRectsChrome(range) {
+  var tempRange = range.cloneRange();
+  var clientRects = [];
+
+  for (var ancestor = range.endContainer; ancestor != null; ancestor = ancestor.parentNode) {
+    // If we've climbed up to the common ancestor, we can now use the
+    // original start point and stop climbing the tree.
+    var atCommonAncestor = ancestor === range.commonAncestorContainer;
+    if (atCommonAncestor) {
+      tempRange.setStart(range.startContainer, range.startOffset);
+    } else {
+      tempRange.setStart(tempRange.endContainer, 0);
+    }
+    var rects = Array.from(tempRange.getClientRects());
+    clientRects.push(rects);
+    if (atCommonAncestor) {
+      var _ref;
+
+      clientRects.reverse();
+      return (_ref = []).concat.apply(_ref, clientRects);
+    }
+    tempRange.setEndBefore(ancestor);
+  }
+
+   true ?  true ? invariant(false, 'Found an unexpected detached subtree when getting range client rects.') : invariant(false) : void 0;
+}
+/* eslint-enable consistent-return */
+
+/**
+ * Like range.getClientRects() but normalizes for browser bugs.
+ */
+var getRangeClientRects = isChrome ? getRangeClientRectsChrome : function (range) {
+  return Array.from(range.getClientRects());
+};
+
+module.exports = getRangeClientRects;
+
+/***/ }),
+/* 87 */
+/***/ (function(module, exports, __webpack_require__) {
+
+"use strict";
+/**
+ * Copyright (c) 2013-present, Facebook, Inc.
+ * All rights reserved.
+ *
+ * This source code is licensed under the BSD-style license found in the
+ * LICENSE file in the root directory of this source tree. An additional grant
+ * of patent rights can be found in the PATENTS file in the same directory.
+ *
+ * @providesModule getDraftEditorSelectionWithNodes
+ * @format
+ * 
+ */
+
+
+
+var findAncestorOffsetKey = __webpack_require__(53);
+var getSelectionOffsetKeyForNode = __webpack_require__(82);
+var getUpdatedSelectionState = __webpack_require__(84);
+var invariant = __webpack_require__(2);
+var nullthrows = __webpack_require__(11);
+
+/**
+ * Convert the current selection range to an anchor/focus pair of offset keys
+ * and values that can be interpreted by components.
+ */
+function getDraftEditorSelectionWithNodes(editorState, root, anchorNode, anchorOffset, focusNode, focusOffset) {
+  var anchorIsTextNode = anchorNode.nodeType === Node.TEXT_NODE;
+  var focusIsTextNode = focusNode.nodeType === Node.TEXT_NODE;
+
+  // If the selection range lies only on text nodes, the task is simple.
+  // Find the nearest offset-aware elements and use the
+  // offset values supplied by the selection range.
+  if (anchorIsTextNode && focusIsTextNode) {
+    return {
+      selectionState: getUpdatedSelectionState(editorState, nullthrows(findAncestorOffsetKey(anchorNode)), anchorOffset, nullthrows(findAncestorOffsetKey(focusNode)), focusOffset),
+      needsRecovery: false
+    };
+  }
+
+  var anchorPoint = null;
+  var focusPoint = null;
+  var needsRecovery = true;
+
+  // An element is selected. Convert this selection range into leaf offset
+  // keys and offset values for consumption at the component level. This
+  // is common in Firefox, where select-all and triple click behavior leads
+  // to entire elements being selected.
+  //
+  // Note that we use the `needsRecovery` parameter in the callback here. This
+  // is because when certain elements are selected, the behavior for subsequent
+  // cursor movement (e.g. via arrow keys) is uncertain and may not match
+  // expectations at the component level. For example, if an entire <div> is
+  // selected and the user presses the right arrow, Firefox keeps the selection
+  // on the <div>. If we allow subsequent keypresses to insert characters
+  // natively, they will be inserted into a browser-created text node to the
+  // right of that <div>. This is obviously undesirable.
+  //
+  // With the `needsRecovery` flag, we inform the caller that it is responsible
+  // for manually setting the selection state on the rendered document to
+  // ensure proper selection state maintenance.
+
+  if (anchorIsTextNode) {
+    anchorPoint = {
+      key: nullthrows(findAncestorOffsetKey(anchorNode)),
+      offset: anchorOffset
+    };
+    focusPoint = getPointForNonTextNode(root, focusNode, focusOffset);
+  } else if (focusIsTextNode) {
+    focusPoint = {
+      key: nullthrows(findAncestorOffsetKey(focusNode)),
+      offset: focusOffset
+    };
+    anchorPoint = getPointForNonTextNode(root, anchorNode, anchorOffset);
+  } else {
+    anchorPoint = getPointForNonTextNode(root, anchorNode, anchorOffset);
+    focusPoint = getPointForNonTextNode(root, focusNode, focusOffset);
+
+    // If the selection is collapsed on an empty block, don't force recovery.
+    // This way, on arrow key selection changes, the browser can move the
+    // cursor from a non-zero offset on one block, through empty blocks,
+    // to a matching non-zero offset on other text blocks.
+    if (anchorNode === focusNode && anchorOffset === focusOffset) {
+      needsRecovery = !!anchorNode.firstChild && anchorNode.firstChild.nodeName !== 'BR';
+    }
+  }
+
+  return {
+    selectionState: getUpdatedSelectionState(editorState, anchorPoint.key, anchorPoint.offset, focusPoint.key, focusPoint.offset),
+    needsRecovery: needsRecovery
+  };
+}
+
+/**
+ * Identify the first leaf descendant for the given node.
+ */
+function getFirstLeaf(node) {
+  while (node.firstChild && (
+  // data-blocks has no offset
+  node.firstChild instanceof Element && node.firstChild.getAttribute('data-blocks') === 'true' || getSelectionOffsetKeyForNode(node.firstChild))) {
+    node = node.firstChild;
+  }
+  return node;
+}
+
+/**
+ * Identify the last leaf descendant for the given node.
+ */
+function getLastLeaf(node) {
+  while (node.lastChild && (
+  // data-blocks has no offset
+  node.lastChild instanceof Element && node.lastChild.getAttribute('data-blocks') === 'true' || getSelectionOffsetKeyForNode(node.lastChild))) {
+    node = node.lastChild;
+  }
+  return node;
+}
+
+function getPointForNonTextNode(editorRoot, startNode, childOffset) {
+  var node = startNode;
+  var offsetKey = findAncestorOffsetKey(node);
+
+  !(offsetKey != null || editorRoot && (editorRoot === node || editorRoot.firstChild === node)) ?  true ? invariant(false, 'Unknown node in selection range.') : invariant(false) : void 0;
+
+  // If the editorRoot is the selection, step downward into the content
+  // wrapper.
+  if (editorRoot === node) {
+    node = node.firstChild;
+    !(node instanceof Element && node.getAttribute('data-contents') === 'true') ?  true ? invariant(false, 'Invalid DraftEditorContents structure.') : invariant(false) : void 0;
+    if (childOffset > 0) {
+      childOffset = node.childNodes.length;
+    }
+  }
+
+  // If the child offset is zero and we have an offset key, we're done.
+  // If there's no offset key because the entire editor is selected,
+  // find the leftmost ("first") leaf in the tree and use that as the offset
+  // key.
+  if (childOffset === 0) {
+    var key = null;
+    if (offsetKey != null) {
+      key = offsetKey;
+    } else {
+      var firstLeaf = getFirstLeaf(node);
+      key = nullthrows(getSelectionOffsetKeyForNode(firstLeaf));
+    }
+    return { key: key, offset: 0 };
+  }
+
+  var nodeBeforeCursor = node.childNodes[childOffset - 1];
+  var leafKey = null;
+  var textLength = null;
+
+  if (!getSelectionOffsetKeyForNode(nodeBeforeCursor)) {
+    // Our target node may be a leaf or a text node, in which case we're
+    // already where we want to be and can just use the child's length as
+    // our offset.
+    leafKey = nullthrows(offsetKey);
+    textLength = getTextContentLength(nodeBeforeCursor);
+  } else {
+    // Otherwise, we'll look at the child to the left of the cursor and find
+    // the last leaf node in its subtree.
+    var lastLeaf = getLastLeaf(nodeBeforeCursor);
+    leafKey = nullthrows(getSelectionOffsetKeyForNode(lastLeaf));
+    textLength = getTextContentLength(lastLeaf);
+  }
+
+  return {
+    key: leafKey,
+    offset: textLength
+  };
+}
+
+/**
+ * Return the length of a node's textContent, regarding single newline
+ * characters as zero-length. This allows us to avoid problems with identifying
+ * the correct selection offset for empty blocks in IE, in which we
+ * render newlines instead of break tags.
+ */
+function getTextContentLength(node) {
+  var textContent = node.textContent;
+  return textContent === '\n' ? 0 : textContent.length;
+}
+
+module.exports = getDraftEditorSelectionWithNodes;
+
+/***/ }),
+/* 88 */
+/***/ (function(module, exports, __webpack_require__) {
+
+"use strict";
+/**
+ * Copyright (c) 2013-present, Facebook, Inc.
+ * All rights reserved.
+ *
+ * This source code is licensed under the BSD-style license found in the
+ * LICENSE file in the root directory of this source tree. An additional grant
+ * of patent rights can be found in the PATENTS file in the same directory.
+ *
+ * @providesModule DraftRemovableWord
+ * @format
+ * 
+ */
+
+
+
+var TokenizeUtil = __webpack_require__(235);
+
+var punctuation = TokenizeUtil.getPunctuation();
+
+// The apostrophe and curly single quotes behave in a curious way: when
+// surrounded on both sides by word characters, they behave as word chars; when
+// either neighbor is punctuation or an end of the string, they behave as
+// punctuation.
+var CHAMELEON_CHARS = '[\'\u2018\u2019]';
+
+// Remove the underscore, which should count as part of the removable word. The
+// "chameleon chars" also count as punctuation in this regex.
+var WHITESPACE_AND_PUNCTUATION = '\\s|(?![_])' + punctuation;
+
+var DELETE_STRING = '^' + '(?:' + WHITESPACE_AND_PUNCTUATION + ')*' + '(?:' + CHAMELEON_CHARS + '|(?!' + WHITESPACE_AND_PUNCTUATION + ').)*' + '(?:(?!' + WHITESPACE_AND_PUNCTUATION + ').)';
+var DELETE_REGEX = new RegExp(DELETE_STRING);
+
+var BACKSPACE_STRING = '(?:(?!' + WHITESPACE_AND_PUNCTUATION + ').)' + '(?:' + CHAMELEON_CHARS + '|(?!' + WHITESPACE_AND_PUNCTUATION + ').)*' + '(?:' + WHITESPACE_AND_PUNCTUATION + ')*' + '$';
+var BACKSPACE_REGEX = new RegExp(BACKSPACE_STRING);
+
+function getRemovableWord(text, isBackward) {
+  var matches = isBackward ? BACKSPACE_REGEX.exec(text) : DELETE_REGEX.exec(text);
+  return matches ? matches[0] : text;
+}
+
+var DraftRemovableWord = {
+  getBackward: function getBackward(text) {
+    return getRemovableWord(text, true);
+  },
+
+  getForward: function getForward(text) {
+    return getRemovableWord(text, false);
+  }
+};
+
+module.exports = DraftRemovableWord;
+
+/***/ }),
+/* 89 */
+/***/ (function(module, exports, __webpack_require__) {
+
+"use strict";
+/**
+ * Copyright (c) 2013-present, Facebook, Inc.
+ * All rights reserved.
+ *
+ * This source code is licensed under the BSD-style license found in the
+ * LICENSE file in the root directory of this source tree. An additional grant
+ * of patent rights can be found in the PATENTS file in the same directory.
+ *
+ * @providesModule moveSelectionForward
+ * @format
+ * 
+ */
+
+
+
+/**
+ * Given a collapsed selection, move the focus `maxDistance` forward within
+ * the selected block. If the selection will go beyond the end of the block,
+ * move focus to the start of the next block, but no further.
+ *
+ * This function is not Unicode-aware, so surrogate pairs will be treated
+ * as having length 2.
+ */
+function moveSelectionForward(editorState, maxDistance) {
+  var selection = editorState.getSelection();
+  var key = selection.getStartKey();
+  var offset = selection.getStartOffset();
+  var content = editorState.getCurrentContent();
+
+  var focusKey = key;
+  var focusOffset;
+
+  var block = content.getBlockForKey(key);
+
+  if (maxDistance > block.getText().length - offset) {
+    focusKey = content.getKeyAfter(key);
+    focusOffset = 0;
+  } else {
+    focusOffset = offset + maxDistance;
+  }
+
+  return selection.merge({ focusKey: focusKey, focusOffset: focusOffset });
+}
+
+module.exports = moveSelectionForward;
+
+/***/ }),
+/* 90 */
+/***/ (function(module, exports, __webpack_require__) {
+
+"use strict";
+/**
+ * Copyright (c) 2013-present, Facebook, Inc.
+ * All rights reserved.
+ *
+ * This source code is licensed under the BSD-style license found in the
+ * LICENSE file in the root directory of this source tree. An additional grant
+ * of patent rights can be found in the PATENTS file in the same directory.
+ *
+ * @providesModule convertFromHTMLToContentBlocks
+ * @format
+ * 
+ */
+
+
+
+var _extends = _assign || function (target) { for (var i = 1; i < arguments.length; i++) { var source = arguments[i]; for (var key in source) { if (Object.prototype.hasOwnProperty.call(source, key)) { target[key] = source[key]; } } } return target; };
+
+var _knownListItemDepthCl,
+    _assign = __webpack_require__(5);
+
+function _defineProperty(obj, key, value) { if (key in obj) { Object.defineProperty(obj, key, { value: value, enumerable: true, configurable: true, writable: true }); } else { obj[key] = value; } return obj; }
+
+var CharacterMetadata = __webpack_require__(8);
+var ContentBlock = __webpack_require__(18);
+var ContentBlockNode = __webpack_require__(10);
+var DefaultDraftBlockRenderMap = __webpack_require__(47);
+var DraftEntity = __webpack_require__(32);
+var DraftFeatureFlags = __webpack_require__(16);
+var Immutable = __webpack_require__(1);
+
+var _require = __webpack_require__(1),
+    Set = _require.Set;
+
+var URI = __webpack_require__(246);
+
+var cx = __webpack_require__(22);
+var generateRandomKey = __webpack_require__(14);
+var getSafeBodyFromHTML = __webpack_require__(91);
+var invariant = __webpack_require__(2);
+var sanitizeDraftText = __webpack_require__(45);
+
+var experimentalTreeDataSupport = DraftFeatureFlags.draft_tree_data_support;
+
+var List = Immutable.List,
+    OrderedSet = Immutable.OrderedSet;
+
+
+var NBSP = '&nbsp;';
+var SPACE = ' ';
+
+// Arbitrary max indent
+var MAX_DEPTH = 4;
+
+// used for replacing characters in HTML
+var REGEX_CR = new RegExp('\r', 'g');
+var REGEX_LF = new RegExp('\n', 'g');
+var REGEX_NBSP = new RegExp(NBSP, 'g');
+var REGEX_CARRIAGE = new RegExp('&#13;?', 'g');
+var REGEX_ZWS = new RegExp('&#8203;?', 'g');
+
+// https://developer.mozilla.org/en-US/docs/Web/CSS/font-weight
+var boldValues = ['bold', 'bolder', '500', '600', '700', '800', '900'];
+var notBoldValues = ['light', 'lighter', '100', '200', '300', '400'];
+
+// Block tag flow is different because LIs do not have
+// a deterministic style ;_;
+var inlineTags = {
+  b: 'BOLD',
+  code: 'CODE',
+  del: 'STRIKETHROUGH',
+  em: 'ITALIC',
+  i: 'ITALIC',
+  s: 'STRIKETHROUGH',
+  strike: 'STRIKETHROUGH',
+  strong: 'BOLD',
+  u: 'UNDERLINE'
+};
+
+var knownListItemDepthClasses = (_knownListItemDepthCl = {}, _defineProperty(_knownListItemDepthCl, cx('public/DraftStyleDefault/depth0'), 0), _defineProperty(_knownListItemDepthCl, cx('public/DraftStyleDefault/depth1'), 1), _defineProperty(_knownListItemDepthCl, cx('public/DraftStyleDefault/depth2'), 2), _defineProperty(_knownListItemDepthCl, cx('public/DraftStyleDefault/depth3'), 3), _defineProperty(_knownListItemDepthCl, cx('public/DraftStyleDefault/depth4'), 4), _knownListItemDepthCl);
+
+var anchorAttr = ['className', 'href', 'rel', 'target', 'title'];
+
+var imgAttr = ['alt', 'className', 'height', 'src', 'width'];
+
+var lastBlock = void 0;
+
+var EMPTY_CHUNK = {
+  text: '',
+  inlines: [],
+  entities: [],
+  blocks: []
+};
+
+var EMPTY_BLOCK = {
+  children: List(),
+  depth: 0,
+  key: '',
+  type: ''
+};
+
+var getListBlockType = function getListBlockType(tag, lastList) {
+  if (tag === 'li') {
+    return lastList === 'ol' ? 'ordered-list-item' : 'unordered-list-item';
+  }
+  return null;
+};
+
+var getBlockMapSupportedTags = function getBlockMapSupportedTags(blockRenderMap) {
+  var unstyledElement = blockRenderMap.get('unstyled').element;
+  var tags = Set([]);
+
+  blockRenderMap.forEach(function (draftBlock) {
+    if (draftBlock.aliasedElements) {
+      draftBlock.aliasedElements.forEach(function (tag) {
+        tags = tags.add(tag);
+      });
+    }
+
+    tags = tags.add(draftBlock.element);
+  });
+
+  return tags.filter(function (tag) {
+    return tag && tag !== unstyledElement;
+  }).toArray().sort();
+};
+
+// custom element conversions
+var getMultiMatchedType = function getMultiMatchedType(tag, lastList, multiMatchExtractor) {
+  for (var ii = 0; ii < multiMatchExtractor.length; ii++) {
+    var matchType = multiMatchExtractor[ii](tag, lastList);
+    if (matchType) {
+      return matchType;
+    }
+  }
+  return null;
+};
+
+var getBlockTypeForTag = function getBlockTypeForTag(tag, lastList, blockRenderMap) {
+  var matchedTypes = blockRenderMap.filter(function (draftBlock) {
+    return draftBlock.element === tag || draftBlock.wrapper === tag || draftBlock.aliasedElements && draftBlock.aliasedElements.some(function (alias) {
+      return alias === tag;
+    });
+  }).keySeq().toSet().toArray().sort();
+
+  // if we dont have any matched type, return unstyled
+  // if we have one matched type return it
+  // if we have multi matched types use the multi-match function to gather type
+  switch (matchedTypes.length) {
+    case 0:
+      return 'unstyled';
+    case 1:
+      return matchedTypes[0];
+    default:
+      return getMultiMatchedType(tag, lastList, [getListBlockType]) || 'unstyled';
+  }
+};
+
+var processInlineTag = function processInlineTag(tag, node, currentStyle) {
+  var styleToCheck = inlineTags[tag];
+  if (styleToCheck) {
+    currentStyle = currentStyle.add(styleToCheck).toOrderedSet();
+  } else if (node instanceof HTMLElement) {
+    var htmlElement = node;
+    currentStyle = currentStyle.withMutations(function (style) {
+      var fontWeight = htmlElement.style.fontWeight;
+      var fontStyle = htmlElement.style.fontStyle;
+      var textDecoration = htmlElement.style.textDecoration;
+
+      if (boldValues.indexOf(fontWeight) >= 0) {
+        style.add('BOLD');
+      } else if (notBoldValues.indexOf(fontWeight) >= 0) {
+        style.remove('BOLD');
+      }
+
+      if (fontStyle === 'italic') {
+        style.add('ITALIC');
+      } else if (fontStyle === 'normal') {
+        style.remove('ITALIC');
+      }
+
+      if (textDecoration === 'underline') {
+        style.add('UNDERLINE');
+      }
+      if (textDecoration === 'line-through') {
+        style.add('STRIKETHROUGH');
+      }
+      if (textDecoration === 'none') {
+        style.remove('UNDERLINE');
+        style.remove('STRIKETHROUGH');
+      }
+    }).toOrderedSet();
+  }
+  return currentStyle;
+};
+
+var joinChunks = function joinChunks(A, B, experimentalHasNestedBlocks) {
+  // Sometimes two blocks will touch in the DOM and we need to strip the
+  // extra delimiter to preserve niceness.
+  var lastInA = A.text.slice(-1);
+  var firstInB = B.text.slice(0, 1);
+
+  if (lastInA === '\r' && firstInB === '\r' && !experimentalHasNestedBlocks) {
+    A.text = A.text.slice(0, -1);
+    A.inlines.pop();
+    A.entities.pop();
+    A.blocks.pop();
+  }
+
+  // Kill whitespace after blocks
+  if (lastInA === '\r') {
+    if (B.text === SPACE || B.text === '\n') {
+      return A;
+    } else if (firstInB === SPACE || firstInB === '\n') {
+      B.text = B.text.slice(1);
+      B.inlines.shift();
+      B.entities.shift();
+    }
+  }
+
+  return {
+    text: A.text + B.text,
+    inlines: A.inlines.concat(B.inlines),
+    entities: A.entities.concat(B.entities),
+    blocks: A.blocks.concat(B.blocks)
+  };
+};
+
+/**
+ * Check to see if we have anything like <p> <blockquote> <h1>... to create
+ * block tags from. If we do, we can use those and ignore <div> tags. If we
+ * don't, we can treat <div> tags as meaningful (unstyled) blocks.
+ */
+var containsSemanticBlockMarkup = function containsSemanticBlockMarkup(html, blockTags) {
+  return blockTags.some(function (tag) {
+    return html.indexOf('<' + tag) !== -1;
+  });
+};
+
+var hasValidLinkText = function hasValidLinkText(link) {
+  !(link instanceof HTMLAnchorElement) ?  true ? invariant(false, 'Link must be an HTMLAnchorElement.') : invariant(false) : void 0;
+  var protocol = link.protocol;
+  return protocol === 'http:' || protocol === 'https:' || protocol === 'mailto:';
+};
+
+var getWhitespaceChunk = function getWhitespaceChunk(inEntity) {
+  var entities = new Array(1);
+  if (inEntity) {
+    entities[0] = inEntity;
+  }
+  return _extends({}, EMPTY_CHUNK, {
+    text: SPACE,
+    inlines: [OrderedSet()],
+    entities: entities
+  });
+};
+
+var getSoftNewlineChunk = function getSoftNewlineChunk() {
+  return _extends({}, EMPTY_CHUNK, {
+    text: '\n',
+    inlines: [OrderedSet()],
+    entities: new Array(1)
+  });
+};
+
+var getChunkedBlock = function getChunkedBlock() {
+  var props = arguments.length > 0 && arguments[0] !== undefined ? arguments[0] : {};
+
+  return _extends({}, EMPTY_BLOCK, props);
+};
+
+var getBlockDividerChunk = function getBlockDividerChunk(block, depth) {
+  var parentKey = arguments.length > 2 && arguments[2] !== undefined ? arguments[2] : null;
+
+  return {
+    text: '\r',
+    inlines: [OrderedSet()],
+    entities: new Array(1),
+    blocks: [getChunkedBlock({
+      parent: parentKey,
+      key: generateRandomKey(),
+      type: block,
+      depth: Math.max(0, Math.min(MAX_DEPTH, depth))
+    })]
+  };
+};
+
+/**
+ *  If we're pasting from one DraftEditor to another we can check to see if
+ *  existing list item depth classes are being used and preserve this style
+ */
+var getListItemDepth = function getListItemDepth(node) {
+  var depth = arguments.length > 1 && arguments[1] !== undefined ? arguments[1] : 0;
+
+  Object.keys(knownListItemDepthClasses).some(function (depthClass) {
+    if (node.classList.contains(depthClass)) {
+      depth = knownListItemDepthClasses[depthClass];
+    }
+  });
+  return depth;
+};
+
+var genFragment = function genFragment(entityMap, node, inlineStyle, lastList, inBlock, blockTags, depth, blockRenderMap, inEntity, parentKey) {
+  var lastLastBlock = lastBlock;
+  var nodeName = node.nodeName.toLowerCase();
+  var newEntityMap = entityMap;
+  var nextBlockType = 'unstyled';
+  var newBlock = false;
+  var inBlockType = inBlock && getBlockTypeForTag(inBlock, lastList, blockRenderMap);
+  var chunk = _extends({}, EMPTY_CHUNK);
+  var newChunk = null;
+  var blockKey = void 0;
+
+  // Base Case
+  if (nodeName === '#text') {
+    var _text = node.textContent;
+    var nodeTextContent = _text.trim();
+
+    // We should not create blocks for leading spaces that are
+    // existing around ol/ul and their children list items
+    if (lastList && nodeTextContent === '' && node.parentElement) {
+      var parentNodeName = node.parentElement.nodeName.toLowerCase();
+      if (parentNodeName === 'ol' || parentNodeName === 'ul') {
+        return { chunk: _extends({}, EMPTY_CHUNK), entityMap: entityMap };
+      }
+    }
+
+    if (nodeTextContent === '' && inBlock !== 'pre') {
+      return { chunk: getWhitespaceChunk(inEntity), entityMap: entityMap };
+    }
+    if (inBlock !== 'pre') {
+      // Can't use empty string because MSWord
+      _text = _text.replace(REGEX_LF, SPACE);
+    }
+
+    // save the last block so we can use it later
+    lastBlock = nodeName;
+
+    return {
+      chunk: {
+        text: _text,
+        inlines: Array(_text.length).fill(inlineStyle),
+        entities: Array(_text.length).fill(inEntity),
+        blocks: []
+      },
+      entityMap: entityMap
+    };
+  }
+
+  // save the last block so we can use it later
+  lastBlock = nodeName;
+
+  // BR tags
+  if (nodeName === 'br') {
+    if (lastLastBlock === 'br' && (!inBlock || inBlockType === 'unstyled')) {
+      return {
+        chunk: getBlockDividerChunk('unstyled', depth, parentKey),
+        entityMap: entityMap
+      };
+    }
+    return { chunk: getSoftNewlineChunk(), entityMap: entityMap };
+  }
+
+  // IMG tags
+  if (nodeName === 'img' && node instanceof HTMLImageElement && node.attributes.getNamedItem('src') && node.attributes.getNamedItem('src').value) {
+    var image = node;
+    var entityConfig = {};
+
+    imgAttr.forEach(function (attr) {
+      var imageAttribute = image.getAttribute(attr);
+      if (imageAttribute) {
+        entityConfig[attr] = imageAttribute;
+      }
+    });
+    // Forcing this node to have children because otherwise no entity will be
+    // created for this node.
+    // The child text node cannot just have a space or return as content -
+    // we strip those out.
+    // See https://github.com/facebook/draft-js/issues/231 for some context.
+    node.textContent = '\uD83D\uDCF7';
+
+    // TODO: update this when we remove DraftEntity entirely
+    inEntity = DraftEntity.__create('IMAGE', 'MUTABLE', entityConfig || {});
+  }
+
+  // Inline tags
+  inlineStyle = processInlineTag(nodeName, node, inlineStyle);
+
+  // Handle lists
+  if (nodeName === 'ul' || nodeName === 'ol') {
+    if (lastList) {
+      depth += 1;
+    }
+    lastList = nodeName;
+  }
+
+  if (!experimentalTreeDataSupport && nodeName === 'li' && node instanceof HTMLElement) {
+    depth = getListItemDepth(node, depth);
+  }
+
+  var blockType = getBlockTypeForTag(nodeName, lastList, blockRenderMap);
+  var inListBlock = lastList && inBlock === 'li' && nodeName === 'li';
+  var inBlockOrHasNestedBlocks = (!inBlock || experimentalTreeDataSupport) && blockTags.indexOf(nodeName) !== -1;
+
+  // Block Tags
+  if (inListBlock || inBlockOrHasNestedBlocks) {
+    chunk = getBlockDividerChunk(blockType, depth, parentKey);
+    blockKey = chunk.blocks[0].key;
+    inBlock = nodeName;
+    newBlock = !experimentalTreeDataSupport;
+  }
+
+  // this is required so that we can handle 'ul' and 'ol'
+  if (inListBlock) {
+    nextBlockType = lastList === 'ul' ? 'unordered-list-item' : 'ordered-list-item';
+  }
+
+  // Recurse through children
+  var child = node.firstChild;
+  if (child != null) {
+    nodeName = child.nodeName.toLowerCase();
+  }
+
+  var entityId = null;
+
+  while (child) {
+    if (child instanceof HTMLAnchorElement && child.href && hasValidLinkText(child)) {
+      (function () {
+        var anchor = child;
+        var entityConfig = {};
+
+        anchorAttr.forEach(function (attr) {
+          var anchorAttribute = anchor.getAttribute(attr);
+          if (anchorAttribute) {
+            entityConfig[attr] = anchorAttribute;
+          }
+        });
+
+        entityConfig.url = new URI(anchor.href).toString();
+        // TODO: update this when we remove DraftEntity completely
+        entityId = DraftEntity.__create('LINK', 'MUTABLE', entityConfig || {});
+      })();
+    } else {
+      entityId = undefined;
+    }
+
+    var _genFragment = genFragment(newEntityMap, child, inlineStyle, lastList, inBlock, blockTags, depth, blockRenderMap, entityId || inEntity, experimentalTreeDataSupport ? blockKey : null),
+        generatedChunk = _genFragment.chunk,
+        maybeUpdatedEntityMap = _genFragment.entityMap;
+
+    newChunk = generatedChunk;
+    newEntityMap = maybeUpdatedEntityMap;
+
+    chunk = joinChunks(chunk, newChunk, experimentalTreeDataSupport);
+    var sibling = child.nextSibling;
+
+    // Put in a newline to break up blocks inside blocks
+    if (!parentKey && sibling && blockTags.indexOf(nodeName) >= 0 && inBlock) {
+      chunk = joinChunks(chunk, getSoftNewlineChunk());
+    }
+    if (sibling) {
+      nodeName = sibling.nodeName.toLowerCase();
+    }
+    child = sibling;
+  }
+
+  if (newBlock) {
+    chunk = joinChunks(chunk, getBlockDividerChunk(nextBlockType, depth, parentKey));
+  }
+
+  return { chunk: chunk, entityMap: newEntityMap };
+};
+
+var getChunkForHTML = function getChunkForHTML(html, DOMBuilder, blockRenderMap, entityMap) {
+  html = html.trim().replace(REGEX_CR, '').replace(REGEX_NBSP, SPACE).replace(REGEX_CARRIAGE, '').replace(REGEX_ZWS, '');
+
+  var supportedBlockTags = getBlockMapSupportedTags(blockRenderMap);
+
+  var safeBody = DOMBuilder(html);
+  if (!safeBody) {
+    return null;
+  }
+  lastBlock = null;
+
+  // Sometimes we aren't dealing with content that contains nice semantic
+  // tags. In this case, use divs to separate everything out into paragraphs
+  // and hope for the best.
+  var workingBlocks = containsSemanticBlockMarkup(html, supportedBlockTags) ? supportedBlockTags : ['div'];
+
+  // Start with -1 block depth to offset the fact that we are passing in a fake
+  // UL block to start with.
+  var fragment = genFragment(entityMap, safeBody, OrderedSet(), 'ul', null, workingBlocks, -1, blockRenderMap);
+
+  var chunk = fragment.chunk;
+  var newEntityMap = fragment.entityMap;
+
+  // join with previous block to prevent weirdness on paste
+  if (chunk.text.indexOf('\r') === 0) {
+    chunk = {
+      text: chunk.text.slice(1),
+      inlines: chunk.inlines.slice(1),
+      entities: chunk.entities.slice(1),
+      blocks: chunk.blocks
+    };
+  }
+
+  // Kill block delimiter at the end
+  if (chunk.text.slice(-1) === '\r') {
+    chunk.text = chunk.text.slice(0, -1);
+    chunk.inlines = chunk.inlines.slice(0, -1);
+    chunk.entities = chunk.entities.slice(0, -1);
+    chunk.blocks.pop();
+  }
+
+  // If we saw no block tags, put an unstyled one in
+  if (chunk.blocks.length === 0) {
+    chunk.blocks.push(_extends({}, EMPTY_CHUNK, {
+      type: 'unstyled',
+      depth: 0
+    }));
+  }
+
+  // Sometimes we start with text that isn't in a block, which is then
+  // followed by blocks. Need to fix up the blocks to add in
+  // an unstyled block for this content
+  if (chunk.text.split('\r').length === chunk.blocks.length + 1) {
+    chunk.blocks.unshift({ type: 'unstyled', depth: 0 });
+  }
+
+  return { chunk: chunk, entityMap: newEntityMap };
+};
+
+var convertChunkToContentBlocks = function convertChunkToContentBlocks(chunk) {
+  if (!chunk || !chunk.text || !Array.isArray(chunk.blocks)) {
+    return null;
+  }
+
+  var initialState = {
+    cacheRef: {},
+    contentBlocks: []
+  };
+
+  var start = 0;
+
+  var rawBlocks = chunk.blocks,
+      rawInlines = chunk.inlines,
+      rawEntities = chunk.entities;
+
+
+  var BlockNodeRecord = experimentalTreeDataSupport ? ContentBlockNode : ContentBlock;
+
+  return chunk.text.split('\r').reduce(function (acc, textBlock, index) {
+    // Make absolutely certain that our text is acceptable.
+    textBlock = sanitizeDraftText(textBlock);
+
+    var block = rawBlocks[index];
+    var end = start + textBlock.length;
+    var inlines = rawInlines.slice(start, end);
+    var entities = rawEntities.slice(start, end);
+    var characterList = List(inlines.map(function (style, index) {
+      var data = { style: style, entity: null };
+      if (entities[index]) {
+        data.entity = entities[index];
+      }
+      return CharacterMetadata.create(data);
+    }));
+    start = end + 1;
+
+    var depth = block.depth,
+        type = block.type,
+        parent = block.parent;
+
+
+    var key = block.key || generateRandomKey();
+    var parentTextNodeKey = null; // will be used to store container text nodes
+
+    // childrens add themselves to their parents since we are iterating in order
+    if (parent) {
+      var parentIndex = acc.cacheRef[parent];
+      var parentRecord = acc.contentBlocks[parentIndex];
+
+      // if parent has text we need to split it into a separate unstyled element
+      if (parentRecord.getChildKeys().isEmpty() && parentRecord.getText()) {
+        var parentCharacterList = parentRecord.getCharacterList();
+        var parentText = parentRecord.getText();
+        parentTextNodeKey = generateRandomKey();
+
+        var textNode = new ContentBlockNode({
+          key: parentTextNodeKey,
+          text: parentText,
+          characterList: parentCharacterList,
+          parent: parent,
+          nextSibling: key
+        });
+
+        acc.contentBlocks.push(textNode);
+
+        parentRecord = parentRecord.withMutations(function (block) {
+          block.set('characterList', List()).set('text', '').set('children', parentRecord.children.push(textNode.getKey()));
+        });
+      }
+
+      acc.contentBlocks[parentIndex] = parentRecord.set('children', parentRecord.children.push(key));
+    }
+
+    var blockNode = new BlockNodeRecord({
+      key: key,
+      parent: parent,
+      type: type,
+      depth: depth,
+      text: textBlock,
+      characterList: characterList,
+      prevSibling: parentTextNodeKey || (index === 0 || rawBlocks[index - 1].parent !== parent ? null : rawBlocks[index - 1].key),
+      nextSibling: index === rawBlocks.length - 1 || rawBlocks[index + 1].parent !== parent ? null : rawBlocks[index + 1].key
+    });
+
+    // insert node
+    acc.contentBlocks.push(blockNode);
+
+    // cache ref for building links
+    acc.cacheRef[blockNode.key] = index;
+
+    return acc;
+  }, initialState).contentBlocks;
+};
+
+var convertFromHTMLtoContentBlocks = function convertFromHTMLtoContentBlocks(html) {
+  var DOMBuilder = arguments.length > 1 && arguments[1] !== undefined ? arguments[1] : getSafeBodyFromHTML;
+  var blockRenderMap = arguments.length > 2 && arguments[2] !== undefined ? arguments[2] : DefaultDraftBlockRenderMap;
+
+  // Be ABSOLUTELY SURE that the dom builder you pass here won't execute
+  // arbitrary code in whatever environment you're running this in. For an
+  // example of how we try to do this in-browser, see getSafeBodyFromHTML.
+
+  // TODO: replace DraftEntity with an OrderedMap here
+  var chunkData = getChunkForHTML(html, DOMBuilder, blockRenderMap, DraftEntity);
+
+  if (chunkData == null) {
+    return null;
+  }
+
+  var chunk = chunkData.chunk,
+      entityMap = chunkData.entityMap;
+
+  var contentBlocks = convertChunkToContentBlocks(chunk);
+
+  return {
+    contentBlocks: contentBlocks,
+    entityMap: entityMap
+  };
+};
+
+module.exports = convertFromHTMLtoContentBlocks;
+
+/***/ }),
+/* 91 */
+/***/ (function(module, exports, __webpack_require__) {
+
+"use strict";
+/**
+ * Copyright (c) 2013-present, Facebook, Inc.
+ * All rights reserved.
+ *
+ * This source code is licensed under the BSD-style license found in the
+ * LICENSE file in the root directory of this source tree. An additional grant
+ * of patent rights can be found in the PATENTS file in the same directory.
+ *
+ * @providesModule getSafeBodyFromHTML
+ * @format
+ * 
+ */
+
+
+
+var UserAgent = __webpack_require__(12);
+
+var invariant = __webpack_require__(2);
+
+var isOldIE = UserAgent.isBrowser('IE <= 9');
+
+// Provides a dom node that will not execute scripts
+// https://developer.mozilla.org/en-US/docs/Web/API/DOMImplementation.createHTMLDocument
+// https://developer.mozilla.org/en-US/Add-ons/Code_snippets/HTML_to_DOM
+
+function getSafeBodyFromHTML(html) {
+  var doc;
+  var root = null;
+  // Provides a safe context
+  if (!isOldIE && document.implementation && document.implementation.createHTMLDocument) {
+    doc = document.implementation.createHTMLDocument('foo');
+    !doc.documentElement ?  true ? invariant(false, 'Missing doc.documentElement') : invariant(false) : void 0;
+    doc.documentElement.innerHTML = html;
+    root = doc.getElementsByTagName('body')[0];
+  }
+  return root;
+}
+
+module.exports = getSafeBodyFromHTML;
+
+/***/ }),
+/* 92 */
+/***/ (function(module, exports, __webpack_require__) {
+
+"use strict";
+/**
+ * Copyright (c) 2013-present, Facebook, Inc.
+ * All rights reserved.
+ *
+ * This source code is licensed under the BSD-style license found in the
+ * LICENSE file in the root directory of this source tree. An additional grant
+ * of patent rights can be found in the PATENTS file in the same directory.
+ *
+ * @providesModule RichTextEditorUtil
+ * @format
+ * 
+ */
+
+
+
+var DraftModifier = __webpack_require__(6);
+var EditorState = __webpack_require__(3);
+var SelectionState = __webpack_require__(21);
+
+var adjustBlockDepthForContentState = __webpack_require__(247);
+var nullthrows = __webpack_require__(11);
+
+var RichTextEditorUtil = {
+  currentBlockContainsLink: function currentBlockContainsLink(editorState) {
+    var selection = editorState.getSelection();
+    var contentState = editorState.getCurrentContent();
+    var entityMap = contentState.getEntityMap();
+    return contentState.getBlockForKey(selection.getAnchorKey()).getCharacterList().slice(selection.getStartOffset(), selection.getEndOffset()).some(function (v) {
+      var entity = v.getEntity();
+      return !!entity && entityMap.__get(entity).getType() === 'LINK';
+    });
+  },
+
+  getCurrentBlockType: function getCurrentBlockType(editorState) {
+    var selection = editorState.getSelection();
+    return editorState.getCurrentContent().getBlockForKey(selection.getStartKey()).getType();
+  },
+
+  getDataObjectForLinkURL: function getDataObjectForLinkURL(uri) {
+    return { url: uri.toString() };
+  },
+
+  handleKeyCommand: function handleKeyCommand(editorState, command) {
+    switch (command) {
+      case 'bold':
+        return RichTextEditorUtil.toggleInlineStyle(editorState, 'BOLD');
+      case 'italic':
+        return RichTextEditorUtil.toggleInlineStyle(editorState, 'ITALIC');
+      case 'underline':
+        return RichTextEditorUtil.toggleInlineStyle(editorState, 'UNDERLINE');
+      case 'code':
+        return RichTextEditorUtil.toggleCode(editorState);
+      case 'backspace':
+      case 'backspace-word':
+      case 'backspace-to-start-of-line':
+        return RichTextEditorUtil.onBackspace(editorState);
+      case 'delete':
+      case 'delete-word':
+      case 'delete-to-end-of-block':
+        return RichTextEditorUtil.onDelete(editorState);
+      default:
+        // they may have custom editor commands; ignore those
+        return null;
+    }
+  },
+
+  insertSoftNewline: function insertSoftNewline(editorState) {
+    var contentState = DraftModifier.insertText(editorState.getCurrentContent(), editorState.getSelection(), '\n', editorState.getCurrentInlineStyle(), null);
+
+    var newEditorState = EditorState.push(editorState, contentState, 'insert-characters');
+
+    return EditorState.forceSelection(newEditorState, contentState.getSelectionAfter());
+  },
+
+  /**
+   * For collapsed selections at the start of styled blocks, backspace should
+   * just remove the existing style.
+   */
+  onBackspace: function onBackspace(editorState) {
+    var selection = editorState.getSelection();
+    if (!selection.isCollapsed() || selection.getAnchorOffset() || selection.getFocusOffset()) {
+      return null;
+    }
+
+    // First, try to remove a preceding atomic block.
+    var content = editorState.getCurrentContent();
+    var startKey = selection.getStartKey();
+    var blockBefore = content.getBlockBefore(startKey);
+
+    if (blockBefore && blockBefore.getType() === 'atomic') {
+      var blockMap = content.getBlockMap()['delete'](blockBefore.getKey());
+      var withoutAtomicBlock = content.merge({
+        blockMap: blockMap,
+        selectionAfter: selection
+      });
+      if (withoutAtomicBlock !== content) {
+        return EditorState.push(editorState, withoutAtomicBlock, 'remove-range');
+      }
+    }
+
+    // If that doesn't succeed, try to remove the current block style.
+    var withoutBlockStyle = RichTextEditorUtil.tryToRemoveBlockStyle(editorState);
+
+    if (withoutBlockStyle) {
+      return EditorState.push(editorState, withoutBlockStyle, 'change-block-type');
+    }
+
+    return null;
+  },
+
+  onDelete: function onDelete(editorState) {
+    var selection = editorState.getSelection();
+    if (!selection.isCollapsed()) {
+      return null;
+    }
+
+    var content = editorState.getCurrentContent();
+    var startKey = selection.getStartKey();
+    var block = content.getBlockForKey(startKey);
+    var length = block.getLength();
+
+    // The cursor is somewhere within the text. Behave normally.
+    if (selection.getStartOffset() < length) {
+      return null;
+    }
+
+    var blockAfter = content.getBlockAfter(startKey);
+
+    if (!blockAfter || blockAfter.getType() !== 'atomic') {
+      return null;
+    }
+
+    var atomicBlockTarget = selection.merge({
+      focusKey: blockAfter.getKey(),
+      focusOffset: blockAfter.getLength()
+    });
+
+    var withoutAtomicBlock = DraftModifier.removeRange(content, atomicBlockTarget, 'forward');
+
+    if (withoutAtomicBlock !== content) {
+      return EditorState.push(editorState, withoutAtomicBlock, 'remove-range');
+    }
+
+    return null;
+  },
+
+  onTab: function onTab(event, editorState, maxDepth) {
+    var selection = editorState.getSelection();
+    var key = selection.getAnchorKey();
+    if (key !== selection.getFocusKey()) {
+      return editorState;
+    }
+
+    var content = editorState.getCurrentContent();
+    var block = content.getBlockForKey(key);
+    var type = block.getType();
+    if (type !== 'unordered-list-item' && type !== 'ordered-list-item') {
+      return editorState;
+    }
+
+    event.preventDefault();
+
+    // Only allow indenting one level beyond the block above, and only if
+    // the block above is a list item as well.
+    var blockAbove = content.getBlockBefore(key);
+    if (!blockAbove) {
+      return editorState;
+    }
+
+    var typeAbove = blockAbove.getType();
+    if (typeAbove !== 'unordered-list-item' && typeAbove !== 'ordered-list-item') {
+      return editorState;
+    }
+
+    var depth = block.getDepth();
+    if (!event.shiftKey && depth === maxDepth) {
+      return editorState;
+    }
+
+    maxDepth = Math.min(blockAbove.getDepth() + 1, maxDepth);
+
+    var withAdjustment = adjustBlockDepthForContentState(content, selection, event.shiftKey ? -1 : 1, maxDepth);
+
+    return EditorState.push(editorState, withAdjustment, 'adjust-depth');
+  },
+
+  toggleBlockType: function toggleBlockType(editorState, blockType) {
+    var selection = editorState.getSelection();
+    var startKey = selection.getStartKey();
+    var endKey = selection.getEndKey();
+    var content = editorState.getCurrentContent();
+    var target = selection;
+
+    // Triple-click can lead to a selection that includes offset 0 of the
+    // following block. The `SelectionState` for this case is accurate, but
+    // we should avoid toggling block type for the trailing block because it
+    // is a confusing interaction.
+    if (startKey !== endKey && selection.getEndOffset() === 0) {
+      var blockBefore = nullthrows(content.getBlockBefore(endKey));
+      endKey = blockBefore.getKey();
+      target = target.merge({
+        anchorKey: startKey,
+        anchorOffset: selection.getStartOffset(),
+        focusKey: endKey,
+        focusOffset: blockBefore.getLength(),
+        isBackward: false
+      });
+    }
+
+    var hasAtomicBlock = content.getBlockMap().skipWhile(function (_, k) {
+      return k !== startKey;
+    }).reverse().skipWhile(function (_, k) {
+      return k !== endKey;
+    }).some(function (v) {
+      return v.getType() === 'atomic';
+    });
+
+    if (hasAtomicBlock) {
+      return editorState;
+    }
+
+    var typeToSet = content.getBlockForKey(startKey).getType() === blockType ? 'unstyled' : blockType;
+
+    return EditorState.push(editorState, DraftModifier.setBlockType(content, target, typeToSet), 'change-block-type');
+  },
+
+  toggleCode: function toggleCode(editorState) {
+    var selection = editorState.getSelection();
+    var anchorKey = selection.getAnchorKey();
+    var focusKey = selection.getFocusKey();
+
+    if (selection.isCollapsed() || anchorKey !== focusKey) {
+      return RichTextEditorUtil.toggleBlockType(editorState, 'code-block');
+    }
+
+    return RichTextEditorUtil.toggleInlineStyle(editorState, 'CODE');
+  },
+
+  /**
+   * Toggle the specified inline style for the selection. If the
+   * user's selection is collapsed, apply or remove the style for the
+   * internal state. If it is not collapsed, apply the change directly
+   * to the document state.
+   */
+  toggleInlineStyle: function toggleInlineStyle(editorState, inlineStyle) {
+    var selection = editorState.getSelection();
+    var currentStyle = editorState.getCurrentInlineStyle();
+
+    // If the selection is collapsed, toggle the specified style on or off and
+    // set the result as the new inline style override. This will then be
+    // used as the inline style for the next character to be inserted.
+    if (selection.isCollapsed()) {
+      return EditorState.setInlineStyleOverride(editorState, currentStyle.has(inlineStyle) ? currentStyle.remove(inlineStyle) : currentStyle.add(inlineStyle));
+    }
+
+    // If characters are selected, immediately apply or remove the
+    // inline style on the document state itself.
+    var content = editorState.getCurrentContent();
+    var newContent;
+
+    // If the style is already present for the selection range, remove it.
+    // Otherwise, apply it.
+    if (currentStyle.has(inlineStyle)) {
+      newContent = DraftModifier.removeInlineStyle(content, selection, inlineStyle);
+    } else {
+      newContent = DraftModifier.applyInlineStyle(content, selection, inlineStyle);
+    }
+
+    return EditorState.push(editorState, newContent, 'change-inline-style');
+  },
+
+  toggleLink: function toggleLink(editorState, targetSelection, entityKey) {
+    var withoutLink = DraftModifier.applyEntity(editorState.getCurrentContent(), targetSelection, entityKey);
+
+    return EditorState.push(editorState, withoutLink, 'apply-entity');
+  },
+
+  /**
+   * When a collapsed cursor is at the start of the first styled block, or
+   * an empty styled block, changes block to 'unstyled'. Returns null if
+   * block or selection does not meet that criteria.
+   */
+  tryToRemoveBlockStyle: function tryToRemoveBlockStyle(editorState) {
+    var selection = editorState.getSelection();
+    var offset = selection.getAnchorOffset();
+    if (selection.isCollapsed() && offset === 0) {
+      var key = selection.getAnchorKey();
+      var content = editorState.getCurrentContent();
+      var block = content.getBlockForKey(key);
+
+      var firstBlock = content.getFirstBlock();
+      if (block.getLength() > 0 && block !== firstBlock) {
+        return null;
+      }
+
+      var type = block.getType();
+      var blockBefore = content.getBlockBefore(key);
+      if (type === 'code-block' && blockBefore && blockBefore.getType() === 'code-block' && blockBefore.getLength() !== 0) {
+        return null;
+      }
+
+      if (type !== 'unstyled') {
+        return DraftModifier.setBlockType(content, selection, 'unstyled');
+      }
+    }
+    return null;
+  }
+};
+
+module.exports = RichTextEditorUtil;
+
+/***/ }),
+/* 93 */
+/***/ (function(module, exports, __webpack_require__) {
+
+"use strict";
+/**
+ * Copyright (c) 2013-present, Facebook, Inc.
+ * All rights reserved.
+ *
+ * This source code is licensed under the BSD-style license found in the
+ * LICENSE file in the root directory of this source tree. An additional grant
+ * of patent rights can be found in the PATENTS file in the same directory.
+ *
+ * @providesModule getDefaultKeyBinding
+ * @format
+ * 
+ */
+
+
+
+var KeyBindingUtil = __webpack_require__(54);
+var Keys = __webpack_require__(48);
+var UserAgent = __webpack_require__(12);
+
+var isOSX = UserAgent.isPlatform('Mac OS X');
+var isWindows = UserAgent.isPlatform('Windows');
+
+// Firefox on OSX had a bug resulting in navigation instead of cursor movement.
+// This bug was fixed in Firefox 29. Feature detection is virtually impossible
+// so we just check the version number. See #342765.
+var shouldFixFirefoxMovement = isOSX && UserAgent.isBrowser('Firefox < 29');
+
+var hasCommandModifier = KeyBindingUtil.hasCommandModifier,
+    isCtrlKeyCommand = KeyBindingUtil.isCtrlKeyCommand;
+
+
+function shouldRemoveWord(e) {
+  return isOSX && e.altKey || isCtrlKeyCommand(e);
+}
+
+/**
+ * Get the appropriate undo/redo command for a Z key command.
+ */
+function getZCommand(e) {
+  if (!hasCommandModifier(e)) {
+    return null;
+  }
+  return e.shiftKey ? 'redo' : 'undo';
+}
+
+function getDeleteCommand(e) {
+  // Allow default "cut" behavior for Windows on Shift + Delete.
+  if (isWindows && e.shiftKey) {
+    return null;
+  }
+  return shouldRemoveWord(e) ? 'delete-word' : 'delete';
+}
+
+function getBackspaceCommand(e) {
+  if (hasCommandModifier(e) && isOSX) {
+    return 'backspace-to-start-of-line';
+  }
+  return shouldRemoveWord(e) ? 'backspace-word' : 'backspace';
+}
+
+/**
+ * Retrieve a bound key command for the given event.
+ */
+function getDefaultKeyBinding(e) {
+  switch (e.keyCode) {
+    case 66:
+      // B
+      return hasCommandModifier(e) ? 'bold' : null;
+    case 68:
+      // D
+      return isCtrlKeyCommand(e) ? 'delete' : null;
+    case 72:
+      // H
+      return isCtrlKeyCommand(e) ? 'backspace' : null;
+    case 73:
+      // I
+      return hasCommandModifier(e) ? 'italic' : null;
+    case 74:
+      // J
+      return hasCommandModifier(e) ? 'code' : null;
+    case 75:
+      // K
+      return !isWindows && isCtrlKeyCommand(e) ? 'secondary-cut' : null;
+    case 77:
+      // M
+      return isCtrlKeyCommand(e) ? 'split-block' : null;
+    case 79:
+      // O
+      return isCtrlKeyCommand(e) ? 'split-block' : null;
+    case 84:
+      // T
+      return isOSX && isCtrlKeyCommand(e) ? 'transpose-characters' : null;
+    case 85:
+      // U
+      return hasCommandModifier(e) ? 'underline' : null;
+    case 87:
+      // W
+      return isOSX && isCtrlKeyCommand(e) ? 'backspace-word' : null;
+    case 89:
+      // Y
+      if (isCtrlKeyCommand(e)) {
+        return isWindows ? 'redo' : 'secondary-paste';
+      }
+      return null;
+    case 90:
+      // Z
+      return getZCommand(e) || null;
+    case Keys.RETURN:
+      return 'split-block';
+    case Keys.DELETE:
+      return getDeleteCommand(e);
+    case Keys.BACKSPACE:
+      return getBackspaceCommand(e);
+    // LEFT/RIGHT handlers serve as a workaround for a Firefox bug.
+    case Keys.LEFT:
+      return shouldFixFirefoxMovement && hasCommandModifier(e) ? 'move-selection-to-start-of-block' : null;
+    case Keys.RIGHT:
+      return shouldFixFirefoxMovement && hasCommandModifier(e) ? 'move-selection-to-end-of-block' : null;
+    default:
+      return null;
+  }
+}
+
+module.exports = getDefaultKeyBinding;
+
+/***/ }),
+/* 94 */
+/***/ (function(module, exports, __webpack_require__) {
+
+"use strict";
+/**
+ * Copyright (c) 2013-present, Facebook, Inc.
+ * All rights reserved.
+ *
+ * This source code is licensed under the BSD-style license found in the
+ * LICENSE file in the root directory of this source tree. An additional grant
+ * of patent rights can be found in the PATENTS file in the same directory.
+ *
+ * @providesModule DraftStringKey
+ * @format
+ * 
+ */
+
+
+
+var DraftStringKey = {
+  stringify: function stringify(key) {
+    return '_' + String(key);
+  },
+
+  unstringify: function unstringify(key) {
+    return key.slice(1);
+  }
+};
+
+module.exports = DraftStringKey;
+
+/***/ }),
+/* 95 */
+/***/ (function(module, exports, __webpack_require__) {
+
+__webpack_require__(96);
+module.exports = __webpack_require__(265);
 
 
 /***/ }),
-/* 35 */
+/* 96 */
 /***/ (function(module, exports, __webpack_require__) {
 
 /**
@@ -9387,7 +21001,7 @@ module.exports = __webpack_require__(113);
  * includes React and other helpers. It's a great starting point while
  * building robust, powerful web applications using React + Laravel.
  */
-__webpack_require__(36);
+__webpack_require__(97);
 /**
  * Next, we will create a fresh React component instance and attach it to
  * the page. Then, you may begin adding components to this application
@@ -9395,20 +21009,20 @@ __webpack_require__(36);
  */
 
 
-__webpack_require__(59);
+__webpack_require__(119);
 
 /***/ }),
-/* 36 */
+/* 97 */
 /***/ (function(module, exports, __webpack_require__) {
 
-window._ = __webpack_require__(37);
+window._ = __webpack_require__(98);
 /**
  * We'll load the axios HTTP library which allows us to easily issue requests
  * to our Laravel back-end. This library automatically handles sending the
  * CSRF token as a header based on the value of the "XSRF" token cookie.
  */
 
-window.axios = __webpack_require__(39);
+window.axios = __webpack_require__(100);
 window.axios.defaults.headers.common['X-Requested-With'] = 'XMLHttpRequest';
 /**
  * Next we will register the CSRF Token as a common header with Axios so that
@@ -9438,7 +21052,7 @@ if (token) {
 // });
 
 /***/ }),
-/* 37 */
+/* 98 */
 /***/ (function(module, exports, __webpack_require__) {
 
 /* WEBPACK VAR INJECTION */(function(global, module) {var __WEBPACK_AMD_DEFINE_RESULT__;/**
@@ -26550,10 +38164,10 @@ if (token) {
   }
 }.call(this));
 
-/* WEBPACK VAR INJECTION */}.call(exports, __webpack_require__(7), __webpack_require__(38)(module)))
+/* WEBPACK VAR INJECTION */}.call(exports, __webpack_require__(7), __webpack_require__(99)(module)))
 
 /***/ }),
-/* 38 */
+/* 99 */
 /***/ (function(module, exports) {
 
 module.exports = function(module) {
@@ -26581,22 +38195,22 @@ module.exports = function(module) {
 
 
 /***/ }),
-/* 39 */
+/* 100 */
 /***/ (function(module, exports, __webpack_require__) {
 
-module.exports = __webpack_require__(40);
+module.exports = __webpack_require__(101);
 
 /***/ }),
-/* 40 */
+/* 101 */
 /***/ (function(module, exports, __webpack_require__) {
 
 "use strict";
 
 
-var utils = __webpack_require__(2);
-var bind = __webpack_require__(19);
-var Axios = __webpack_require__(42);
-var defaults = __webpack_require__(11);
+var utils = __webpack_require__(9);
+var bind = __webpack_require__(56);
+var Axios = __webpack_require__(103);
+var defaults = __webpack_require__(34);
 
 /**
  * Create an instance of Axios
@@ -26629,15 +38243,15 @@ axios.create = function create(instanceConfig) {
 };
 
 // Expose Cancel & CancelToken
-axios.Cancel = __webpack_require__(23);
-axios.CancelToken = __webpack_require__(57);
-axios.isCancel = __webpack_require__(22);
+axios.Cancel = __webpack_require__(61);
+axios.CancelToken = __webpack_require__(117);
+axios.isCancel = __webpack_require__(60);
 
 // Expose all/spread
 axios.all = function all(promises) {
   return Promise.all(promises);
 };
-axios.spread = __webpack_require__(58);
+axios.spread = __webpack_require__(118);
 
 module.exports = axios;
 
@@ -26646,7 +38260,7 @@ module.exports.default = axios;
 
 
 /***/ }),
-/* 41 */
+/* 102 */
 /***/ (function(module, exports) {
 
 /*!
@@ -26673,16 +38287,16 @@ function isSlowBuffer (obj) {
 
 
 /***/ }),
-/* 42 */
+/* 103 */
 /***/ (function(module, exports, __webpack_require__) {
 
 "use strict";
 
 
-var defaults = __webpack_require__(11);
-var utils = __webpack_require__(2);
-var InterceptorManager = __webpack_require__(52);
-var dispatchRequest = __webpack_require__(53);
+var defaults = __webpack_require__(34);
+var utils = __webpack_require__(9);
+var InterceptorManager = __webpack_require__(112);
+var dispatchRequest = __webpack_require__(113);
 
 /**
  * Create a new instance of Axios
@@ -26759,203 +38373,13 @@ module.exports = Axios;
 
 
 /***/ }),
-/* 43 */
-/***/ (function(module, exports) {
-
-// shim for using process in browser
-var process = module.exports = {};
-
-// cached from whatever global is present so that test runners that stub it
-// don't break things.  But we need to wrap it in a try catch in case it is
-// wrapped in strict mode code which doesn't define any globals.  It's inside a
-// function because try/catches deoptimize in certain engines.
-
-var cachedSetTimeout;
-var cachedClearTimeout;
-
-function defaultSetTimout() {
-    throw new Error('setTimeout has not been defined');
-}
-function defaultClearTimeout () {
-    throw new Error('clearTimeout has not been defined');
-}
-(function () {
-    try {
-        if (typeof setTimeout === 'function') {
-            cachedSetTimeout = setTimeout;
-        } else {
-            cachedSetTimeout = defaultSetTimout;
-        }
-    } catch (e) {
-        cachedSetTimeout = defaultSetTimout;
-    }
-    try {
-        if (typeof clearTimeout === 'function') {
-            cachedClearTimeout = clearTimeout;
-        } else {
-            cachedClearTimeout = defaultClearTimeout;
-        }
-    } catch (e) {
-        cachedClearTimeout = defaultClearTimeout;
-    }
-} ())
-function runTimeout(fun) {
-    if (cachedSetTimeout === setTimeout) {
-        //normal enviroments in sane situations
-        return setTimeout(fun, 0);
-    }
-    // if setTimeout wasn't available but was latter defined
-    if ((cachedSetTimeout === defaultSetTimout || !cachedSetTimeout) && setTimeout) {
-        cachedSetTimeout = setTimeout;
-        return setTimeout(fun, 0);
-    }
-    try {
-        // when when somebody has screwed with setTimeout but no I.E. maddness
-        return cachedSetTimeout(fun, 0);
-    } catch(e){
-        try {
-            // When we are in I.E. but the script has been evaled so I.E. doesn't trust the global object when called normally
-            return cachedSetTimeout.call(null, fun, 0);
-        } catch(e){
-            // same as above but when it's a version of I.E. that must have the global object for 'this', hopfully our context correct otherwise it will throw a global error
-            return cachedSetTimeout.call(this, fun, 0);
-        }
-    }
-
-
-}
-function runClearTimeout(marker) {
-    if (cachedClearTimeout === clearTimeout) {
-        //normal enviroments in sane situations
-        return clearTimeout(marker);
-    }
-    // if clearTimeout wasn't available but was latter defined
-    if ((cachedClearTimeout === defaultClearTimeout || !cachedClearTimeout) && clearTimeout) {
-        cachedClearTimeout = clearTimeout;
-        return clearTimeout(marker);
-    }
-    try {
-        // when when somebody has screwed with setTimeout but no I.E. maddness
-        return cachedClearTimeout(marker);
-    } catch (e){
-        try {
-            // When we are in I.E. but the script has been evaled so I.E. doesn't  trust the global object when called normally
-            return cachedClearTimeout.call(null, marker);
-        } catch (e){
-            // same as above but when it's a version of I.E. that must have the global object for 'this', hopfully our context correct otherwise it will throw a global error.
-            // Some versions of I.E. have different rules for clearTimeout vs setTimeout
-            return cachedClearTimeout.call(this, marker);
-        }
-    }
-
-
-
-}
-var queue = [];
-var draining = false;
-var currentQueue;
-var queueIndex = -1;
-
-function cleanUpNextTick() {
-    if (!draining || !currentQueue) {
-        return;
-    }
-    draining = false;
-    if (currentQueue.length) {
-        queue = currentQueue.concat(queue);
-    } else {
-        queueIndex = -1;
-    }
-    if (queue.length) {
-        drainQueue();
-    }
-}
-
-function drainQueue() {
-    if (draining) {
-        return;
-    }
-    var timeout = runTimeout(cleanUpNextTick);
-    draining = true;
-
-    var len = queue.length;
-    while(len) {
-        currentQueue = queue;
-        queue = [];
-        while (++queueIndex < len) {
-            if (currentQueue) {
-                currentQueue[queueIndex].run();
-            }
-        }
-        queueIndex = -1;
-        len = queue.length;
-    }
-    currentQueue = null;
-    draining = false;
-    runClearTimeout(timeout);
-}
-
-process.nextTick = function (fun) {
-    var args = new Array(arguments.length - 1);
-    if (arguments.length > 1) {
-        for (var i = 1; i < arguments.length; i++) {
-            args[i - 1] = arguments[i];
-        }
-    }
-    queue.push(new Item(fun, args));
-    if (queue.length === 1 && !draining) {
-        runTimeout(drainQueue);
-    }
-};
-
-// v8 likes predictible objects
-function Item(fun, array) {
-    this.fun = fun;
-    this.array = array;
-}
-Item.prototype.run = function () {
-    this.fun.apply(null, this.array);
-};
-process.title = 'browser';
-process.browser = true;
-process.env = {};
-process.argv = [];
-process.version = ''; // empty string to avoid regexp issues
-process.versions = {};
-
-function noop() {}
-
-process.on = noop;
-process.addListener = noop;
-process.once = noop;
-process.off = noop;
-process.removeListener = noop;
-process.removeAllListeners = noop;
-process.emit = noop;
-process.prependListener = noop;
-process.prependOnceListener = noop;
-
-process.listeners = function (name) { return [] }
-
-process.binding = function (name) {
-    throw new Error('process.binding is not supported');
-};
-
-process.cwd = function () { return '/' };
-process.chdir = function (dir) {
-    throw new Error('process.chdir is not supported');
-};
-process.umask = function() { return 0; };
-
-
-/***/ }),
-/* 44 */
+/* 104 */
 /***/ (function(module, exports, __webpack_require__) {
 
 "use strict";
 
 
-var utils = __webpack_require__(2);
+var utils = __webpack_require__(9);
 
 module.exports = function normalizeHeaderName(headers, normalizedName) {
   utils.forEach(headers, function processHeader(value, name) {
@@ -26968,13 +38392,13 @@ module.exports = function normalizeHeaderName(headers, normalizedName) {
 
 
 /***/ }),
-/* 45 */
+/* 105 */
 /***/ (function(module, exports, __webpack_require__) {
 
 "use strict";
 
 
-var createError = __webpack_require__(21);
+var createError = __webpack_require__(59);
 
 /**
  * Resolve or reject a Promise based on response status.
@@ -27001,7 +38425,7 @@ module.exports = function settle(resolve, reject, response) {
 
 
 /***/ }),
-/* 46 */
+/* 106 */
 /***/ (function(module, exports, __webpack_require__) {
 
 "use strict";
@@ -27029,13 +38453,13 @@ module.exports = function enhanceError(error, config, code, request, response) {
 
 
 /***/ }),
-/* 47 */
+/* 107 */
 /***/ (function(module, exports, __webpack_require__) {
 
 "use strict";
 
 
-var utils = __webpack_require__(2);
+var utils = __webpack_require__(9);
 
 function encode(val) {
   return encodeURIComponent(val).
@@ -27102,13 +38526,13 @@ module.exports = function buildURL(url, params, paramsSerializer) {
 
 
 /***/ }),
-/* 48 */
+/* 108 */
 /***/ (function(module, exports, __webpack_require__) {
 
 "use strict";
 
 
-var utils = __webpack_require__(2);
+var utils = __webpack_require__(9);
 
 // Headers whose duplicates are ignored by node
 // c.f. https://nodejs.org/api/http.html#http_message_headers
@@ -27162,13 +38586,13 @@ module.exports = function parseHeaders(headers) {
 
 
 /***/ }),
-/* 49 */
+/* 109 */
 /***/ (function(module, exports, __webpack_require__) {
 
 "use strict";
 
 
-var utils = __webpack_require__(2);
+var utils = __webpack_require__(9);
 
 module.exports = (
   utils.isStandardBrowserEnv() ?
@@ -27237,7 +38661,7 @@ module.exports = (
 
 
 /***/ }),
-/* 50 */
+/* 110 */
 /***/ (function(module, exports, __webpack_require__) {
 
 "use strict";
@@ -27280,13 +38704,13 @@ module.exports = btoa;
 
 
 /***/ }),
-/* 51 */
+/* 111 */
 /***/ (function(module, exports, __webpack_require__) {
 
 "use strict";
 
 
-var utils = __webpack_require__(2);
+var utils = __webpack_require__(9);
 
 module.exports = (
   utils.isStandardBrowserEnv() ?
@@ -27340,13 +38764,13 @@ module.exports = (
 
 
 /***/ }),
-/* 52 */
+/* 112 */
 /***/ (function(module, exports, __webpack_require__) {
 
 "use strict";
 
 
-var utils = __webpack_require__(2);
+var utils = __webpack_require__(9);
 
 function InterceptorManager() {
   this.handlers = [];
@@ -27399,18 +38823,18 @@ module.exports = InterceptorManager;
 
 
 /***/ }),
-/* 53 */
+/* 113 */
 /***/ (function(module, exports, __webpack_require__) {
 
 "use strict";
 
 
-var utils = __webpack_require__(2);
-var transformData = __webpack_require__(54);
-var isCancel = __webpack_require__(22);
-var defaults = __webpack_require__(11);
-var isAbsoluteURL = __webpack_require__(55);
-var combineURLs = __webpack_require__(56);
+var utils = __webpack_require__(9);
+var transformData = __webpack_require__(114);
+var isCancel = __webpack_require__(60);
+var defaults = __webpack_require__(34);
+var isAbsoluteURL = __webpack_require__(115);
+var combineURLs = __webpack_require__(116);
 
 /**
  * Throws a `Cancel` if cancellation has been requested.
@@ -27492,13 +38916,13 @@ module.exports = function dispatchRequest(config) {
 
 
 /***/ }),
-/* 54 */
+/* 114 */
 /***/ (function(module, exports, __webpack_require__) {
 
 "use strict";
 
 
-var utils = __webpack_require__(2);
+var utils = __webpack_require__(9);
 
 /**
  * Transform the data for a request or a response
@@ -27519,7 +38943,7 @@ module.exports = function transformData(data, headers, fns) {
 
 
 /***/ }),
-/* 55 */
+/* 115 */
 /***/ (function(module, exports, __webpack_require__) {
 
 "use strict";
@@ -27540,7 +38964,7 @@ module.exports = function isAbsoluteURL(url) {
 
 
 /***/ }),
-/* 56 */
+/* 116 */
 /***/ (function(module, exports, __webpack_require__) {
 
 "use strict";
@@ -27561,13 +38985,13 @@ module.exports = function combineURLs(baseURL, relativeURL) {
 
 
 /***/ }),
-/* 57 */
+/* 117 */
 /***/ (function(module, exports, __webpack_require__) {
 
 "use strict";
 
 
-var Cancel = __webpack_require__(23);
+var Cancel = __webpack_require__(61);
 
 /**
  * A `CancelToken` is an object that can be used to request cancellation of an operation.
@@ -27625,7 +39049,7 @@ module.exports = CancelToken;
 
 
 /***/ }),
-/* 58 */
+/* 118 */
 /***/ (function(module, exports, __webpack_require__) {
 
 "use strict";
@@ -27659,22 +39083,22 @@ module.exports = function spread(callback) {
 
 
 /***/ }),
-/* 59 */
+/* 119 */
 /***/ (function(module, __webpack_exports__, __webpack_require__) {
 
 "use strict";
 Object.defineProperty(__webpack_exports__, "__esModule", { value: true });
 /* harmony import */ var __WEBPACK_IMPORTED_MODULE_0_react__ = __webpack_require__(0);
 /* harmony import */ var __WEBPACK_IMPORTED_MODULE_0_react___default = __webpack_require__.n(__WEBPACK_IMPORTED_MODULE_0_react__);
-/* harmony import */ var __WEBPACK_IMPORTED_MODULE_1_react_dom__ = __webpack_require__(25);
+/* harmony import */ var __WEBPACK_IMPORTED_MODULE_1_react_dom__ = __webpack_require__(17);
 /* harmony import */ var __WEBPACK_IMPORTED_MODULE_1_react_dom___default = __webpack_require__.n(__WEBPACK_IMPORTED_MODULE_1_react_dom__);
-/* harmony import */ var __WEBPACK_IMPORTED_MODULE_2_react_router_dom__ = __webpack_require__(8);
-/* harmony import */ var __WEBPACK_IMPORTED_MODULE_3__Header_Header__ = __webpack_require__(91);
-/* harmony import */ var __WEBPACK_IMPORTED_MODULE_4__main__ = __webpack_require__(106);
-/* harmony import */ var __WEBPACK_IMPORTED_MODULE_5__projects__ = __webpack_require__(107);
-/* harmony import */ var __WEBPACK_IMPORTED_MODULE_6__admin__ = __webpack_require__(110);
-/* harmony import */ var __WEBPACK_IMPORTED_MODULE_7__admin_projects_create__ = __webpack_require__(111);
-/* harmony import */ var __WEBPACK_IMPORTED_MODULE_8__not_found__ = __webpack_require__(112);
+/* harmony import */ var __WEBPACK_IMPORTED_MODULE_2_react_router_dom__ = __webpack_require__(28);
+/* harmony import */ var __WEBPACK_IMPORTED_MODULE_3__Header_Header__ = __webpack_require__(151);
+/* harmony import */ var __WEBPACK_IMPORTED_MODULE_4__main__ = __webpack_require__(166);
+/* harmony import */ var __WEBPACK_IMPORTED_MODULE_5__projects__ = __webpack_require__(167);
+/* harmony import */ var __WEBPACK_IMPORTED_MODULE_6__admin__ = __webpack_require__(170);
+/* harmony import */ var __WEBPACK_IMPORTED_MODULE_7__admin_projects_create__ = __webpack_require__(171);
+/* harmony import */ var __WEBPACK_IMPORTED_MODULE_8__not_found__ = __webpack_require__(264);
 function _typeof(obj) { if (typeof Symbol === "function" && typeof Symbol.iterator === "symbol") { _typeof = function _typeof(obj) { return typeof obj; }; } else { _typeof = function _typeof(obj) { return obj && typeof Symbol === "function" && obj.constructor === Symbol && obj !== Symbol.prototype ? "symbol" : typeof obj; }; } return _typeof(obj); }
 
 function _classCallCheck(instance, Constructor) { if (!(instance instanceof Constructor)) { throw new TypeError("Cannot call a class as a function"); } }
@@ -27768,7 +39192,7 @@ function (_Component) {
 __WEBPACK_IMPORTED_MODULE_1_react_dom___default.a.render(__WEBPACK_IMPORTED_MODULE_0_react___default.a.createElement(App, null), document.getElementById('app'));
 
 /***/ }),
-/* 60 */
+/* 120 */
 /***/ (function(module, exports, __webpack_require__) {
 
 "use strict";
@@ -27789,8 +39213,8 @@ if (true) {
   (function() {
 'use strict';
 
-var _assign = __webpack_require__(12);
-var checkPropTypes = __webpack_require__(13);
+var _assign = __webpack_require__(5);
+var checkPropTypes = __webpack_require__(35);
 
 // TODO: this is special because it gets imported during build.
 
@@ -29658,7 +41082,7 @@ module.exports = react;
 
 
 /***/ }),
-/* 61 */
+/* 121 */
 /***/ (function(module, exports, __webpack_require__) {
 
 "use strict";
@@ -29680,10 +41104,10 @@ if (true) {
 'use strict';
 
 var React = __webpack_require__(0);
-var _assign = __webpack_require__(12);
-var checkPropTypes = __webpack_require__(13);
-var scheduler = __webpack_require__(62);
-var tracing = __webpack_require__(64);
+var _assign = __webpack_require__(5);
+var checkPropTypes = __webpack_require__(35);
+var scheduler = __webpack_require__(122);
+var tracing = __webpack_require__(124);
 
 /**
  * Use invariant() to assert state which your program assumes to be true.
@@ -49750,7 +61174,7 @@ module.exports = reactDom;
 
 
 /***/ }),
-/* 62 */
+/* 122 */
 /***/ (function(module, exports, __webpack_require__) {
 
 "use strict";
@@ -49759,12 +61183,12 @@ module.exports = reactDom;
 if (false) {
   module.exports = require('./cjs/scheduler.production.min.js');
 } else {
-  module.exports = __webpack_require__(63);
+  module.exports = __webpack_require__(123);
 }
 
 
 /***/ }),
-/* 63 */
+/* 123 */
 /***/ (function(module, exports, __webpack_require__) {
 
 "use strict";
@@ -50475,7 +61899,7 @@ exports.unstable_getFirstCallbackNode = unstable_getFirstCallbackNode;
 /* WEBPACK VAR INJECTION */}.call(exports, __webpack_require__(7)))
 
 /***/ }),
-/* 64 */
+/* 124 */
 /***/ (function(module, exports, __webpack_require__) {
 
 "use strict";
@@ -50484,12 +61908,12 @@ exports.unstable_getFirstCallbackNode = unstable_getFirstCallbackNode;
 if (false) {
   module.exports = require('./cjs/scheduler-tracing.production.min.js');
 } else {
-  module.exports = __webpack_require__(65);
+  module.exports = __webpack_require__(125);
 }
 
 
 /***/ }),
-/* 65 */
+/* 125 */
 /***/ (function(module, exports, __webpack_require__) {
 
 "use strict";
@@ -50919,18 +62343,18 @@ exports.unstable_unsubscribe = unstable_unsubscribe;
 
 
 /***/ }),
-/* 66 */
+/* 126 */
 /***/ (function(module, __webpack_exports__, __webpack_require__) {
 
 "use strict";
-/* harmony import */ var __WEBPACK_IMPORTED_MODULE_0_warning__ = __webpack_require__(4);
+/* harmony import */ var __WEBPACK_IMPORTED_MODULE_0_warning__ = __webpack_require__(15);
 /* harmony import */ var __WEBPACK_IMPORTED_MODULE_0_warning___default = __webpack_require__.n(__WEBPACK_IMPORTED_MODULE_0_warning__);
 /* harmony import */ var __WEBPACK_IMPORTED_MODULE_1_react__ = __webpack_require__(0);
 /* harmony import */ var __WEBPACK_IMPORTED_MODULE_1_react___default = __webpack_require__.n(__WEBPACK_IMPORTED_MODULE_1_react__);
-/* harmony import */ var __WEBPACK_IMPORTED_MODULE_2_prop_types__ = __webpack_require__(1);
+/* harmony import */ var __WEBPACK_IMPORTED_MODULE_2_prop_types__ = __webpack_require__(4);
 /* harmony import */ var __WEBPACK_IMPORTED_MODULE_2_prop_types___default = __webpack_require__.n(__WEBPACK_IMPORTED_MODULE_2_prop_types__);
-/* harmony import */ var __WEBPACK_IMPORTED_MODULE_3_history__ = __webpack_require__(5);
-/* harmony import */ var __WEBPACK_IMPORTED_MODULE_4__Router__ = __webpack_require__(15);
+/* harmony import */ var __WEBPACK_IMPORTED_MODULE_3_history__ = __webpack_require__(20);
+/* harmony import */ var __WEBPACK_IMPORTED_MODULE_4__Router__ = __webpack_require__(37);
 function _classCallCheck(instance, Constructor) { if (!(instance instanceof Constructor)) { throw new TypeError("Cannot call a class as a function"); } }
 
 function _possibleConstructorReturn(self, call) { if (!self) { throw new ReferenceError("this hasn't been initialised - super() hasn't been called"); } return call && (typeof call === "object" || typeof call === "function") ? call : self; }
@@ -50985,7 +62409,7 @@ BrowserRouter.propTypes = {
 /* harmony default export */ __webpack_exports__["a"] = (BrowserRouter);
 
 /***/ }),
-/* 67 */
+/* 127 */
 /***/ (function(module, exports, __webpack_require__) {
 
 "use strict";
@@ -50998,10 +62422,10 @@ BrowserRouter.propTypes = {
 
 
 
-var assign = __webpack_require__(12);
+var assign = __webpack_require__(5);
 
-var ReactPropTypesSecret = __webpack_require__(24);
-var checkPropTypes = __webpack_require__(13);
+var ReactPropTypesSecret = __webpack_require__(62);
+var checkPropTypes = __webpack_require__(35);
 
 var printWarning = function() {};
 
@@ -51547,18 +62971,18 @@ module.exports = function(isValidElement, throwOnDirectAccess) {
 
 
 /***/ }),
-/* 68 */
+/* 128 */
 /***/ (function(module, __webpack_exports__, __webpack_require__) {
 
 "use strict";
-/* harmony import */ var __WEBPACK_IMPORTED_MODULE_0_warning__ = __webpack_require__(9);
+/* harmony import */ var __WEBPACK_IMPORTED_MODULE_0_warning__ = __webpack_require__(29);
 /* harmony import */ var __WEBPACK_IMPORTED_MODULE_0_warning___default = __webpack_require__.n(__WEBPACK_IMPORTED_MODULE_0_warning__);
-/* harmony import */ var __WEBPACK_IMPORTED_MODULE_1_invariant__ = __webpack_require__(3);
+/* harmony import */ var __WEBPACK_IMPORTED_MODULE_1_invariant__ = __webpack_require__(13);
 /* harmony import */ var __WEBPACK_IMPORTED_MODULE_1_invariant___default = __webpack_require__.n(__WEBPACK_IMPORTED_MODULE_1_invariant__);
-/* harmony import */ var __WEBPACK_IMPORTED_MODULE_2__LocationUtils__ = __webpack_require__(10);
-/* harmony import */ var __WEBPACK_IMPORTED_MODULE_3__PathUtils__ = __webpack_require__(6);
-/* harmony import */ var __WEBPACK_IMPORTED_MODULE_4__createTransitionManager__ = __webpack_require__(14);
-/* harmony import */ var __WEBPACK_IMPORTED_MODULE_5__DOMUtils__ = __webpack_require__(26);
+/* harmony import */ var __WEBPACK_IMPORTED_MODULE_2__LocationUtils__ = __webpack_require__(30);
+/* harmony import */ var __WEBPACK_IMPORTED_MODULE_3__PathUtils__ = __webpack_require__(23);
+/* harmony import */ var __WEBPACK_IMPORTED_MODULE_4__createTransitionManager__ = __webpack_require__(36);
+/* harmony import */ var __WEBPACK_IMPORTED_MODULE_5__DOMUtils__ = __webpack_require__(63);
 var _typeof = typeof Symbol === "function" && typeof Symbol.iterator === "symbol" ? function (obj) { return typeof obj; } : function (obj) { return obj && typeof Symbol === "function" && obj.constructor === Symbol && obj !== Symbol.prototype ? "symbol" : typeof obj; };
 
 var _extends = Object.assign || function (target) { for (var i = 1; i < arguments.length; i++) { var source = arguments[i]; for (var key in source) { if (Object.prototype.hasOwnProperty.call(source, key)) { target[key] = source[key]; } } } return target; };
@@ -51851,7 +63275,7 @@ var createBrowserHistory = function createBrowserHistory() {
 /* harmony default export */ __webpack_exports__["a"] = (createBrowserHistory);
 
 /***/ }),
-/* 69 */
+/* 129 */
 /***/ (function(module, __webpack_exports__, __webpack_require__) {
 
 "use strict";
@@ -51927,7 +63351,7 @@ function resolvePathname(to) {
 /* harmony default export */ __webpack_exports__["a"] = (resolvePathname);
 
 /***/ }),
-/* 70 */
+/* 130 */
 /***/ (function(module, __webpack_exports__, __webpack_require__) {
 
 "use strict";
@@ -51971,18 +63395,18 @@ function valueEqual(a, b) {
 /* harmony default export */ __webpack_exports__["a"] = (valueEqual);
 
 /***/ }),
-/* 71 */
+/* 131 */
 /***/ (function(module, __webpack_exports__, __webpack_require__) {
 
 "use strict";
-/* harmony import */ var __WEBPACK_IMPORTED_MODULE_0_warning__ = __webpack_require__(9);
+/* harmony import */ var __WEBPACK_IMPORTED_MODULE_0_warning__ = __webpack_require__(29);
 /* harmony import */ var __WEBPACK_IMPORTED_MODULE_0_warning___default = __webpack_require__.n(__WEBPACK_IMPORTED_MODULE_0_warning__);
-/* harmony import */ var __WEBPACK_IMPORTED_MODULE_1_invariant__ = __webpack_require__(3);
+/* harmony import */ var __WEBPACK_IMPORTED_MODULE_1_invariant__ = __webpack_require__(13);
 /* harmony import */ var __WEBPACK_IMPORTED_MODULE_1_invariant___default = __webpack_require__.n(__WEBPACK_IMPORTED_MODULE_1_invariant__);
-/* harmony import */ var __WEBPACK_IMPORTED_MODULE_2__LocationUtils__ = __webpack_require__(10);
-/* harmony import */ var __WEBPACK_IMPORTED_MODULE_3__PathUtils__ = __webpack_require__(6);
-/* harmony import */ var __WEBPACK_IMPORTED_MODULE_4__createTransitionManager__ = __webpack_require__(14);
-/* harmony import */ var __WEBPACK_IMPORTED_MODULE_5__DOMUtils__ = __webpack_require__(26);
+/* harmony import */ var __WEBPACK_IMPORTED_MODULE_2__LocationUtils__ = __webpack_require__(30);
+/* harmony import */ var __WEBPACK_IMPORTED_MODULE_3__PathUtils__ = __webpack_require__(23);
+/* harmony import */ var __WEBPACK_IMPORTED_MODULE_4__createTransitionManager__ = __webpack_require__(36);
+/* harmony import */ var __WEBPACK_IMPORTED_MODULE_5__DOMUtils__ = __webpack_require__(63);
 var _extends = Object.assign || function (target) { for (var i = 1; i < arguments.length; i++) { var source = arguments[i]; for (var key in source) { if (Object.prototype.hasOwnProperty.call(source, key)) { target[key] = source[key]; } } } return target; };
 
 
@@ -52292,15 +63716,15 @@ var createHashHistory = function createHashHistory() {
 /* harmony default export */ __webpack_exports__["a"] = (createHashHistory);
 
 /***/ }),
-/* 72 */
+/* 132 */
 /***/ (function(module, __webpack_exports__, __webpack_require__) {
 
 "use strict";
-/* harmony import */ var __WEBPACK_IMPORTED_MODULE_0_warning__ = __webpack_require__(9);
+/* harmony import */ var __WEBPACK_IMPORTED_MODULE_0_warning__ = __webpack_require__(29);
 /* harmony import */ var __WEBPACK_IMPORTED_MODULE_0_warning___default = __webpack_require__.n(__WEBPACK_IMPORTED_MODULE_0_warning__);
-/* harmony import */ var __WEBPACK_IMPORTED_MODULE_1__PathUtils__ = __webpack_require__(6);
-/* harmony import */ var __WEBPACK_IMPORTED_MODULE_2__LocationUtils__ = __webpack_require__(10);
-/* harmony import */ var __WEBPACK_IMPORTED_MODULE_3__createTransitionManager__ = __webpack_require__(14);
+/* harmony import */ var __WEBPACK_IMPORTED_MODULE_1__PathUtils__ = __webpack_require__(23);
+/* harmony import */ var __WEBPACK_IMPORTED_MODULE_2__LocationUtils__ = __webpack_require__(30);
+/* harmony import */ var __WEBPACK_IMPORTED_MODULE_3__createTransitionManager__ = __webpack_require__(36);
 var _typeof = typeof Symbol === "function" && typeof Symbol.iterator === "symbol" ? function (obj) { return typeof obj; } : function (obj) { return obj && typeof Symbol === "function" && obj.constructor === Symbol && obj !== Symbol.prototype ? "symbol" : typeof obj; };
 
 var _extends = Object.assign || function (target) { for (var i = 1; i < arguments.length; i++) { var source = arguments[i]; for (var key in source) { if (Object.prototype.hasOwnProperty.call(source, key)) { target[key] = source[key]; } } } return target; };
@@ -52460,18 +63884,18 @@ var createMemoryHistory = function createMemoryHistory() {
 /* harmony default export */ __webpack_exports__["a"] = (createMemoryHistory);
 
 /***/ }),
-/* 73 */
+/* 133 */
 /***/ (function(module, __webpack_exports__, __webpack_require__) {
 
 "use strict";
-/* harmony import */ var __WEBPACK_IMPORTED_MODULE_0_warning__ = __webpack_require__(4);
+/* harmony import */ var __WEBPACK_IMPORTED_MODULE_0_warning__ = __webpack_require__(15);
 /* harmony import */ var __WEBPACK_IMPORTED_MODULE_0_warning___default = __webpack_require__.n(__WEBPACK_IMPORTED_MODULE_0_warning__);
 /* harmony import */ var __WEBPACK_IMPORTED_MODULE_1_react__ = __webpack_require__(0);
 /* harmony import */ var __WEBPACK_IMPORTED_MODULE_1_react___default = __webpack_require__.n(__WEBPACK_IMPORTED_MODULE_1_react__);
-/* harmony import */ var __WEBPACK_IMPORTED_MODULE_2_prop_types__ = __webpack_require__(1);
+/* harmony import */ var __WEBPACK_IMPORTED_MODULE_2_prop_types__ = __webpack_require__(4);
 /* harmony import */ var __WEBPACK_IMPORTED_MODULE_2_prop_types___default = __webpack_require__.n(__WEBPACK_IMPORTED_MODULE_2_prop_types__);
-/* harmony import */ var __WEBPACK_IMPORTED_MODULE_3_history__ = __webpack_require__(5);
-/* harmony import */ var __WEBPACK_IMPORTED_MODULE_4__Router__ = __webpack_require__(15);
+/* harmony import */ var __WEBPACK_IMPORTED_MODULE_3_history__ = __webpack_require__(20);
+/* harmony import */ var __WEBPACK_IMPORTED_MODULE_4__Router__ = __webpack_require__(37);
 function _classCallCheck(instance, Constructor) { if (!(instance instanceof Constructor)) { throw new TypeError("Cannot call a class as a function"); } }
 
 function _possibleConstructorReturn(self, call) { if (!self) { throw new ReferenceError("this hasn't been initialised - super() hasn't been called"); } return call && (typeof call === "object" || typeof call === "function") ? call : self; }
@@ -52525,29 +63949,29 @@ HashRouter.propTypes = {
 /* unused harmony default export */ var _unused_webpack_default_export = (HashRouter);
 
 /***/ }),
-/* 74 */
+/* 134 */
 /***/ (function(module, __webpack_exports__, __webpack_require__) {
 
 "use strict";
-/* harmony import */ var __WEBPACK_IMPORTED_MODULE_0_react_router_es_MemoryRouter__ = __webpack_require__(75);
+/* harmony import */ var __WEBPACK_IMPORTED_MODULE_0_react_router_es_MemoryRouter__ = __webpack_require__(135);
 // Written in this round about way for babel-transform-imports
 
 
 /* unused harmony default export */ var _unused_webpack_default_export = (__WEBPACK_IMPORTED_MODULE_0_react_router_es_MemoryRouter__["a" /* default */]);
 
 /***/ }),
-/* 75 */
+/* 135 */
 /***/ (function(module, __webpack_exports__, __webpack_require__) {
 
 "use strict";
-/* harmony import */ var __WEBPACK_IMPORTED_MODULE_0_warning__ = __webpack_require__(4);
+/* harmony import */ var __WEBPACK_IMPORTED_MODULE_0_warning__ = __webpack_require__(15);
 /* harmony import */ var __WEBPACK_IMPORTED_MODULE_0_warning___default = __webpack_require__.n(__WEBPACK_IMPORTED_MODULE_0_warning__);
 /* harmony import */ var __WEBPACK_IMPORTED_MODULE_1_react__ = __webpack_require__(0);
 /* harmony import */ var __WEBPACK_IMPORTED_MODULE_1_react___default = __webpack_require__.n(__WEBPACK_IMPORTED_MODULE_1_react__);
-/* harmony import */ var __WEBPACK_IMPORTED_MODULE_2_prop_types__ = __webpack_require__(1);
+/* harmony import */ var __WEBPACK_IMPORTED_MODULE_2_prop_types__ = __webpack_require__(4);
 /* harmony import */ var __WEBPACK_IMPORTED_MODULE_2_prop_types___default = __webpack_require__.n(__WEBPACK_IMPORTED_MODULE_2_prop_types__);
-/* harmony import */ var __WEBPACK_IMPORTED_MODULE_3_history__ = __webpack_require__(5);
-/* harmony import */ var __WEBPACK_IMPORTED_MODULE_4__Router__ = __webpack_require__(16);
+/* harmony import */ var __WEBPACK_IMPORTED_MODULE_3_history__ = __webpack_require__(20);
+/* harmony import */ var __WEBPACK_IMPORTED_MODULE_4__Router__ = __webpack_require__(38);
 function _classCallCheck(instance, Constructor) { if (!(instance instanceof Constructor)) { throw new TypeError("Cannot call a class as a function"); } }
 
 function _possibleConstructorReturn(self, call) { if (!self) { throw new ReferenceError("this hasn't been initialised - super() hasn't been called"); } return call && (typeof call === "object" || typeof call === "function") ? call : self; }
@@ -52602,16 +64026,16 @@ MemoryRouter.propTypes = {
 /* harmony default export */ __webpack_exports__["a"] = (MemoryRouter);
 
 /***/ }),
-/* 76 */
+/* 136 */
 /***/ (function(module, __webpack_exports__, __webpack_require__) {
 
 "use strict";
 /* harmony import */ var __WEBPACK_IMPORTED_MODULE_0_react__ = __webpack_require__(0);
 /* harmony import */ var __WEBPACK_IMPORTED_MODULE_0_react___default = __webpack_require__.n(__WEBPACK_IMPORTED_MODULE_0_react__);
-/* harmony import */ var __WEBPACK_IMPORTED_MODULE_1_prop_types__ = __webpack_require__(1);
+/* harmony import */ var __WEBPACK_IMPORTED_MODULE_1_prop_types__ = __webpack_require__(4);
 /* harmony import */ var __WEBPACK_IMPORTED_MODULE_1_prop_types___default = __webpack_require__.n(__WEBPACK_IMPORTED_MODULE_1_prop_types__);
-/* harmony import */ var __WEBPACK_IMPORTED_MODULE_2__Route__ = __webpack_require__(28);
-/* harmony import */ var __WEBPACK_IMPORTED_MODULE_3__Link__ = __webpack_require__(27);
+/* harmony import */ var __WEBPACK_IMPORTED_MODULE_2__Route__ = __webpack_require__(65);
+/* harmony import */ var __WEBPACK_IMPORTED_MODULE_3__Link__ = __webpack_require__(64);
 var _extends = Object.assign || function (target) { for (var i = 1; i < arguments.length; i++) { var source = arguments[i]; for (var key in source) { if (Object.prototype.hasOwnProperty.call(source, key)) { target[key] = source[key]; } } } return target; };
 
 var _typeof = typeof Symbol === "function" && typeof Symbol.iterator === "symbol" ? function (obj) { return typeof obj; } : function (obj) { return obj && typeof Symbol === "function" && obj.constructor === Symbol && obj !== Symbol.prototype ? "symbol" : typeof obj; };
@@ -52688,7 +64112,7 @@ NavLink.defaultProps = {
 /* unused harmony default export */ var _unused_webpack_default_export = (NavLink);
 
 /***/ }),
-/* 77 */
+/* 137 */
 /***/ (function(module, exports) {
 
 module.exports = Array.isArray || function (arr) {
@@ -52697,26 +64121,26 @@ module.exports = Array.isArray || function (arr) {
 
 
 /***/ }),
-/* 78 */
+/* 138 */
 /***/ (function(module, __webpack_exports__, __webpack_require__) {
 
 "use strict";
-/* harmony import */ var __WEBPACK_IMPORTED_MODULE_0_react_router_es_Prompt__ = __webpack_require__(79);
+/* harmony import */ var __WEBPACK_IMPORTED_MODULE_0_react_router_es_Prompt__ = __webpack_require__(139);
 // Written in this round about way for babel-transform-imports
 
 
 /* unused harmony default export */ var _unused_webpack_default_export = (__WEBPACK_IMPORTED_MODULE_0_react_router_es_Prompt__["a" /* default */]);
 
 /***/ }),
-/* 79 */
+/* 139 */
 /***/ (function(module, __webpack_exports__, __webpack_require__) {
 
 "use strict";
 /* harmony import */ var __WEBPACK_IMPORTED_MODULE_0_react__ = __webpack_require__(0);
 /* harmony import */ var __WEBPACK_IMPORTED_MODULE_0_react___default = __webpack_require__.n(__WEBPACK_IMPORTED_MODULE_0_react__);
-/* harmony import */ var __WEBPACK_IMPORTED_MODULE_1_prop_types__ = __webpack_require__(1);
+/* harmony import */ var __WEBPACK_IMPORTED_MODULE_1_prop_types__ = __webpack_require__(4);
 /* harmony import */ var __WEBPACK_IMPORTED_MODULE_1_prop_types___default = __webpack_require__.n(__WEBPACK_IMPORTED_MODULE_1_prop_types__);
-/* harmony import */ var __WEBPACK_IMPORTED_MODULE_2_invariant__ = __webpack_require__(3);
+/* harmony import */ var __WEBPACK_IMPORTED_MODULE_2_invariant__ = __webpack_require__(13);
 /* harmony import */ var __WEBPACK_IMPORTED_MODULE_2_invariant___default = __webpack_require__.n(__WEBPACK_IMPORTED_MODULE_2_invariant__);
 function _classCallCheck(instance, Constructor) { if (!(instance instanceof Constructor)) { throw new TypeError("Cannot call a class as a function"); } }
 
@@ -52799,31 +64223,31 @@ Prompt.contextTypes = {
 /* harmony default export */ __webpack_exports__["a"] = (Prompt);
 
 /***/ }),
-/* 80 */
+/* 140 */
 /***/ (function(module, __webpack_exports__, __webpack_require__) {
 
 "use strict";
-/* harmony import */ var __WEBPACK_IMPORTED_MODULE_0_react_router_es_Redirect__ = __webpack_require__(81);
+/* harmony import */ var __WEBPACK_IMPORTED_MODULE_0_react_router_es_Redirect__ = __webpack_require__(141);
 // Written in this round about way for babel-transform-imports
 
 
 /* unused harmony default export */ var _unused_webpack_default_export = (__WEBPACK_IMPORTED_MODULE_0_react_router_es_Redirect__["a" /* default */]);
 
 /***/ }),
-/* 81 */
+/* 141 */
 /***/ (function(module, __webpack_exports__, __webpack_require__) {
 
 "use strict";
 /* harmony import */ var __WEBPACK_IMPORTED_MODULE_0_react__ = __webpack_require__(0);
 /* harmony import */ var __WEBPACK_IMPORTED_MODULE_0_react___default = __webpack_require__.n(__WEBPACK_IMPORTED_MODULE_0_react__);
-/* harmony import */ var __WEBPACK_IMPORTED_MODULE_1_prop_types__ = __webpack_require__(1);
+/* harmony import */ var __WEBPACK_IMPORTED_MODULE_1_prop_types__ = __webpack_require__(4);
 /* harmony import */ var __WEBPACK_IMPORTED_MODULE_1_prop_types___default = __webpack_require__.n(__WEBPACK_IMPORTED_MODULE_1_prop_types__);
-/* harmony import */ var __WEBPACK_IMPORTED_MODULE_2_warning__ = __webpack_require__(4);
+/* harmony import */ var __WEBPACK_IMPORTED_MODULE_2_warning__ = __webpack_require__(15);
 /* harmony import */ var __WEBPACK_IMPORTED_MODULE_2_warning___default = __webpack_require__.n(__WEBPACK_IMPORTED_MODULE_2_warning__);
-/* harmony import */ var __WEBPACK_IMPORTED_MODULE_3_invariant__ = __webpack_require__(3);
+/* harmony import */ var __WEBPACK_IMPORTED_MODULE_3_invariant__ = __webpack_require__(13);
 /* harmony import */ var __WEBPACK_IMPORTED_MODULE_3_invariant___default = __webpack_require__.n(__WEBPACK_IMPORTED_MODULE_3_invariant__);
-/* harmony import */ var __WEBPACK_IMPORTED_MODULE_4_history__ = __webpack_require__(5);
-/* harmony import */ var __WEBPACK_IMPORTED_MODULE_5__generatePath__ = __webpack_require__(31);
+/* harmony import */ var __WEBPACK_IMPORTED_MODULE_4_history__ = __webpack_require__(20);
+/* harmony import */ var __WEBPACK_IMPORTED_MODULE_5__generatePath__ = __webpack_require__(68);
 var _extends = Object.assign || function (target) { for (var i = 1; i < arguments.length; i++) { var source = arguments[i]; for (var key in source) { if (Object.prototype.hasOwnProperty.call(source, key)) { target[key] = source[key]; } } } return target; };
 
 function _classCallCheck(instance, Constructor) { if (!(instance instanceof Constructor)) { throw new TypeError("Cannot call a class as a function"); } }
@@ -52939,31 +64363,31 @@ Redirect.contextTypes = {
 /* harmony default export */ __webpack_exports__["a"] = (Redirect);
 
 /***/ }),
-/* 82 */
+/* 142 */
 /***/ (function(module, __webpack_exports__, __webpack_require__) {
 
 "use strict";
-/* harmony import */ var __WEBPACK_IMPORTED_MODULE_0_react_router_es_StaticRouter__ = __webpack_require__(83);
+/* harmony import */ var __WEBPACK_IMPORTED_MODULE_0_react_router_es_StaticRouter__ = __webpack_require__(143);
 // Written in this round about way for babel-transform-imports
 
 
 /* unused harmony default export */ var _unused_webpack_default_export = (__WEBPACK_IMPORTED_MODULE_0_react_router_es_StaticRouter__["a" /* default */]);
 
 /***/ }),
-/* 83 */
+/* 143 */
 /***/ (function(module, __webpack_exports__, __webpack_require__) {
 
 "use strict";
-/* harmony import */ var __WEBPACK_IMPORTED_MODULE_0_warning__ = __webpack_require__(4);
+/* harmony import */ var __WEBPACK_IMPORTED_MODULE_0_warning__ = __webpack_require__(15);
 /* harmony import */ var __WEBPACK_IMPORTED_MODULE_0_warning___default = __webpack_require__.n(__WEBPACK_IMPORTED_MODULE_0_warning__);
-/* harmony import */ var __WEBPACK_IMPORTED_MODULE_1_invariant__ = __webpack_require__(3);
+/* harmony import */ var __WEBPACK_IMPORTED_MODULE_1_invariant__ = __webpack_require__(13);
 /* harmony import */ var __WEBPACK_IMPORTED_MODULE_1_invariant___default = __webpack_require__.n(__WEBPACK_IMPORTED_MODULE_1_invariant__);
 /* harmony import */ var __WEBPACK_IMPORTED_MODULE_2_react__ = __webpack_require__(0);
 /* harmony import */ var __WEBPACK_IMPORTED_MODULE_2_react___default = __webpack_require__.n(__WEBPACK_IMPORTED_MODULE_2_react__);
-/* harmony import */ var __WEBPACK_IMPORTED_MODULE_3_prop_types__ = __webpack_require__(1);
+/* harmony import */ var __WEBPACK_IMPORTED_MODULE_3_prop_types__ = __webpack_require__(4);
 /* harmony import */ var __WEBPACK_IMPORTED_MODULE_3_prop_types___default = __webpack_require__.n(__WEBPACK_IMPORTED_MODULE_3_prop_types__);
-/* harmony import */ var __WEBPACK_IMPORTED_MODULE_4_history__ = __webpack_require__(5);
-/* harmony import */ var __WEBPACK_IMPORTED_MODULE_5__Router__ = __webpack_require__(16);
+/* harmony import */ var __WEBPACK_IMPORTED_MODULE_4_history__ = __webpack_require__(20);
+/* harmony import */ var __WEBPACK_IMPORTED_MODULE_5__Router__ = __webpack_require__(38);
 var _extends = Object.assign || function (target) { for (var i = 1; i < arguments.length; i++) { var source = arguments[i]; for (var key in source) { if (Object.prototype.hasOwnProperty.call(source, key)) { target[key] = source[key]; } } } return target; };
 
 function _objectWithoutProperties(obj, keys) { var target = {}; for (var i in obj) { if (keys.indexOf(i) >= 0) continue; if (!Object.prototype.hasOwnProperty.call(obj, i)) continue; target[i] = obj[i]; } return target; }
@@ -53116,30 +64540,30 @@ StaticRouter.childContextTypes = {
 /* harmony default export */ __webpack_exports__["a"] = (StaticRouter);
 
 /***/ }),
-/* 84 */
+/* 144 */
 /***/ (function(module, __webpack_exports__, __webpack_require__) {
 
 "use strict";
-/* harmony import */ var __WEBPACK_IMPORTED_MODULE_0_react_router_es_Switch__ = __webpack_require__(85);
+/* harmony import */ var __WEBPACK_IMPORTED_MODULE_0_react_router_es_Switch__ = __webpack_require__(145);
 // Written in this round about way for babel-transform-imports
 
 
 /* harmony default export */ __webpack_exports__["a"] = (__WEBPACK_IMPORTED_MODULE_0_react_router_es_Switch__["a" /* default */]);
 
 /***/ }),
-/* 85 */
+/* 145 */
 /***/ (function(module, __webpack_exports__, __webpack_require__) {
 
 "use strict";
 /* harmony import */ var __WEBPACK_IMPORTED_MODULE_0_react__ = __webpack_require__(0);
 /* harmony import */ var __WEBPACK_IMPORTED_MODULE_0_react___default = __webpack_require__.n(__WEBPACK_IMPORTED_MODULE_0_react__);
-/* harmony import */ var __WEBPACK_IMPORTED_MODULE_1_prop_types__ = __webpack_require__(1);
+/* harmony import */ var __WEBPACK_IMPORTED_MODULE_1_prop_types__ = __webpack_require__(4);
 /* harmony import */ var __WEBPACK_IMPORTED_MODULE_1_prop_types___default = __webpack_require__.n(__WEBPACK_IMPORTED_MODULE_1_prop_types__);
-/* harmony import */ var __WEBPACK_IMPORTED_MODULE_2_warning__ = __webpack_require__(4);
+/* harmony import */ var __WEBPACK_IMPORTED_MODULE_2_warning__ = __webpack_require__(15);
 /* harmony import */ var __WEBPACK_IMPORTED_MODULE_2_warning___default = __webpack_require__.n(__WEBPACK_IMPORTED_MODULE_2_warning__);
-/* harmony import */ var __WEBPACK_IMPORTED_MODULE_3_invariant__ = __webpack_require__(3);
+/* harmony import */ var __WEBPACK_IMPORTED_MODULE_3_invariant__ = __webpack_require__(13);
 /* harmony import */ var __WEBPACK_IMPORTED_MODULE_3_invariant___default = __webpack_require__.n(__WEBPACK_IMPORTED_MODULE_3_invariant__);
-/* harmony import */ var __WEBPACK_IMPORTED_MODULE_4__matchPath__ = __webpack_require__(17);
+/* harmony import */ var __WEBPACK_IMPORTED_MODULE_4__matchPath__ = __webpack_require__(39);
 function _classCallCheck(instance, Constructor) { if (!(instance instanceof Constructor)) { throw new TypeError("Cannot call a class as a function"); } }
 
 function _possibleConstructorReturn(self, call) { if (!self) { throw new ReferenceError("this hasn't been initialised - super() hasn't been called"); } return call && (typeof call === "object" || typeof call === "function") ? call : self; }
@@ -53219,50 +64643,50 @@ Switch.propTypes = {
 /* harmony default export */ __webpack_exports__["a"] = (Switch);
 
 /***/ }),
-/* 86 */
+/* 146 */
 /***/ (function(module, __webpack_exports__, __webpack_require__) {
 
 "use strict";
-/* harmony import */ var __WEBPACK_IMPORTED_MODULE_0_react_router_es_generatePath__ = __webpack_require__(31);
+/* harmony import */ var __WEBPACK_IMPORTED_MODULE_0_react_router_es_generatePath__ = __webpack_require__(68);
 // Written in this round about way for babel-transform-imports
 
 
 /* unused harmony default export */ var _unused_webpack_default_export = (__WEBPACK_IMPORTED_MODULE_0_react_router_es_generatePath__["a" /* default */]);
 
 /***/ }),
-/* 87 */
+/* 147 */
 /***/ (function(module, __webpack_exports__, __webpack_require__) {
 
 "use strict";
-/* harmony import */ var __WEBPACK_IMPORTED_MODULE_0_react_router_es_matchPath__ = __webpack_require__(17);
+/* harmony import */ var __WEBPACK_IMPORTED_MODULE_0_react_router_es_matchPath__ = __webpack_require__(39);
 // Written in this round about way for babel-transform-imports
 
 
 /* unused harmony default export */ var _unused_webpack_default_export = (__WEBPACK_IMPORTED_MODULE_0_react_router_es_matchPath__["a" /* default */]);
 
 /***/ }),
-/* 88 */
+/* 148 */
 /***/ (function(module, __webpack_exports__, __webpack_require__) {
 
 "use strict";
-/* harmony import */ var __WEBPACK_IMPORTED_MODULE_0_react_router_es_withRouter__ = __webpack_require__(89);
+/* harmony import */ var __WEBPACK_IMPORTED_MODULE_0_react_router_es_withRouter__ = __webpack_require__(149);
 // Written in this round about way for babel-transform-imports
 
 
 /* unused harmony default export */ var _unused_webpack_default_export = (__WEBPACK_IMPORTED_MODULE_0_react_router_es_withRouter__["a" /* default */]);
 
 /***/ }),
-/* 89 */
+/* 149 */
 /***/ (function(module, __webpack_exports__, __webpack_require__) {
 
 "use strict";
 /* harmony import */ var __WEBPACK_IMPORTED_MODULE_0_react__ = __webpack_require__(0);
 /* harmony import */ var __WEBPACK_IMPORTED_MODULE_0_react___default = __webpack_require__.n(__WEBPACK_IMPORTED_MODULE_0_react__);
-/* harmony import */ var __WEBPACK_IMPORTED_MODULE_1_prop_types__ = __webpack_require__(1);
+/* harmony import */ var __WEBPACK_IMPORTED_MODULE_1_prop_types__ = __webpack_require__(4);
 /* harmony import */ var __WEBPACK_IMPORTED_MODULE_1_prop_types___default = __webpack_require__.n(__WEBPACK_IMPORTED_MODULE_1_prop_types__);
-/* harmony import */ var __WEBPACK_IMPORTED_MODULE_2_hoist_non_react_statics__ = __webpack_require__(90);
+/* harmony import */ var __WEBPACK_IMPORTED_MODULE_2_hoist_non_react_statics__ = __webpack_require__(150);
 /* harmony import */ var __WEBPACK_IMPORTED_MODULE_2_hoist_non_react_statics___default = __webpack_require__.n(__WEBPACK_IMPORTED_MODULE_2_hoist_non_react_statics__);
-/* harmony import */ var __WEBPACK_IMPORTED_MODULE_3__Route__ = __webpack_require__(29);
+/* harmony import */ var __WEBPACK_IMPORTED_MODULE_3__Route__ = __webpack_require__(66);
 var _extends = Object.assign || function (target) { for (var i = 1; i < arguments.length; i++) { var source = arguments[i]; for (var key in source) { if (Object.prototype.hasOwnProperty.call(source, key)) { target[key] = source[key]; } } } return target; };
 
 function _objectWithoutProperties(obj, keys) { var target = {}; for (var i in obj) { if (keys.indexOf(i) >= 0) continue; if (!Object.prototype.hasOwnProperty.call(obj, i)) continue; target[i] = obj[i]; } return target; }
@@ -53301,7 +64725,7 @@ var withRouter = function withRouter(Component) {
 /* harmony default export */ __webpack_exports__["a"] = (withRouter);
 
 /***/ }),
-/* 90 */
+/* 150 */
 /***/ (function(module, exports, __webpack_require__) {
 
 "use strict";
@@ -53376,15 +64800,15 @@ module.exports = hoistNonReactStatics;
 
 
 /***/ }),
-/* 91 */
+/* 151 */
 /***/ (function(module, __webpack_exports__, __webpack_require__) {
 
 "use strict";
 /* harmony export (binding) */ __webpack_require__.d(__webpack_exports__, "a", function() { return Header; });
 /* harmony import */ var __WEBPACK_IMPORTED_MODULE_0_react__ = __webpack_require__(0);
 /* harmony import */ var __WEBPACK_IMPORTED_MODULE_0_react___default = __webpack_require__.n(__WEBPACK_IMPORTED_MODULE_0_react__);
-/* harmony import */ var __WEBPACK_IMPORTED_MODULE_1_reactstrap__ = __webpack_require__(18);
-/* harmony import */ var __WEBPACK_IMPORTED_MODULE_2__index_scss__ = __webpack_require__(103);
+/* harmony import */ var __WEBPACK_IMPORTED_MODULE_1_reactstrap__ = __webpack_require__(40);
+/* harmony import */ var __WEBPACK_IMPORTED_MODULE_2__index_scss__ = __webpack_require__(163);
 /* harmony import */ var __WEBPACK_IMPORTED_MODULE_2__index_scss___default = __webpack_require__.n(__WEBPACK_IMPORTED_MODULE_2__index_scss__);
 function _typeof(obj) { if (typeof Symbol === "function" && typeof Symbol.iterator === "symbol") { _typeof = function _typeof(obj) { return typeof obj; }; } else { _typeof = function _typeof(obj) { return obj && typeof Symbol === "function" && obj.constructor === Symbol && obj !== Symbol.prototype ? "symbol" : typeof obj; }; } return _typeof(obj); }
 
@@ -53481,7 +64905,7 @@ function (_React$Component) {
 
 
 /***/ }),
-/* 92 */
+/* 152 */
 /***/ (function(module, exports, __webpack_require__) {
 
 var __WEBPACK_AMD_DEFINE_ARRAY__, __WEBPACK_AMD_DEFINE_RESULT__;/*!
@@ -53540,7 +64964,7 @@ var __WEBPACK_AMD_DEFINE_ARRAY__, __WEBPACK_AMD_DEFINE_RESULT__;/*!
 
 
 /***/ }),
-/* 93 */
+/* 153 */
 /***/ (function(module, exports, __webpack_require__) {
 
 /* WEBPACK VAR INJECTION */(function(global) {/**
@@ -53702,7 +65126,7 @@ module.exports = isFunction;
 /* WEBPACK VAR INJECTION */}.call(exports, __webpack_require__(7)))
 
 /***/ }),
-/* 94 */
+/* 154 */
 /***/ (function(module, exports) {
 
 /**
@@ -53745,18 +65169,18 @@ module.exports = isObject;
 
 
 /***/ }),
-/* 95 */
+/* 155 */
 /***/ (function(module, __webpack_exports__, __webpack_require__) {
 
 "use strict";
-/* harmony import */ var __WEBPACK_IMPORTED_MODULE_0__Manager__ = __webpack_require__(96);
+/* harmony import */ var __WEBPACK_IMPORTED_MODULE_0__Manager__ = __webpack_require__(156);
 /* harmony reexport (binding) */ __webpack_require__.d(__webpack_exports__, "b", function() { return __WEBPACK_IMPORTED_MODULE_0__Manager__["a"]; });
-/* harmony import */ var __WEBPACK_IMPORTED_MODULE_1__Target__ = __webpack_require__(97);
+/* harmony import */ var __WEBPACK_IMPORTED_MODULE_1__Target__ = __webpack_require__(157);
 /* harmony reexport (binding) */ __webpack_require__.d(__webpack_exports__, "d", function() { return __WEBPACK_IMPORTED_MODULE_1__Target__["a"]; });
-/* harmony import */ var __WEBPACK_IMPORTED_MODULE_2__Popper__ = __webpack_require__(98);
+/* harmony import */ var __WEBPACK_IMPORTED_MODULE_2__Popper__ = __webpack_require__(158);
 /* harmony reexport (binding) */ __webpack_require__.d(__webpack_exports__, "c", function() { return __WEBPACK_IMPORTED_MODULE_2__Popper__["a"]; });
 /* unused harmony reexport placements */
-/* harmony import */ var __WEBPACK_IMPORTED_MODULE_3__Arrow__ = __webpack_require__(100);
+/* harmony import */ var __WEBPACK_IMPORTED_MODULE_3__Arrow__ = __webpack_require__(160);
 /* harmony reexport (binding) */ __webpack_require__.d(__webpack_exports__, "a", function() { return __WEBPACK_IMPORTED_MODULE_3__Arrow__["a"]; });
 
 
@@ -53764,13 +65188,13 @@ module.exports = isObject;
 
 
 /***/ }),
-/* 96 */
+/* 156 */
 /***/ (function(module, __webpack_exports__, __webpack_require__) {
 
 "use strict";
 /* harmony import */ var __WEBPACK_IMPORTED_MODULE_0_react__ = __webpack_require__(0);
 /* harmony import */ var __WEBPACK_IMPORTED_MODULE_0_react___default = __webpack_require__.n(__WEBPACK_IMPORTED_MODULE_0_react__);
-/* harmony import */ var __WEBPACK_IMPORTED_MODULE_1_prop_types__ = __webpack_require__(1);
+/* harmony import */ var __WEBPACK_IMPORTED_MODULE_1_prop_types__ = __webpack_require__(4);
 /* harmony import */ var __WEBPACK_IMPORTED_MODULE_1_prop_types___default = __webpack_require__.n(__WEBPACK_IMPORTED_MODULE_1_prop_types__);
 var _createClass = function () { function defineProperties(target, props) { for (var i = 0; i < props.length; i++) { var descriptor = props[i]; descriptor.enumerable = descriptor.enumerable || false; descriptor.configurable = true; if ("value" in descriptor) descriptor.writable = true; Object.defineProperty(target, descriptor.key, descriptor); } } return function (Constructor, protoProps, staticProps) { if (protoProps) defineProperties(Constructor.prototype, protoProps); if (staticProps) defineProperties(Constructor, staticProps); return Constructor; }; }();
 
@@ -53850,13 +65274,13 @@ Manager.defaultProps = {
 /* harmony default export */ __webpack_exports__["a"] = (Manager);
 
 /***/ }),
-/* 97 */
+/* 157 */
 /***/ (function(module, __webpack_exports__, __webpack_require__) {
 
 "use strict";
 /* harmony import */ var __WEBPACK_IMPORTED_MODULE_0_react__ = __webpack_require__(0);
 /* harmony import */ var __WEBPACK_IMPORTED_MODULE_0_react___default = __webpack_require__.n(__WEBPACK_IMPORTED_MODULE_0_react__);
-/* harmony import */ var __WEBPACK_IMPORTED_MODULE_1_prop_types__ = __webpack_require__(1);
+/* harmony import */ var __WEBPACK_IMPORTED_MODULE_1_prop_types__ = __webpack_require__(4);
 /* harmony import */ var __WEBPACK_IMPORTED_MODULE_1_prop_types___default = __webpack_require__.n(__WEBPACK_IMPORTED_MODULE_1_prop_types__);
 var _extends = Object.assign || function (target) { for (var i = 1; i < arguments.length; i++) { var source = arguments[i]; for (var key in source) { if (Object.prototype.hasOwnProperty.call(source, key)) { target[key] = source[key]; } } } return target; };
 
@@ -53910,16 +65334,16 @@ Target.propTypes = {
 /* harmony default export */ __webpack_exports__["a"] = (Target);
 
 /***/ }),
-/* 98 */
+/* 158 */
 /***/ (function(module, __webpack_exports__, __webpack_require__) {
 
 "use strict";
 /* unused harmony export placements */
 /* harmony import */ var __WEBPACK_IMPORTED_MODULE_0_react__ = __webpack_require__(0);
 /* harmony import */ var __WEBPACK_IMPORTED_MODULE_0_react___default = __webpack_require__.n(__WEBPACK_IMPORTED_MODULE_0_react__);
-/* harmony import */ var __WEBPACK_IMPORTED_MODULE_1_prop_types__ = __webpack_require__(1);
+/* harmony import */ var __WEBPACK_IMPORTED_MODULE_1_prop_types__ = __webpack_require__(4);
 /* harmony import */ var __WEBPACK_IMPORTED_MODULE_1_prop_types___default = __webpack_require__.n(__WEBPACK_IMPORTED_MODULE_1_prop_types__);
-/* harmony import */ var __WEBPACK_IMPORTED_MODULE_2_popper_js__ = __webpack_require__(99);
+/* harmony import */ var __WEBPACK_IMPORTED_MODULE_2_popper_js__ = __webpack_require__(159);
 var _extends = Object.assign || function (target) { for (var i = 1; i < arguments.length; i++) { var source = arguments[i]; for (var key in source) { if (Object.prototype.hasOwnProperty.call(source, key)) { target[key] = source[key]; } } } return target; };
 
 var _createClass = function () { function defineProperties(target, props) { for (var i = 0; i < props.length; i++) { var descriptor = props[i]; descriptor.enumerable = descriptor.enumerable || false; descriptor.configurable = true; if ("value" in descriptor) descriptor.writable = true; Object.defineProperty(target, descriptor.key, descriptor); } } return function (Constructor, protoProps, staticProps) { if (protoProps) defineProperties(Constructor.prototype, protoProps); if (staticProps) defineProperties(Constructor, staticProps); return Constructor; }; }();
@@ -54172,7 +65596,7 @@ Popper.defaultProps = {
 /* harmony default export */ __webpack_exports__["a"] = (Popper);
 
 /***/ }),
-/* 99 */
+/* 159 */
 /***/ (function(module, __webpack_exports__, __webpack_require__) {
 
 "use strict";
@@ -56752,13 +68176,13 @@ Popper.Defaults = Defaults;
 /* WEBPACK VAR INJECTION */}.call(__webpack_exports__, __webpack_require__(7)))
 
 /***/ }),
-/* 100 */
+/* 160 */
 /***/ (function(module, __webpack_exports__, __webpack_require__) {
 
 "use strict";
 /* harmony import */ var __WEBPACK_IMPORTED_MODULE_0_react__ = __webpack_require__(0);
 /* harmony import */ var __WEBPACK_IMPORTED_MODULE_0_react___default = __webpack_require__.n(__WEBPACK_IMPORTED_MODULE_0_react__);
-/* harmony import */ var __WEBPACK_IMPORTED_MODULE_1_prop_types__ = __webpack_require__(1);
+/* harmony import */ var __WEBPACK_IMPORTED_MODULE_1_prop_types__ = __webpack_require__(4);
 /* harmony import */ var __WEBPACK_IMPORTED_MODULE_1_prop_types___default = __webpack_require__.n(__WEBPACK_IMPORTED_MODULE_1_prop_types__);
 var _extends = Object.assign || function (target) { for (var i = 1; i < arguments.length; i++) { var source = arguments[i]; for (var key in source) { if (Object.prototype.hasOwnProperty.call(source, key)) { target[key] = source[key]; } } } return target; };
 
@@ -56818,7 +68242,7 @@ Arrow.propTypes = {
 /* harmony default export */ __webpack_exports__["a"] = (Arrow);
 
 /***/ }),
-/* 101 */
+/* 161 */
 /***/ (function(module, exports) {
 
 /**
@@ -56989,7 +68413,7 @@ module.exports = toNumber;
 
 
 /***/ }),
-/* 102 */
+/* 162 */
 /***/ (function(module, __webpack_exports__, __webpack_require__) {
 
 "use strict";
@@ -57155,13 +68579,13 @@ function polyfill(Component) {
 
 
 /***/ }),
-/* 103 */
+/* 163 */
 /***/ (function(module, exports, __webpack_require__) {
 
 // style-loader: Adds some css to the DOM by adding a <style> tag
 
 // load the styles
-var content = __webpack_require__(104);
+var content = __webpack_require__(164);
 if(typeof content === 'string') content = [[module.i, content, '']];
 // Prepare cssTransformation
 var transform;
@@ -57169,7 +68593,7 @@ var transform;
 var options = {}
 options.transform = transform
 // add the styles to the DOM
-var update = __webpack_require__(33)(content, options);
+var update = __webpack_require__(42)(content, options);
 if(content.locals) module.exports = content.locals;
 // Hot Module Replacement
 if(false) {
@@ -57186,10 +68610,10 @@ if(false) {
 }
 
 /***/ }),
-/* 104 */
+/* 164 */
 /***/ (function(module, exports, __webpack_require__) {
 
-exports = module.exports = __webpack_require__(32)(false);
+exports = module.exports = __webpack_require__(41)(false);
 // imports
 
 
@@ -57200,7 +68624,7 @@ exports.push([module.i, ".main-nav {\n  position: fixed;\n  top: 0;\n  left: 0;\
 
 
 /***/ }),
-/* 105 */
+/* 165 */
 /***/ (function(module, exports) {
 
 
@@ -57295,14 +68719,14 @@ module.exports = function (css) {
 
 
 /***/ }),
-/* 106 */
+/* 166 */
 /***/ (function(module, __webpack_exports__, __webpack_require__) {
 
 "use strict";
 /* harmony export (binding) */ __webpack_require__.d(__webpack_exports__, "a", function() { return Main; });
 /* harmony import */ var __WEBPACK_IMPORTED_MODULE_0_react__ = __webpack_require__(0);
 /* harmony import */ var __WEBPACK_IMPORTED_MODULE_0_react___default = __webpack_require__.n(__WEBPACK_IMPORTED_MODULE_0_react__);
-/* harmony import */ var __WEBPACK_IMPORTED_MODULE_1_react_router_dom__ = __webpack_require__(8);
+/* harmony import */ var __WEBPACK_IMPORTED_MODULE_1_react_router_dom__ = __webpack_require__(28);
 function _typeof(obj) { if (typeof Symbol === "function" && typeof Symbol.iterator === "symbol") { _typeof = function _typeof(obj) { return typeof obj; }; } else { _typeof = function _typeof(obj) { return obj && typeof Symbol === "function" && obj.constructor === Symbol && obj !== Symbol.prototype ? "symbol" : typeof obj; }; } return _typeof(obj); }
 
 function _classCallCheck(instance, Constructor) { if (!(instance instanceof Constructor)) { throw new TypeError("Cannot call a class as a function"); } }
@@ -57616,15 +69040,15 @@ function (_React$Component) {
 
 
 /***/ }),
-/* 107 */
+/* 167 */
 /***/ (function(module, __webpack_exports__, __webpack_require__) {
 
 "use strict";
 /* unused harmony export default */
 /* harmony import */ var __WEBPACK_IMPORTED_MODULE_0_react__ = __webpack_require__(0);
 /* harmony import */ var __WEBPACK_IMPORTED_MODULE_0_react___default = __webpack_require__.n(__WEBPACK_IMPORTED_MODULE_0_react__);
-/* harmony import */ var __WEBPACK_IMPORTED_MODULE_1_reactstrap__ = __webpack_require__(18);
-/* harmony import */ var __WEBPACK_IMPORTED_MODULE_2__style_scss__ = __webpack_require__(108);
+/* harmony import */ var __WEBPACK_IMPORTED_MODULE_1_reactstrap__ = __webpack_require__(40);
+/* harmony import */ var __WEBPACK_IMPORTED_MODULE_2__style_scss__ = __webpack_require__(168);
 /* harmony import */ var __WEBPACK_IMPORTED_MODULE_2__style_scss___default = __webpack_require__.n(__WEBPACK_IMPORTED_MODULE_2__style_scss__);
 function _typeof(obj) { if (typeof Symbol === "function" && typeof Symbol.iterator === "symbol") { _typeof = function _typeof(obj) { return typeof obj; }; } else { _typeof = function _typeof(obj) { return obj && typeof Symbol === "function" && obj.constructor === Symbol && obj !== Symbol.prototype ? "symbol" : typeof obj; }; } return _typeof(obj); }
 
@@ -57738,13 +69162,13 @@ function (_React$Component) {
 
 
 /***/ }),
-/* 108 */
+/* 168 */
 /***/ (function(module, exports, __webpack_require__) {
 
 // style-loader: Adds some css to the DOM by adding a <style> tag
 
 // load the styles
-var content = __webpack_require__(109);
+var content = __webpack_require__(169);
 if(typeof content === 'string') content = [[module.i, content, '']];
 // Prepare cssTransformation
 var transform;
@@ -57752,7 +69176,7 @@ var transform;
 var options = {}
 options.transform = transform
 // add the styles to the DOM
-var update = __webpack_require__(33)(content, options);
+var update = __webpack_require__(42)(content, options);
 if(content.locals) module.exports = content.locals;
 // Hot Module Replacement
 if(false) {
@@ -57769,10 +69193,10 @@ if(false) {
 }
 
 /***/ }),
-/* 109 */
+/* 169 */
 /***/ (function(module, exports, __webpack_require__) {
 
-exports = module.exports = __webpack_require__(32)(false);
+exports = module.exports = __webpack_require__(41)(false);
 // imports
 
 
@@ -57783,14 +69207,14 @@ exports.push([module.i, ".inline-card {\n  margin: 20px 0; }\n", ""]);
 
 
 /***/ }),
-/* 110 */
+/* 170 */
 /***/ (function(module, __webpack_exports__, __webpack_require__) {
 
 "use strict";
 /* harmony export (binding) */ __webpack_require__.d(__webpack_exports__, "a", function() { return Admin; });
 /* harmony import */ var __WEBPACK_IMPORTED_MODULE_0_react__ = __webpack_require__(0);
 /* harmony import */ var __WEBPACK_IMPORTED_MODULE_0_react___default = __webpack_require__.n(__WEBPACK_IMPORTED_MODULE_0_react__);
-/* harmony import */ var __WEBPACK_IMPORTED_MODULE_1_react_router_dom__ = __webpack_require__(8);
+/* harmony import */ var __WEBPACK_IMPORTED_MODULE_1_react_router_dom__ = __webpack_require__(28);
 function _typeof(obj) { if (typeof Symbol === "function" && typeof Symbol.iterator === "symbol") { _typeof = function _typeof(obj) { return typeof obj; }; } else { _typeof = function _typeof(obj) { return obj && typeof Symbol === "function" && obj.constructor === Symbol && obj !== Symbol.prototype ? "symbol" : typeof obj; }; } return _typeof(obj); }
 
 function _classCallCheck(instance, Constructor) { if (!(instance instanceof Constructor)) { throw new TypeError("Cannot call a class as a function"); } }
@@ -57829,7 +69253,7 @@ function (_React$Component) {
       return __WEBPACK_IMPORTED_MODULE_0_react___default.a.createElement("div", {
         className: "d-flex flex-grow-1"
       }, __WEBPACK_IMPORTED_MODULE_0_react___default.a.createElement("div", {
-        className: "page-section w-100"
+        className: "w-100"
       }, __WEBPACK_IMPORTED_MODULE_0_react___default.a.createElement("div", {
         className: "container "
       }, __WEBPACK_IMPORTED_MODULE_0_react___default.a.createElement("div", {
@@ -57848,18 +69272,18 @@ function (_React$Component) {
 
 
 /***/ }),
-/* 111 */
+/* 171 */
 /***/ (function(module, __webpack_exports__, __webpack_require__) {
 
 "use strict";
 /* harmony export (binding) */ __webpack_require__.d(__webpack_exports__, "a", function() { return Create; });
 /* harmony import */ var __WEBPACK_IMPORTED_MODULE_0_react__ = __webpack_require__(0);
 /* harmony import */ var __WEBPACK_IMPORTED_MODULE_0_react___default = __webpack_require__.n(__WEBPACK_IMPORTED_MODULE_0_react__);
-/* harmony import */ var __WEBPACK_IMPORTED_MODULE_1_draft_js__ = __webpack_require__(175);
+/* harmony import */ var __WEBPACK_IMPORTED_MODULE_1_draft_js__ = __webpack_require__(172);
 /* harmony import */ var __WEBPACK_IMPORTED_MODULE_1_draft_js___default = __webpack_require__.n(__WEBPACK_IMPORTED_MODULE_1_draft_js__);
-/* harmony import */ var __WEBPACK_IMPORTED_MODULE_2_react_router_dom__ = __webpack_require__(8);
-/* harmony import */ var __WEBPACK_IMPORTED_MODULE_3_reactstrap__ = __webpack_require__(18);
-/* harmony import */ var __WEBPACK_IMPORTED_MODULE_4_draft_js_dist_Draft_css__ = __webpack_require__(265);
+/* harmony import */ var __WEBPACK_IMPORTED_MODULE_2_react_router_dom__ = __webpack_require__(28);
+/* harmony import */ var __WEBPACK_IMPORTED_MODULE_3_reactstrap__ = __webpack_require__(40);
+/* harmony import */ var __WEBPACK_IMPORTED_MODULE_4_draft_js_dist_Draft_css__ = __webpack_require__(262);
 /* harmony import */ var __WEBPACK_IMPORTED_MODULE_4_draft_js_dist_Draft_css___default = __webpack_require__.n(__WEBPACK_IMPORTED_MODULE_4_draft_js_dist_Draft_css__);
 function _typeof(obj) { if (typeof Symbol === "function" && typeof Symbol.iterator === "symbol") { _typeof = function _typeof(obj) { return typeof obj; }; } else { _typeof = function _typeof(obj) { return obj && typeof Symbol === "function" && obj.constructor === Symbol && obj !== Symbol.prototype ? "symbol" : typeof obj; }; } return _typeof(obj); }
 
@@ -57970,11509 +69394,7 @@ function (_React$Component) {
 
 
 /***/ }),
-/* 112 */
-/***/ (function(module, __webpack_exports__, __webpack_require__) {
-
-"use strict";
-/* harmony export (binding) */ __webpack_require__.d(__webpack_exports__, "a", function() { return NotFound; });
-/* harmony import */ var __WEBPACK_IMPORTED_MODULE_0_react__ = __webpack_require__(0);
-/* harmony import */ var __WEBPACK_IMPORTED_MODULE_0_react___default = __webpack_require__.n(__WEBPACK_IMPORTED_MODULE_0_react__);
-function _typeof(obj) { if (typeof Symbol === "function" && typeof Symbol.iterator === "symbol") { _typeof = function _typeof(obj) { return typeof obj; }; } else { _typeof = function _typeof(obj) { return obj && typeof Symbol === "function" && obj.constructor === Symbol && obj !== Symbol.prototype ? "symbol" : typeof obj; }; } return _typeof(obj); }
-
-function _classCallCheck(instance, Constructor) { if (!(instance instanceof Constructor)) { throw new TypeError("Cannot call a class as a function"); } }
-
-function _defineProperties(target, props) { for (var i = 0; i < props.length; i++) { var descriptor = props[i]; descriptor.enumerable = descriptor.enumerable || false; descriptor.configurable = true; if ("value" in descriptor) descriptor.writable = true; Object.defineProperty(target, descriptor.key, descriptor); } }
-
-function _createClass(Constructor, protoProps, staticProps) { if (protoProps) _defineProperties(Constructor.prototype, protoProps); if (staticProps) _defineProperties(Constructor, staticProps); return Constructor; }
-
-function _possibleConstructorReturn(self, call) { if (call && (_typeof(call) === "object" || typeof call === "function")) { return call; } return _assertThisInitialized(self); }
-
-function _assertThisInitialized(self) { if (self === void 0) { throw new ReferenceError("this hasn't been initialised - super() hasn't been called"); } return self; }
-
-function _getPrototypeOf(o) { _getPrototypeOf = Object.setPrototypeOf ? Object.getPrototypeOf : function _getPrototypeOf(o) { return o.__proto__ || Object.getPrototypeOf(o); }; return _getPrototypeOf(o); }
-
-function _inherits(subClass, superClass) { if (typeof superClass !== "function" && superClass !== null) { throw new TypeError("Super expression must either be null or a function"); } subClass.prototype = Object.create(superClass && superClass.prototype, { constructor: { value: subClass, writable: true, configurable: true } }); if (superClass) _setPrototypeOf(subClass, superClass); }
-
-function _setPrototypeOf(o, p) { _setPrototypeOf = Object.setPrototypeOf || function _setPrototypeOf(o, p) { o.__proto__ = p; return o; }; return _setPrototypeOf(o, p); }
-
-
-
-var NotFound =
-/*#__PURE__*/
-function (_React$Component) {
-  _inherits(NotFound, _React$Component);
-
-  function NotFound() {
-    _classCallCheck(this, NotFound);
-
-    return _possibleConstructorReturn(this, _getPrototypeOf(NotFound).apply(this, arguments));
-  }
-
-  _createClass(NotFound, [{
-    key: "render",
-    value: function render() {
-      return __WEBPACK_IMPORTED_MODULE_0_react___default.a.createElement("div", {
-        className: "d-flex flex-grow-1"
-      }, __WEBPACK_IMPORTED_MODULE_0_react___default.a.createElement("div", {
-        className: "page-section w-100"
-      }, __WEBPACK_IMPORTED_MODULE_0_react___default.a.createElement("div", {
-        className: "container "
-      }, __WEBPACK_IMPORTED_MODULE_0_react___default.a.createElement("div", {
-        className: "row"
-      }, __WEBPACK_IMPORTED_MODULE_0_react___default.a.createElement("div", {
-        className: "col"
-      }, __WEBPACK_IMPORTED_MODULE_0_react___default.a.createElement("div", {
-        className: "alert alert-info",
-        role: "alert"
-      }, "\u0426\u044F \u0441\u0442\u043E\u0440\u0456\u043D\u043A\u0430 \u0432 \u0440\u043E\u0437\u0440\u043E\u0431\u0446\u0456."), __WEBPACK_IMPORTED_MODULE_0_react___default.a.createElement("p", null, "\u0410 \u043F\u043E\u043A\u0438, \u043E\u0437\u043D\u0430\u0439\u043E\u043C\u0442\u0435\u0441\u044C \u0437 \u043D\u0430\u0448\u0438\u043C YouTube \u043A\u0430\u043D\u0430\u043B\u043E\u043C."), __WEBPACK_IMPORTED_MODULE_0_react___default.a.createElement("div", null, __WEBPACK_IMPORTED_MODULE_0_react___default.a.createElement("iframe", {
-        width: "560",
-        height: "315",
-        src: "https://www.youtube.com/embed/BrLEOE-Mnkk",
-        frameborder: "0",
-        allow: "accelerometer; autoplay; encrypted-media; gyroscope; picture-in-picture",
-        allowfullscreen: true
-      })))))));
-    }
-  }]);
-
-  return NotFound;
-}(__WEBPACK_IMPORTED_MODULE_0_react___default.a.Component);
-
-
-
-/***/ }),
-/* 113 */
-/***/ (function(module, exports) {
-
-// removed by extract-text-webpack-plugin
-
-/***/ }),
-/* 114 */,
-/* 115 */
-/***/ (function(module, exports, __webpack_require__) {
-
-/**
- *  Copyright (c) 2014-2015, Facebook, Inc.
- *  All rights reserved.
- *
- *  This source code is licensed under the BSD-style license found in the
- *  LICENSE file in the root directory of this source tree. An additional grant
- *  of patent rights can be found in the PATENTS file in the same directory.
- */
-
-(function (global, factory) {
-   true ? module.exports = factory() :
-  typeof define === 'function' && define.amd ? define(factory) :
-  global.Immutable = factory();
-}(this, function () { 'use strict';var SLICE$0 = Array.prototype.slice;
-
-  function createClass(ctor, superClass) {
-    if (superClass) {
-      ctor.prototype = Object.create(superClass.prototype);
-    }
-    ctor.prototype.constructor = ctor;
-  }
-
-  function Iterable(value) {
-      return isIterable(value) ? value : Seq(value);
-    }
-
-
-  createClass(KeyedIterable, Iterable);
-    function KeyedIterable(value) {
-      return isKeyed(value) ? value : KeyedSeq(value);
-    }
-
-
-  createClass(IndexedIterable, Iterable);
-    function IndexedIterable(value) {
-      return isIndexed(value) ? value : IndexedSeq(value);
-    }
-
-
-  createClass(SetIterable, Iterable);
-    function SetIterable(value) {
-      return isIterable(value) && !isAssociative(value) ? value : SetSeq(value);
-    }
-
-
-
-  function isIterable(maybeIterable) {
-    return !!(maybeIterable && maybeIterable[IS_ITERABLE_SENTINEL]);
-  }
-
-  function isKeyed(maybeKeyed) {
-    return !!(maybeKeyed && maybeKeyed[IS_KEYED_SENTINEL]);
-  }
-
-  function isIndexed(maybeIndexed) {
-    return !!(maybeIndexed && maybeIndexed[IS_INDEXED_SENTINEL]);
-  }
-
-  function isAssociative(maybeAssociative) {
-    return isKeyed(maybeAssociative) || isIndexed(maybeAssociative);
-  }
-
-  function isOrdered(maybeOrdered) {
-    return !!(maybeOrdered && maybeOrdered[IS_ORDERED_SENTINEL]);
-  }
-
-  Iterable.isIterable = isIterable;
-  Iterable.isKeyed = isKeyed;
-  Iterable.isIndexed = isIndexed;
-  Iterable.isAssociative = isAssociative;
-  Iterable.isOrdered = isOrdered;
-
-  Iterable.Keyed = KeyedIterable;
-  Iterable.Indexed = IndexedIterable;
-  Iterable.Set = SetIterable;
-
-
-  var IS_ITERABLE_SENTINEL = '@@__IMMUTABLE_ITERABLE__@@';
-  var IS_KEYED_SENTINEL = '@@__IMMUTABLE_KEYED__@@';
-  var IS_INDEXED_SENTINEL = '@@__IMMUTABLE_INDEXED__@@';
-  var IS_ORDERED_SENTINEL = '@@__IMMUTABLE_ORDERED__@@';
-
-  // Used for setting prototype methods that IE8 chokes on.
-  var DELETE = 'delete';
-
-  // Constants describing the size of trie nodes.
-  var SHIFT = 5; // Resulted in best performance after ______?
-  var SIZE = 1 << SHIFT;
-  var MASK = SIZE - 1;
-
-  // A consistent shared value representing "not set" which equals nothing other
-  // than itself, and nothing that could be provided externally.
-  var NOT_SET = {};
-
-  // Boolean references, Rough equivalent of `bool &`.
-  var CHANGE_LENGTH = { value: false };
-  var DID_ALTER = { value: false };
-
-  function MakeRef(ref) {
-    ref.value = false;
-    return ref;
-  }
-
-  function SetRef(ref) {
-    ref && (ref.value = true);
-  }
-
-  // A function which returns a value representing an "owner" for transient writes
-  // to tries. The return value will only ever equal itself, and will not equal
-  // the return of any subsequent call of this function.
-  function OwnerID() {}
-
-  // http://jsperf.com/copy-array-inline
-  function arrCopy(arr, offset) {
-    offset = offset || 0;
-    var len = Math.max(0, arr.length - offset);
-    var newArr = new Array(len);
-    for (var ii = 0; ii < len; ii++) {
-      newArr[ii] = arr[ii + offset];
-    }
-    return newArr;
-  }
-
-  function ensureSize(iter) {
-    if (iter.size === undefined) {
-      iter.size = iter.__iterate(returnTrue);
-    }
-    return iter.size;
-  }
-
-  function wrapIndex(iter, index) {
-    // This implements "is array index" which the ECMAString spec defines as:
-    //
-    //     A String property name P is an array index if and only if
-    //     ToString(ToUint32(P)) is equal to P and ToUint32(P) is not equal
-    //     to 2^32−1.
-    //
-    // http://www.ecma-international.org/ecma-262/6.0/#sec-array-exotic-objects
-    if (typeof index !== 'number') {
-      var uint32Index = index >>> 0; // N >>> 0 is shorthand for ToUint32
-      if ('' + uint32Index !== index || uint32Index === 4294967295) {
-        return NaN;
-      }
-      index = uint32Index;
-    }
-    return index < 0 ? ensureSize(iter) + index : index;
-  }
-
-  function returnTrue() {
-    return true;
-  }
-
-  function wholeSlice(begin, end, size) {
-    return (begin === 0 || (size !== undefined && begin <= -size)) &&
-      (end === undefined || (size !== undefined && end >= size));
-  }
-
-  function resolveBegin(begin, size) {
-    return resolveIndex(begin, size, 0);
-  }
-
-  function resolveEnd(end, size) {
-    return resolveIndex(end, size, size);
-  }
-
-  function resolveIndex(index, size, defaultIndex) {
-    return index === undefined ?
-      defaultIndex :
-      index < 0 ?
-        Math.max(0, size + index) :
-        size === undefined ?
-          index :
-          Math.min(size, index);
-  }
-
-  /* global Symbol */
-
-  var ITERATE_KEYS = 0;
-  var ITERATE_VALUES = 1;
-  var ITERATE_ENTRIES = 2;
-
-  var REAL_ITERATOR_SYMBOL = typeof Symbol === 'function' && Symbol.iterator;
-  var FAUX_ITERATOR_SYMBOL = '@@iterator';
-
-  var ITERATOR_SYMBOL = REAL_ITERATOR_SYMBOL || FAUX_ITERATOR_SYMBOL;
-
-
-  function Iterator(next) {
-      this.next = next;
-    }
-
-    Iterator.prototype.toString = function() {
-      return '[Iterator]';
-    };
-
-
-  Iterator.KEYS = ITERATE_KEYS;
-  Iterator.VALUES = ITERATE_VALUES;
-  Iterator.ENTRIES = ITERATE_ENTRIES;
-
-  Iterator.prototype.inspect =
-  Iterator.prototype.toSource = function () { return this.toString(); }
-  Iterator.prototype[ITERATOR_SYMBOL] = function () {
-    return this;
-  };
-
-
-  function iteratorValue(type, k, v, iteratorResult) {
-    var value = type === 0 ? k : type === 1 ? v : [k, v];
-    iteratorResult ? (iteratorResult.value = value) : (iteratorResult = {
-      value: value, done: false
-    });
-    return iteratorResult;
-  }
-
-  function iteratorDone() {
-    return { value: undefined, done: true };
-  }
-
-  function hasIterator(maybeIterable) {
-    return !!getIteratorFn(maybeIterable);
-  }
-
-  function isIterator(maybeIterator) {
-    return maybeIterator && typeof maybeIterator.next === 'function';
-  }
-
-  function getIterator(iterable) {
-    var iteratorFn = getIteratorFn(iterable);
-    return iteratorFn && iteratorFn.call(iterable);
-  }
-
-  function getIteratorFn(iterable) {
-    var iteratorFn = iterable && (
-      (REAL_ITERATOR_SYMBOL && iterable[REAL_ITERATOR_SYMBOL]) ||
-      iterable[FAUX_ITERATOR_SYMBOL]
-    );
-    if (typeof iteratorFn === 'function') {
-      return iteratorFn;
-    }
-  }
-
-  function isArrayLike(value) {
-    return value && typeof value.length === 'number';
-  }
-
-  createClass(Seq, Iterable);
-    function Seq(value) {
-      return value === null || value === undefined ? emptySequence() :
-        isIterable(value) ? value.toSeq() : seqFromValue(value);
-    }
-
-    Seq.of = function(/*...values*/) {
-      return Seq(arguments);
-    };
-
-    Seq.prototype.toSeq = function() {
-      return this;
-    };
-
-    Seq.prototype.toString = function() {
-      return this.__toString('Seq {', '}');
-    };
-
-    Seq.prototype.cacheResult = function() {
-      if (!this._cache && this.__iterateUncached) {
-        this._cache = this.entrySeq().toArray();
-        this.size = this._cache.length;
-      }
-      return this;
-    };
-
-    // abstract __iterateUncached(fn, reverse)
-
-    Seq.prototype.__iterate = function(fn, reverse) {
-      return seqIterate(this, fn, reverse, true);
-    };
-
-    // abstract __iteratorUncached(type, reverse)
-
-    Seq.prototype.__iterator = function(type, reverse) {
-      return seqIterator(this, type, reverse, true);
-    };
-
-
-
-  createClass(KeyedSeq, Seq);
-    function KeyedSeq(value) {
-      return value === null || value === undefined ?
-        emptySequence().toKeyedSeq() :
-        isIterable(value) ?
-          (isKeyed(value) ? value.toSeq() : value.fromEntrySeq()) :
-          keyedSeqFromValue(value);
-    }
-
-    KeyedSeq.prototype.toKeyedSeq = function() {
-      return this;
-    };
-
-
-
-  createClass(IndexedSeq, Seq);
-    function IndexedSeq(value) {
-      return value === null || value === undefined ? emptySequence() :
-        !isIterable(value) ? indexedSeqFromValue(value) :
-        isKeyed(value) ? value.entrySeq() : value.toIndexedSeq();
-    }
-
-    IndexedSeq.of = function(/*...values*/) {
-      return IndexedSeq(arguments);
-    };
-
-    IndexedSeq.prototype.toIndexedSeq = function() {
-      return this;
-    };
-
-    IndexedSeq.prototype.toString = function() {
-      return this.__toString('Seq [', ']');
-    };
-
-    IndexedSeq.prototype.__iterate = function(fn, reverse) {
-      return seqIterate(this, fn, reverse, false);
-    };
-
-    IndexedSeq.prototype.__iterator = function(type, reverse) {
-      return seqIterator(this, type, reverse, false);
-    };
-
-
-
-  createClass(SetSeq, Seq);
-    function SetSeq(value) {
-      return (
-        value === null || value === undefined ? emptySequence() :
-        !isIterable(value) ? indexedSeqFromValue(value) :
-        isKeyed(value) ? value.entrySeq() : value
-      ).toSetSeq();
-    }
-
-    SetSeq.of = function(/*...values*/) {
-      return SetSeq(arguments);
-    };
-
-    SetSeq.prototype.toSetSeq = function() {
-      return this;
-    };
-
-
-
-  Seq.isSeq = isSeq;
-  Seq.Keyed = KeyedSeq;
-  Seq.Set = SetSeq;
-  Seq.Indexed = IndexedSeq;
-
-  var IS_SEQ_SENTINEL = '@@__IMMUTABLE_SEQ__@@';
-
-  Seq.prototype[IS_SEQ_SENTINEL] = true;
-
-
-
-  createClass(ArraySeq, IndexedSeq);
-    function ArraySeq(array) {
-      this._array = array;
-      this.size = array.length;
-    }
-
-    ArraySeq.prototype.get = function(index, notSetValue) {
-      return this.has(index) ? this._array[wrapIndex(this, index)] : notSetValue;
-    };
-
-    ArraySeq.prototype.__iterate = function(fn, reverse) {
-      var array = this._array;
-      var maxIndex = array.length - 1;
-      for (var ii = 0; ii <= maxIndex; ii++) {
-        if (fn(array[reverse ? maxIndex - ii : ii], ii, this) === false) {
-          return ii + 1;
-        }
-      }
-      return ii;
-    };
-
-    ArraySeq.prototype.__iterator = function(type, reverse) {
-      var array = this._array;
-      var maxIndex = array.length - 1;
-      var ii = 0;
-      return new Iterator(function() 
-        {return ii > maxIndex ?
-          iteratorDone() :
-          iteratorValue(type, ii, array[reverse ? maxIndex - ii++ : ii++])}
-      );
-    };
-
-
-
-  createClass(ObjectSeq, KeyedSeq);
-    function ObjectSeq(object) {
-      var keys = Object.keys(object);
-      this._object = object;
-      this._keys = keys;
-      this.size = keys.length;
-    }
-
-    ObjectSeq.prototype.get = function(key, notSetValue) {
-      if (notSetValue !== undefined && !this.has(key)) {
-        return notSetValue;
-      }
-      return this._object[key];
-    };
-
-    ObjectSeq.prototype.has = function(key) {
-      return this._object.hasOwnProperty(key);
-    };
-
-    ObjectSeq.prototype.__iterate = function(fn, reverse) {
-      var object = this._object;
-      var keys = this._keys;
-      var maxIndex = keys.length - 1;
-      for (var ii = 0; ii <= maxIndex; ii++) {
-        var key = keys[reverse ? maxIndex - ii : ii];
-        if (fn(object[key], key, this) === false) {
-          return ii + 1;
-        }
-      }
-      return ii;
-    };
-
-    ObjectSeq.prototype.__iterator = function(type, reverse) {
-      var object = this._object;
-      var keys = this._keys;
-      var maxIndex = keys.length - 1;
-      var ii = 0;
-      return new Iterator(function()  {
-        var key = keys[reverse ? maxIndex - ii : ii];
-        return ii++ > maxIndex ?
-          iteratorDone() :
-          iteratorValue(type, key, object[key]);
-      });
-    };
-
-  ObjectSeq.prototype[IS_ORDERED_SENTINEL] = true;
-
-
-  createClass(IterableSeq, IndexedSeq);
-    function IterableSeq(iterable) {
-      this._iterable = iterable;
-      this.size = iterable.length || iterable.size;
-    }
-
-    IterableSeq.prototype.__iterateUncached = function(fn, reverse) {
-      if (reverse) {
-        return this.cacheResult().__iterate(fn, reverse);
-      }
-      var iterable = this._iterable;
-      var iterator = getIterator(iterable);
-      var iterations = 0;
-      if (isIterator(iterator)) {
-        var step;
-        while (!(step = iterator.next()).done) {
-          if (fn(step.value, iterations++, this) === false) {
-            break;
-          }
-        }
-      }
-      return iterations;
-    };
-
-    IterableSeq.prototype.__iteratorUncached = function(type, reverse) {
-      if (reverse) {
-        return this.cacheResult().__iterator(type, reverse);
-      }
-      var iterable = this._iterable;
-      var iterator = getIterator(iterable);
-      if (!isIterator(iterator)) {
-        return new Iterator(iteratorDone);
-      }
-      var iterations = 0;
-      return new Iterator(function()  {
-        var step = iterator.next();
-        return step.done ? step : iteratorValue(type, iterations++, step.value);
-      });
-    };
-
-
-
-  createClass(IteratorSeq, IndexedSeq);
-    function IteratorSeq(iterator) {
-      this._iterator = iterator;
-      this._iteratorCache = [];
-    }
-
-    IteratorSeq.prototype.__iterateUncached = function(fn, reverse) {
-      if (reverse) {
-        return this.cacheResult().__iterate(fn, reverse);
-      }
-      var iterator = this._iterator;
-      var cache = this._iteratorCache;
-      var iterations = 0;
-      while (iterations < cache.length) {
-        if (fn(cache[iterations], iterations++, this) === false) {
-          return iterations;
-        }
-      }
-      var step;
-      while (!(step = iterator.next()).done) {
-        var val = step.value;
-        cache[iterations] = val;
-        if (fn(val, iterations++, this) === false) {
-          break;
-        }
-      }
-      return iterations;
-    };
-
-    IteratorSeq.prototype.__iteratorUncached = function(type, reverse) {
-      if (reverse) {
-        return this.cacheResult().__iterator(type, reverse);
-      }
-      var iterator = this._iterator;
-      var cache = this._iteratorCache;
-      var iterations = 0;
-      return new Iterator(function()  {
-        if (iterations >= cache.length) {
-          var step = iterator.next();
-          if (step.done) {
-            return step;
-          }
-          cache[iterations] = step.value;
-        }
-        return iteratorValue(type, iterations, cache[iterations++]);
-      });
-    };
-
-
-
-
-  // # pragma Helper functions
-
-  function isSeq(maybeSeq) {
-    return !!(maybeSeq && maybeSeq[IS_SEQ_SENTINEL]);
-  }
-
-  var EMPTY_SEQ;
-
-  function emptySequence() {
-    return EMPTY_SEQ || (EMPTY_SEQ = new ArraySeq([]));
-  }
-
-  function keyedSeqFromValue(value) {
-    var seq =
-      Array.isArray(value) ? new ArraySeq(value).fromEntrySeq() :
-      isIterator(value) ? new IteratorSeq(value).fromEntrySeq() :
-      hasIterator(value) ? new IterableSeq(value).fromEntrySeq() :
-      typeof value === 'object' ? new ObjectSeq(value) :
-      undefined;
-    if (!seq) {
-      throw new TypeError(
-        'Expected Array or iterable object of [k, v] entries, '+
-        'or keyed object: ' + value
-      );
-    }
-    return seq;
-  }
-
-  function indexedSeqFromValue(value) {
-    var seq = maybeIndexedSeqFromValue(value);
-    if (!seq) {
-      throw new TypeError(
-        'Expected Array or iterable object of values: ' + value
-      );
-    }
-    return seq;
-  }
-
-  function seqFromValue(value) {
-    var seq = maybeIndexedSeqFromValue(value) ||
-      (typeof value === 'object' && new ObjectSeq(value));
-    if (!seq) {
-      throw new TypeError(
-        'Expected Array or iterable object of values, or keyed object: ' + value
-      );
-    }
-    return seq;
-  }
-
-  function maybeIndexedSeqFromValue(value) {
-    return (
-      isArrayLike(value) ? new ArraySeq(value) :
-      isIterator(value) ? new IteratorSeq(value) :
-      hasIterator(value) ? new IterableSeq(value) :
-      undefined
-    );
-  }
-
-  function seqIterate(seq, fn, reverse, useKeys) {
-    var cache = seq._cache;
-    if (cache) {
-      var maxIndex = cache.length - 1;
-      for (var ii = 0; ii <= maxIndex; ii++) {
-        var entry = cache[reverse ? maxIndex - ii : ii];
-        if (fn(entry[1], useKeys ? entry[0] : ii, seq) === false) {
-          return ii + 1;
-        }
-      }
-      return ii;
-    }
-    return seq.__iterateUncached(fn, reverse);
-  }
-
-  function seqIterator(seq, type, reverse, useKeys) {
-    var cache = seq._cache;
-    if (cache) {
-      var maxIndex = cache.length - 1;
-      var ii = 0;
-      return new Iterator(function()  {
-        var entry = cache[reverse ? maxIndex - ii : ii];
-        return ii++ > maxIndex ?
-          iteratorDone() :
-          iteratorValue(type, useKeys ? entry[0] : ii - 1, entry[1]);
-      });
-    }
-    return seq.__iteratorUncached(type, reverse);
-  }
-
-  function fromJS(json, converter) {
-    return converter ?
-      fromJSWith(converter, json, '', {'': json}) :
-      fromJSDefault(json);
-  }
-
-  function fromJSWith(converter, json, key, parentJSON) {
-    if (Array.isArray(json)) {
-      return converter.call(parentJSON, key, IndexedSeq(json).map(function(v, k)  {return fromJSWith(converter, v, k, json)}));
-    }
-    if (isPlainObj(json)) {
-      return converter.call(parentJSON, key, KeyedSeq(json).map(function(v, k)  {return fromJSWith(converter, v, k, json)}));
-    }
-    return json;
-  }
-
-  function fromJSDefault(json) {
-    if (Array.isArray(json)) {
-      return IndexedSeq(json).map(fromJSDefault).toList();
-    }
-    if (isPlainObj(json)) {
-      return KeyedSeq(json).map(fromJSDefault).toMap();
-    }
-    return json;
-  }
-
-  function isPlainObj(value) {
-    return value && (value.constructor === Object || value.constructor === undefined);
-  }
-
-  /**
-   * An extension of the "same-value" algorithm as [described for use by ES6 Map
-   * and Set](https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Global_Objects/Map#Key_equality)
-   *
-   * NaN is considered the same as NaN, however -0 and 0 are considered the same
-   * value, which is different from the algorithm described by
-   * [`Object.is`](https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Global_Objects/Object/is).
-   *
-   * This is extended further to allow Objects to describe the values they
-   * represent, by way of `valueOf` or `equals` (and `hashCode`).
-   *
-   * Note: because of this extension, the key equality of Immutable.Map and the
-   * value equality of Immutable.Set will differ from ES6 Map and Set.
-   *
-   * ### Defining custom values
-   *
-   * The easiest way to describe the value an object represents is by implementing
-   * `valueOf`. For example, `Date` represents a value by returning a unix
-   * timestamp for `valueOf`:
-   *
-   *     var date1 = new Date(1234567890000); // Fri Feb 13 2009 ...
-   *     var date2 = new Date(1234567890000);
-   *     date1.valueOf(); // 1234567890000
-   *     assert( date1 !== date2 );
-   *     assert( Immutable.is( date1, date2 ) );
-   *
-   * Note: overriding `valueOf` may have other implications if you use this object
-   * where JavaScript expects a primitive, such as implicit string coercion.
-   *
-   * For more complex types, especially collections, implementing `valueOf` may
-   * not be performant. An alternative is to implement `equals` and `hashCode`.
-   *
-   * `equals` takes another object, presumably of similar type, and returns true
-   * if the it is equal. Equality is symmetrical, so the same result should be
-   * returned if this and the argument are flipped.
-   *
-   *     assert( a.equals(b) === b.equals(a) );
-   *
-   * `hashCode` returns a 32bit integer number representing the object which will
-   * be used to determine how to store the value object in a Map or Set. You must
-   * provide both or neither methods, one must not exist without the other.
-   *
-   * Also, an important relationship between these methods must be upheld: if two
-   * values are equal, they *must* return the same hashCode. If the values are not
-   * equal, they might have the same hashCode; this is called a hash collision,
-   * and while undesirable for performance reasons, it is acceptable.
-   *
-   *     if (a.equals(b)) {
-   *       assert( a.hashCode() === b.hashCode() );
-   *     }
-   *
-   * All Immutable collections implement `equals` and `hashCode`.
-   *
-   */
-  function is(valueA, valueB) {
-    if (valueA === valueB || (valueA !== valueA && valueB !== valueB)) {
-      return true;
-    }
-    if (!valueA || !valueB) {
-      return false;
-    }
-    if (typeof valueA.valueOf === 'function' &&
-        typeof valueB.valueOf === 'function') {
-      valueA = valueA.valueOf();
-      valueB = valueB.valueOf();
-      if (valueA === valueB || (valueA !== valueA && valueB !== valueB)) {
-        return true;
-      }
-      if (!valueA || !valueB) {
-        return false;
-      }
-    }
-    if (typeof valueA.equals === 'function' &&
-        typeof valueB.equals === 'function' &&
-        valueA.equals(valueB)) {
-      return true;
-    }
-    return false;
-  }
-
-  function deepEqual(a, b) {
-    if (a === b) {
-      return true;
-    }
-
-    if (
-      !isIterable(b) ||
-      a.size !== undefined && b.size !== undefined && a.size !== b.size ||
-      a.__hash !== undefined && b.__hash !== undefined && a.__hash !== b.__hash ||
-      isKeyed(a) !== isKeyed(b) ||
-      isIndexed(a) !== isIndexed(b) ||
-      isOrdered(a) !== isOrdered(b)
-    ) {
-      return false;
-    }
-
-    if (a.size === 0 && b.size === 0) {
-      return true;
-    }
-
-    var notAssociative = !isAssociative(a);
-
-    if (isOrdered(a)) {
-      var entries = a.entries();
-      return b.every(function(v, k)  {
-        var entry = entries.next().value;
-        return entry && is(entry[1], v) && (notAssociative || is(entry[0], k));
-      }) && entries.next().done;
-    }
-
-    var flipped = false;
-
-    if (a.size === undefined) {
-      if (b.size === undefined) {
-        if (typeof a.cacheResult === 'function') {
-          a.cacheResult();
-        }
-      } else {
-        flipped = true;
-        var _ = a;
-        a = b;
-        b = _;
-      }
-    }
-
-    var allEqual = true;
-    var bSize = b.__iterate(function(v, k)  {
-      if (notAssociative ? !a.has(v) :
-          flipped ? !is(v, a.get(k, NOT_SET)) : !is(a.get(k, NOT_SET), v)) {
-        allEqual = false;
-        return false;
-      }
-    });
-
-    return allEqual && a.size === bSize;
-  }
-
-  createClass(Repeat, IndexedSeq);
-
-    function Repeat(value, times) {
-      if (!(this instanceof Repeat)) {
-        return new Repeat(value, times);
-      }
-      this._value = value;
-      this.size = times === undefined ? Infinity : Math.max(0, times);
-      if (this.size === 0) {
-        if (EMPTY_REPEAT) {
-          return EMPTY_REPEAT;
-        }
-        EMPTY_REPEAT = this;
-      }
-    }
-
-    Repeat.prototype.toString = function() {
-      if (this.size === 0) {
-        return 'Repeat []';
-      }
-      return 'Repeat [ ' + this._value + ' ' + this.size + ' times ]';
-    };
-
-    Repeat.prototype.get = function(index, notSetValue) {
-      return this.has(index) ? this._value : notSetValue;
-    };
-
-    Repeat.prototype.includes = function(searchValue) {
-      return is(this._value, searchValue);
-    };
-
-    Repeat.prototype.slice = function(begin, end) {
-      var size = this.size;
-      return wholeSlice(begin, end, size) ? this :
-        new Repeat(this._value, resolveEnd(end, size) - resolveBegin(begin, size));
-    };
-
-    Repeat.prototype.reverse = function() {
-      return this;
-    };
-
-    Repeat.prototype.indexOf = function(searchValue) {
-      if (is(this._value, searchValue)) {
-        return 0;
-      }
-      return -1;
-    };
-
-    Repeat.prototype.lastIndexOf = function(searchValue) {
-      if (is(this._value, searchValue)) {
-        return this.size;
-      }
-      return -1;
-    };
-
-    Repeat.prototype.__iterate = function(fn, reverse) {
-      for (var ii = 0; ii < this.size; ii++) {
-        if (fn(this._value, ii, this) === false) {
-          return ii + 1;
-        }
-      }
-      return ii;
-    };
-
-    Repeat.prototype.__iterator = function(type, reverse) {var this$0 = this;
-      var ii = 0;
-      return new Iterator(function() 
-        {return ii < this$0.size ? iteratorValue(type, ii++, this$0._value) : iteratorDone()}
-      );
-    };
-
-    Repeat.prototype.equals = function(other) {
-      return other instanceof Repeat ?
-        is(this._value, other._value) :
-        deepEqual(other);
-    };
-
-
-  var EMPTY_REPEAT;
-
-  function invariant(condition, error) {
-    if (!condition) throw new Error(error);
-  }
-
-  createClass(Range, IndexedSeq);
-
-    function Range(start, end, step) {
-      if (!(this instanceof Range)) {
-        return new Range(start, end, step);
-      }
-      invariant(step !== 0, 'Cannot step a Range by 0');
-      start = start || 0;
-      if (end === undefined) {
-        end = Infinity;
-      }
-      step = step === undefined ? 1 : Math.abs(step);
-      if (end < start) {
-        step = -step;
-      }
-      this._start = start;
-      this._end = end;
-      this._step = step;
-      this.size = Math.max(0, Math.ceil((end - start) / step - 1) + 1);
-      if (this.size === 0) {
-        if (EMPTY_RANGE) {
-          return EMPTY_RANGE;
-        }
-        EMPTY_RANGE = this;
-      }
-    }
-
-    Range.prototype.toString = function() {
-      if (this.size === 0) {
-        return 'Range []';
-      }
-      return 'Range [ ' +
-        this._start + '...' + this._end +
-        (this._step > 1 ? ' by ' + this._step : '') +
-      ' ]';
-    };
-
-    Range.prototype.get = function(index, notSetValue) {
-      return this.has(index) ?
-        this._start + wrapIndex(this, index) * this._step :
-        notSetValue;
-    };
-
-    Range.prototype.includes = function(searchValue) {
-      var possibleIndex = (searchValue - this._start) / this._step;
-      return possibleIndex >= 0 &&
-        possibleIndex < this.size &&
-        possibleIndex === Math.floor(possibleIndex);
-    };
-
-    Range.prototype.slice = function(begin, end) {
-      if (wholeSlice(begin, end, this.size)) {
-        return this;
-      }
-      begin = resolveBegin(begin, this.size);
-      end = resolveEnd(end, this.size);
-      if (end <= begin) {
-        return new Range(0, 0);
-      }
-      return new Range(this.get(begin, this._end), this.get(end, this._end), this._step);
-    };
-
-    Range.prototype.indexOf = function(searchValue) {
-      var offsetValue = searchValue - this._start;
-      if (offsetValue % this._step === 0) {
-        var index = offsetValue / this._step;
-        if (index >= 0 && index < this.size) {
-          return index
-        }
-      }
-      return -1;
-    };
-
-    Range.prototype.lastIndexOf = function(searchValue) {
-      return this.indexOf(searchValue);
-    };
-
-    Range.prototype.__iterate = function(fn, reverse) {
-      var maxIndex = this.size - 1;
-      var step = this._step;
-      var value = reverse ? this._start + maxIndex * step : this._start;
-      for (var ii = 0; ii <= maxIndex; ii++) {
-        if (fn(value, ii, this) === false) {
-          return ii + 1;
-        }
-        value += reverse ? -step : step;
-      }
-      return ii;
-    };
-
-    Range.prototype.__iterator = function(type, reverse) {
-      var maxIndex = this.size - 1;
-      var step = this._step;
-      var value = reverse ? this._start + maxIndex * step : this._start;
-      var ii = 0;
-      return new Iterator(function()  {
-        var v = value;
-        value += reverse ? -step : step;
-        return ii > maxIndex ? iteratorDone() : iteratorValue(type, ii++, v);
-      });
-    };
-
-    Range.prototype.equals = function(other) {
-      return other instanceof Range ?
-        this._start === other._start &&
-        this._end === other._end &&
-        this._step === other._step :
-        deepEqual(this, other);
-    };
-
-
-  var EMPTY_RANGE;
-
-  createClass(Collection, Iterable);
-    function Collection() {
-      throw TypeError('Abstract');
-    }
-
-
-  createClass(KeyedCollection, Collection);function KeyedCollection() {}
-
-  createClass(IndexedCollection, Collection);function IndexedCollection() {}
-
-  createClass(SetCollection, Collection);function SetCollection() {}
-
-
-  Collection.Keyed = KeyedCollection;
-  Collection.Indexed = IndexedCollection;
-  Collection.Set = SetCollection;
-
-  var imul =
-    typeof Math.imul === 'function' && Math.imul(0xffffffff, 2) === -2 ?
-    Math.imul :
-    function imul(a, b) {
-      a = a | 0; // int
-      b = b | 0; // int
-      var c = a & 0xffff;
-      var d = b & 0xffff;
-      // Shift by 0 fixes the sign on the high part.
-      return (c * d) + ((((a >>> 16) * d + c * (b >>> 16)) << 16) >>> 0) | 0; // int
-    };
-
-  // v8 has an optimization for storing 31-bit signed numbers.
-  // Values which have either 00 or 11 as the high order bits qualify.
-  // This function drops the highest order bit in a signed number, maintaining
-  // the sign bit.
-  function smi(i32) {
-    return ((i32 >>> 1) & 0x40000000) | (i32 & 0xBFFFFFFF);
-  }
-
-  function hash(o) {
-    if (o === false || o === null || o === undefined) {
-      return 0;
-    }
-    if (typeof o.valueOf === 'function') {
-      o = o.valueOf();
-      if (o === false || o === null || o === undefined) {
-        return 0;
-      }
-    }
-    if (o === true) {
-      return 1;
-    }
-    var type = typeof o;
-    if (type === 'number') {
-      var h = o | 0;
-      if (h !== o) {
-        h ^= o * 0xFFFFFFFF;
-      }
-      while (o > 0xFFFFFFFF) {
-        o /= 0xFFFFFFFF;
-        h ^= o;
-      }
-      return smi(h);
-    }
-    if (type === 'string') {
-      return o.length > STRING_HASH_CACHE_MIN_STRLEN ? cachedHashString(o) : hashString(o);
-    }
-    if (typeof o.hashCode === 'function') {
-      return o.hashCode();
-    }
-    if (type === 'object') {
-      return hashJSObj(o);
-    }
-    if (typeof o.toString === 'function') {
-      return hashString(o.toString());
-    }
-    throw new Error('Value type ' + type + ' cannot be hashed.');
-  }
-
-  function cachedHashString(string) {
-    var hash = stringHashCache[string];
-    if (hash === undefined) {
-      hash = hashString(string);
-      if (STRING_HASH_CACHE_SIZE === STRING_HASH_CACHE_MAX_SIZE) {
-        STRING_HASH_CACHE_SIZE = 0;
-        stringHashCache = {};
-      }
-      STRING_HASH_CACHE_SIZE++;
-      stringHashCache[string] = hash;
-    }
-    return hash;
-  }
-
-  // http://jsperf.com/hashing-strings
-  function hashString(string) {
-    // This is the hash from JVM
-    // The hash code for a string is computed as
-    // s[0] * 31 ^ (n - 1) + s[1] * 31 ^ (n - 2) + ... + s[n - 1],
-    // where s[i] is the ith character of the string and n is the length of
-    // the string. We "mod" the result to make it between 0 (inclusive) and 2^31
-    // (exclusive) by dropping high bits.
-    var hash = 0;
-    for (var ii = 0; ii < string.length; ii++) {
-      hash = 31 * hash + string.charCodeAt(ii) | 0;
-    }
-    return smi(hash);
-  }
-
-  function hashJSObj(obj) {
-    var hash;
-    if (usingWeakMap) {
-      hash = weakMap.get(obj);
-      if (hash !== undefined) {
-        return hash;
-      }
-    }
-
-    hash = obj[UID_HASH_KEY];
-    if (hash !== undefined) {
-      return hash;
-    }
-
-    if (!canDefineProperty) {
-      hash = obj.propertyIsEnumerable && obj.propertyIsEnumerable[UID_HASH_KEY];
-      if (hash !== undefined) {
-        return hash;
-      }
-
-      hash = getIENodeHash(obj);
-      if (hash !== undefined) {
-        return hash;
-      }
-    }
-
-    hash = ++objHashUID;
-    if (objHashUID & 0x40000000) {
-      objHashUID = 0;
-    }
-
-    if (usingWeakMap) {
-      weakMap.set(obj, hash);
-    } else if (isExtensible !== undefined && isExtensible(obj) === false) {
-      throw new Error('Non-extensible objects are not allowed as keys.');
-    } else if (canDefineProperty) {
-      Object.defineProperty(obj, UID_HASH_KEY, {
-        'enumerable': false,
-        'configurable': false,
-        'writable': false,
-        'value': hash
-      });
-    } else if (obj.propertyIsEnumerable !== undefined &&
-               obj.propertyIsEnumerable === obj.constructor.prototype.propertyIsEnumerable) {
-      // Since we can't define a non-enumerable property on the object
-      // we'll hijack one of the less-used non-enumerable properties to
-      // save our hash on it. Since this is a function it will not show up in
-      // `JSON.stringify` which is what we want.
-      obj.propertyIsEnumerable = function() {
-        return this.constructor.prototype.propertyIsEnumerable.apply(this, arguments);
-      };
-      obj.propertyIsEnumerable[UID_HASH_KEY] = hash;
-    } else if (obj.nodeType !== undefined) {
-      // At this point we couldn't get the IE `uniqueID` to use as a hash
-      // and we couldn't use a non-enumerable property to exploit the
-      // dontEnum bug so we simply add the `UID_HASH_KEY` on the node
-      // itself.
-      obj[UID_HASH_KEY] = hash;
-    } else {
-      throw new Error('Unable to set a non-enumerable property on object.');
-    }
-
-    return hash;
-  }
-
-  // Get references to ES5 object methods.
-  var isExtensible = Object.isExtensible;
-
-  // True if Object.defineProperty works as expected. IE8 fails this test.
-  var canDefineProperty = (function() {
-    try {
-      Object.defineProperty({}, '@', {});
-      return true;
-    } catch (e) {
-      return false;
-    }
-  }());
-
-  // IE has a `uniqueID` property on DOM nodes. We can construct the hash from it
-  // and avoid memory leaks from the IE cloneNode bug.
-  function getIENodeHash(node) {
-    if (node && node.nodeType > 0) {
-      switch (node.nodeType) {
-        case 1: // Element
-          return node.uniqueID;
-        case 9: // Document
-          return node.documentElement && node.documentElement.uniqueID;
-      }
-    }
-  }
-
-  // If possible, use a WeakMap.
-  var usingWeakMap = typeof WeakMap === 'function';
-  var weakMap;
-  if (usingWeakMap) {
-    weakMap = new WeakMap();
-  }
-
-  var objHashUID = 0;
-
-  var UID_HASH_KEY = '__immutablehash__';
-  if (typeof Symbol === 'function') {
-    UID_HASH_KEY = Symbol(UID_HASH_KEY);
-  }
-
-  var STRING_HASH_CACHE_MIN_STRLEN = 16;
-  var STRING_HASH_CACHE_MAX_SIZE = 255;
-  var STRING_HASH_CACHE_SIZE = 0;
-  var stringHashCache = {};
-
-  function assertNotInfinite(size) {
-    invariant(
-      size !== Infinity,
-      'Cannot perform this action with an infinite size.'
-    );
-  }
-
-  createClass(Map, KeyedCollection);
-
-    // @pragma Construction
-
-    function Map(value) {
-      return value === null || value === undefined ? emptyMap() :
-        isMap(value) && !isOrdered(value) ? value :
-        emptyMap().withMutations(function(map ) {
-          var iter = KeyedIterable(value);
-          assertNotInfinite(iter.size);
-          iter.forEach(function(v, k)  {return map.set(k, v)});
-        });
-    }
-
-    Map.prototype.toString = function() {
-      return this.__toString('Map {', '}');
-    };
-
-    // @pragma Access
-
-    Map.prototype.get = function(k, notSetValue) {
-      return this._root ?
-        this._root.get(0, undefined, k, notSetValue) :
-        notSetValue;
-    };
-
-    // @pragma Modification
-
-    Map.prototype.set = function(k, v) {
-      return updateMap(this, k, v);
-    };
-
-    Map.prototype.setIn = function(keyPath, v) {
-      return this.updateIn(keyPath, NOT_SET, function()  {return v});
-    };
-
-    Map.prototype.remove = function(k) {
-      return updateMap(this, k, NOT_SET);
-    };
-
-    Map.prototype.deleteIn = function(keyPath) {
-      return this.updateIn(keyPath, function()  {return NOT_SET});
-    };
-
-    Map.prototype.update = function(k, notSetValue, updater) {
-      return arguments.length === 1 ?
-        k(this) :
-        this.updateIn([k], notSetValue, updater);
-    };
-
-    Map.prototype.updateIn = function(keyPath, notSetValue, updater) {
-      if (!updater) {
-        updater = notSetValue;
-        notSetValue = undefined;
-      }
-      var updatedValue = updateInDeepMap(
-        this,
-        forceIterator(keyPath),
-        notSetValue,
-        updater
-      );
-      return updatedValue === NOT_SET ? undefined : updatedValue;
-    };
-
-    Map.prototype.clear = function() {
-      if (this.size === 0) {
-        return this;
-      }
-      if (this.__ownerID) {
-        this.size = 0;
-        this._root = null;
-        this.__hash = undefined;
-        this.__altered = true;
-        return this;
-      }
-      return emptyMap();
-    };
-
-    // @pragma Composition
-
-    Map.prototype.merge = function(/*...iters*/) {
-      return mergeIntoMapWith(this, undefined, arguments);
-    };
-
-    Map.prototype.mergeWith = function(merger) {var iters = SLICE$0.call(arguments, 1);
-      return mergeIntoMapWith(this, merger, iters);
-    };
-
-    Map.prototype.mergeIn = function(keyPath) {var iters = SLICE$0.call(arguments, 1);
-      return this.updateIn(
-        keyPath,
-        emptyMap(),
-        function(m ) {return typeof m.merge === 'function' ?
-          m.merge.apply(m, iters) :
-          iters[iters.length - 1]}
-      );
-    };
-
-    Map.prototype.mergeDeep = function(/*...iters*/) {
-      return mergeIntoMapWith(this, deepMerger, arguments);
-    };
-
-    Map.prototype.mergeDeepWith = function(merger) {var iters = SLICE$0.call(arguments, 1);
-      return mergeIntoMapWith(this, deepMergerWith(merger), iters);
-    };
-
-    Map.prototype.mergeDeepIn = function(keyPath) {var iters = SLICE$0.call(arguments, 1);
-      return this.updateIn(
-        keyPath,
-        emptyMap(),
-        function(m ) {return typeof m.mergeDeep === 'function' ?
-          m.mergeDeep.apply(m, iters) :
-          iters[iters.length - 1]}
-      );
-    };
-
-    Map.prototype.sort = function(comparator) {
-      // Late binding
-      return OrderedMap(sortFactory(this, comparator));
-    };
-
-    Map.prototype.sortBy = function(mapper, comparator) {
-      // Late binding
-      return OrderedMap(sortFactory(this, comparator, mapper));
-    };
-
-    // @pragma Mutability
-
-    Map.prototype.withMutations = function(fn) {
-      var mutable = this.asMutable();
-      fn(mutable);
-      return mutable.wasAltered() ? mutable.__ensureOwner(this.__ownerID) : this;
-    };
-
-    Map.prototype.asMutable = function() {
-      return this.__ownerID ? this : this.__ensureOwner(new OwnerID());
-    };
-
-    Map.prototype.asImmutable = function() {
-      return this.__ensureOwner();
-    };
-
-    Map.prototype.wasAltered = function() {
-      return this.__altered;
-    };
-
-    Map.prototype.__iterator = function(type, reverse) {
-      return new MapIterator(this, type, reverse);
-    };
-
-    Map.prototype.__iterate = function(fn, reverse) {var this$0 = this;
-      var iterations = 0;
-      this._root && this._root.iterate(function(entry ) {
-        iterations++;
-        return fn(entry[1], entry[0], this$0);
-      }, reverse);
-      return iterations;
-    };
-
-    Map.prototype.__ensureOwner = function(ownerID) {
-      if (ownerID === this.__ownerID) {
-        return this;
-      }
-      if (!ownerID) {
-        this.__ownerID = ownerID;
-        this.__altered = false;
-        return this;
-      }
-      return makeMap(this.size, this._root, ownerID, this.__hash);
-    };
-
-
-  function isMap(maybeMap) {
-    return !!(maybeMap && maybeMap[IS_MAP_SENTINEL]);
-  }
-
-  Map.isMap = isMap;
-
-  var IS_MAP_SENTINEL = '@@__IMMUTABLE_MAP__@@';
-
-  var MapPrototype = Map.prototype;
-  MapPrototype[IS_MAP_SENTINEL] = true;
-  MapPrototype[DELETE] = MapPrototype.remove;
-  MapPrototype.removeIn = MapPrototype.deleteIn;
-
-
-  // #pragma Trie Nodes
-
-
-
-    function ArrayMapNode(ownerID, entries) {
-      this.ownerID = ownerID;
-      this.entries = entries;
-    }
-
-    ArrayMapNode.prototype.get = function(shift, keyHash, key, notSetValue) {
-      var entries = this.entries;
-      for (var ii = 0, len = entries.length; ii < len; ii++) {
-        if (is(key, entries[ii][0])) {
-          return entries[ii][1];
-        }
-      }
-      return notSetValue;
-    };
-
-    ArrayMapNode.prototype.update = function(ownerID, shift, keyHash, key, value, didChangeSize, didAlter) {
-      var removed = value === NOT_SET;
-
-      var entries = this.entries;
-      var idx = 0;
-      for (var len = entries.length; idx < len; idx++) {
-        if (is(key, entries[idx][0])) {
-          break;
-        }
-      }
-      var exists = idx < len;
-
-      if (exists ? entries[idx][1] === value : removed) {
-        return this;
-      }
-
-      SetRef(didAlter);
-      (removed || !exists) && SetRef(didChangeSize);
-
-      if (removed && entries.length === 1) {
-        return; // undefined
-      }
-
-      if (!exists && !removed && entries.length >= MAX_ARRAY_MAP_SIZE) {
-        return createNodes(ownerID, entries, key, value);
-      }
-
-      var isEditable = ownerID && ownerID === this.ownerID;
-      var newEntries = isEditable ? entries : arrCopy(entries);
-
-      if (exists) {
-        if (removed) {
-          idx === len - 1 ? newEntries.pop() : (newEntries[idx] = newEntries.pop());
-        } else {
-          newEntries[idx] = [key, value];
-        }
-      } else {
-        newEntries.push([key, value]);
-      }
-
-      if (isEditable) {
-        this.entries = newEntries;
-        return this;
-      }
-
-      return new ArrayMapNode(ownerID, newEntries);
-    };
-
-
-
-
-    function BitmapIndexedNode(ownerID, bitmap, nodes) {
-      this.ownerID = ownerID;
-      this.bitmap = bitmap;
-      this.nodes = nodes;
-    }
-
-    BitmapIndexedNode.prototype.get = function(shift, keyHash, key, notSetValue) {
-      if (keyHash === undefined) {
-        keyHash = hash(key);
-      }
-      var bit = (1 << ((shift === 0 ? keyHash : keyHash >>> shift) & MASK));
-      var bitmap = this.bitmap;
-      return (bitmap & bit) === 0 ? notSetValue :
-        this.nodes[popCount(bitmap & (bit - 1))].get(shift + SHIFT, keyHash, key, notSetValue);
-    };
-
-    BitmapIndexedNode.prototype.update = function(ownerID, shift, keyHash, key, value, didChangeSize, didAlter) {
-      if (keyHash === undefined) {
-        keyHash = hash(key);
-      }
-      var keyHashFrag = (shift === 0 ? keyHash : keyHash >>> shift) & MASK;
-      var bit = 1 << keyHashFrag;
-      var bitmap = this.bitmap;
-      var exists = (bitmap & bit) !== 0;
-
-      if (!exists && value === NOT_SET) {
-        return this;
-      }
-
-      var idx = popCount(bitmap & (bit - 1));
-      var nodes = this.nodes;
-      var node = exists ? nodes[idx] : undefined;
-      var newNode = updateNode(node, ownerID, shift + SHIFT, keyHash, key, value, didChangeSize, didAlter);
-
-      if (newNode === node) {
-        return this;
-      }
-
-      if (!exists && newNode && nodes.length >= MAX_BITMAP_INDEXED_SIZE) {
-        return expandNodes(ownerID, nodes, bitmap, keyHashFrag, newNode);
-      }
-
-      if (exists && !newNode && nodes.length === 2 && isLeafNode(nodes[idx ^ 1])) {
-        return nodes[idx ^ 1];
-      }
-
-      if (exists && newNode && nodes.length === 1 && isLeafNode(newNode)) {
-        return newNode;
-      }
-
-      var isEditable = ownerID && ownerID === this.ownerID;
-      var newBitmap = exists ? newNode ? bitmap : bitmap ^ bit : bitmap | bit;
-      var newNodes = exists ? newNode ?
-        setIn(nodes, idx, newNode, isEditable) :
-        spliceOut(nodes, idx, isEditable) :
-        spliceIn(nodes, idx, newNode, isEditable);
-
-      if (isEditable) {
-        this.bitmap = newBitmap;
-        this.nodes = newNodes;
-        return this;
-      }
-
-      return new BitmapIndexedNode(ownerID, newBitmap, newNodes);
-    };
-
-
-
-
-    function HashArrayMapNode(ownerID, count, nodes) {
-      this.ownerID = ownerID;
-      this.count = count;
-      this.nodes = nodes;
-    }
-
-    HashArrayMapNode.prototype.get = function(shift, keyHash, key, notSetValue) {
-      if (keyHash === undefined) {
-        keyHash = hash(key);
-      }
-      var idx = (shift === 0 ? keyHash : keyHash >>> shift) & MASK;
-      var node = this.nodes[idx];
-      return node ? node.get(shift + SHIFT, keyHash, key, notSetValue) : notSetValue;
-    };
-
-    HashArrayMapNode.prototype.update = function(ownerID, shift, keyHash, key, value, didChangeSize, didAlter) {
-      if (keyHash === undefined) {
-        keyHash = hash(key);
-      }
-      var idx = (shift === 0 ? keyHash : keyHash >>> shift) & MASK;
-      var removed = value === NOT_SET;
-      var nodes = this.nodes;
-      var node = nodes[idx];
-
-      if (removed && !node) {
-        return this;
-      }
-
-      var newNode = updateNode(node, ownerID, shift + SHIFT, keyHash, key, value, didChangeSize, didAlter);
-      if (newNode === node) {
-        return this;
-      }
-
-      var newCount = this.count;
-      if (!node) {
-        newCount++;
-      } else if (!newNode) {
-        newCount--;
-        if (newCount < MIN_HASH_ARRAY_MAP_SIZE) {
-          return packNodes(ownerID, nodes, newCount, idx);
-        }
-      }
-
-      var isEditable = ownerID && ownerID === this.ownerID;
-      var newNodes = setIn(nodes, idx, newNode, isEditable);
-
-      if (isEditable) {
-        this.count = newCount;
-        this.nodes = newNodes;
-        return this;
-      }
-
-      return new HashArrayMapNode(ownerID, newCount, newNodes);
-    };
-
-
-
-
-    function HashCollisionNode(ownerID, keyHash, entries) {
-      this.ownerID = ownerID;
-      this.keyHash = keyHash;
-      this.entries = entries;
-    }
-
-    HashCollisionNode.prototype.get = function(shift, keyHash, key, notSetValue) {
-      var entries = this.entries;
-      for (var ii = 0, len = entries.length; ii < len; ii++) {
-        if (is(key, entries[ii][0])) {
-          return entries[ii][1];
-        }
-      }
-      return notSetValue;
-    };
-
-    HashCollisionNode.prototype.update = function(ownerID, shift, keyHash, key, value, didChangeSize, didAlter) {
-      if (keyHash === undefined) {
-        keyHash = hash(key);
-      }
-
-      var removed = value === NOT_SET;
-
-      if (keyHash !== this.keyHash) {
-        if (removed) {
-          return this;
-        }
-        SetRef(didAlter);
-        SetRef(didChangeSize);
-        return mergeIntoNode(this, ownerID, shift, keyHash, [key, value]);
-      }
-
-      var entries = this.entries;
-      var idx = 0;
-      for (var len = entries.length; idx < len; idx++) {
-        if (is(key, entries[idx][0])) {
-          break;
-        }
-      }
-      var exists = idx < len;
-
-      if (exists ? entries[idx][1] === value : removed) {
-        return this;
-      }
-
-      SetRef(didAlter);
-      (removed || !exists) && SetRef(didChangeSize);
-
-      if (removed && len === 2) {
-        return new ValueNode(ownerID, this.keyHash, entries[idx ^ 1]);
-      }
-
-      var isEditable = ownerID && ownerID === this.ownerID;
-      var newEntries = isEditable ? entries : arrCopy(entries);
-
-      if (exists) {
-        if (removed) {
-          idx === len - 1 ? newEntries.pop() : (newEntries[idx] = newEntries.pop());
-        } else {
-          newEntries[idx] = [key, value];
-        }
-      } else {
-        newEntries.push([key, value]);
-      }
-
-      if (isEditable) {
-        this.entries = newEntries;
-        return this;
-      }
-
-      return new HashCollisionNode(ownerID, this.keyHash, newEntries);
-    };
-
-
-
-
-    function ValueNode(ownerID, keyHash, entry) {
-      this.ownerID = ownerID;
-      this.keyHash = keyHash;
-      this.entry = entry;
-    }
-
-    ValueNode.prototype.get = function(shift, keyHash, key, notSetValue) {
-      return is(key, this.entry[0]) ? this.entry[1] : notSetValue;
-    };
-
-    ValueNode.prototype.update = function(ownerID, shift, keyHash, key, value, didChangeSize, didAlter) {
-      var removed = value === NOT_SET;
-      var keyMatch = is(key, this.entry[0]);
-      if (keyMatch ? value === this.entry[1] : removed) {
-        return this;
-      }
-
-      SetRef(didAlter);
-
-      if (removed) {
-        SetRef(didChangeSize);
-        return; // undefined
-      }
-
-      if (keyMatch) {
-        if (ownerID && ownerID === this.ownerID) {
-          this.entry[1] = value;
-          return this;
-        }
-        return new ValueNode(ownerID, this.keyHash, [key, value]);
-      }
-
-      SetRef(didChangeSize);
-      return mergeIntoNode(this, ownerID, shift, hash(key), [key, value]);
-    };
-
-
-
-  // #pragma Iterators
-
-  ArrayMapNode.prototype.iterate =
-  HashCollisionNode.prototype.iterate = function (fn, reverse) {
-    var entries = this.entries;
-    for (var ii = 0, maxIndex = entries.length - 1; ii <= maxIndex; ii++) {
-      if (fn(entries[reverse ? maxIndex - ii : ii]) === false) {
-        return false;
-      }
-    }
-  }
-
-  BitmapIndexedNode.prototype.iterate =
-  HashArrayMapNode.prototype.iterate = function (fn, reverse) {
-    var nodes = this.nodes;
-    for (var ii = 0, maxIndex = nodes.length - 1; ii <= maxIndex; ii++) {
-      var node = nodes[reverse ? maxIndex - ii : ii];
-      if (node && node.iterate(fn, reverse) === false) {
-        return false;
-      }
-    }
-  }
-
-  ValueNode.prototype.iterate = function (fn, reverse) {
-    return fn(this.entry);
-  }
-
-  createClass(MapIterator, Iterator);
-
-    function MapIterator(map, type, reverse) {
-      this._type = type;
-      this._reverse = reverse;
-      this._stack = map._root && mapIteratorFrame(map._root);
-    }
-
-    MapIterator.prototype.next = function() {
-      var type = this._type;
-      var stack = this._stack;
-      while (stack) {
-        var node = stack.node;
-        var index = stack.index++;
-        var maxIndex;
-        if (node.entry) {
-          if (index === 0) {
-            return mapIteratorValue(type, node.entry);
-          }
-        } else if (node.entries) {
-          maxIndex = node.entries.length - 1;
-          if (index <= maxIndex) {
-            return mapIteratorValue(type, node.entries[this._reverse ? maxIndex - index : index]);
-          }
-        } else {
-          maxIndex = node.nodes.length - 1;
-          if (index <= maxIndex) {
-            var subNode = node.nodes[this._reverse ? maxIndex - index : index];
-            if (subNode) {
-              if (subNode.entry) {
-                return mapIteratorValue(type, subNode.entry);
-              }
-              stack = this._stack = mapIteratorFrame(subNode, stack);
-            }
-            continue;
-          }
-        }
-        stack = this._stack = this._stack.__prev;
-      }
-      return iteratorDone();
-    };
-
-
-  function mapIteratorValue(type, entry) {
-    return iteratorValue(type, entry[0], entry[1]);
-  }
-
-  function mapIteratorFrame(node, prev) {
-    return {
-      node: node,
-      index: 0,
-      __prev: prev
-    };
-  }
-
-  function makeMap(size, root, ownerID, hash) {
-    var map = Object.create(MapPrototype);
-    map.size = size;
-    map._root = root;
-    map.__ownerID = ownerID;
-    map.__hash = hash;
-    map.__altered = false;
-    return map;
-  }
-
-  var EMPTY_MAP;
-  function emptyMap() {
-    return EMPTY_MAP || (EMPTY_MAP = makeMap(0));
-  }
-
-  function updateMap(map, k, v) {
-    var newRoot;
-    var newSize;
-    if (!map._root) {
-      if (v === NOT_SET) {
-        return map;
-      }
-      newSize = 1;
-      newRoot = new ArrayMapNode(map.__ownerID, [[k, v]]);
-    } else {
-      var didChangeSize = MakeRef(CHANGE_LENGTH);
-      var didAlter = MakeRef(DID_ALTER);
-      newRoot = updateNode(map._root, map.__ownerID, 0, undefined, k, v, didChangeSize, didAlter);
-      if (!didAlter.value) {
-        return map;
-      }
-      newSize = map.size + (didChangeSize.value ? v === NOT_SET ? -1 : 1 : 0);
-    }
-    if (map.__ownerID) {
-      map.size = newSize;
-      map._root = newRoot;
-      map.__hash = undefined;
-      map.__altered = true;
-      return map;
-    }
-    return newRoot ? makeMap(newSize, newRoot) : emptyMap();
-  }
-
-  function updateNode(node, ownerID, shift, keyHash, key, value, didChangeSize, didAlter) {
-    if (!node) {
-      if (value === NOT_SET) {
-        return node;
-      }
-      SetRef(didAlter);
-      SetRef(didChangeSize);
-      return new ValueNode(ownerID, keyHash, [key, value]);
-    }
-    return node.update(ownerID, shift, keyHash, key, value, didChangeSize, didAlter);
-  }
-
-  function isLeafNode(node) {
-    return node.constructor === ValueNode || node.constructor === HashCollisionNode;
-  }
-
-  function mergeIntoNode(node, ownerID, shift, keyHash, entry) {
-    if (node.keyHash === keyHash) {
-      return new HashCollisionNode(ownerID, keyHash, [node.entry, entry]);
-    }
-
-    var idx1 = (shift === 0 ? node.keyHash : node.keyHash >>> shift) & MASK;
-    var idx2 = (shift === 0 ? keyHash : keyHash >>> shift) & MASK;
-
-    var newNode;
-    var nodes = idx1 === idx2 ?
-      [mergeIntoNode(node, ownerID, shift + SHIFT, keyHash, entry)] :
-      ((newNode = new ValueNode(ownerID, keyHash, entry)), idx1 < idx2 ? [node, newNode] : [newNode, node]);
-
-    return new BitmapIndexedNode(ownerID, (1 << idx1) | (1 << idx2), nodes);
-  }
-
-  function createNodes(ownerID, entries, key, value) {
-    if (!ownerID) {
-      ownerID = new OwnerID();
-    }
-    var node = new ValueNode(ownerID, hash(key), [key, value]);
-    for (var ii = 0; ii < entries.length; ii++) {
-      var entry = entries[ii];
-      node = node.update(ownerID, 0, undefined, entry[0], entry[1]);
-    }
-    return node;
-  }
-
-  function packNodes(ownerID, nodes, count, excluding) {
-    var bitmap = 0;
-    var packedII = 0;
-    var packedNodes = new Array(count);
-    for (var ii = 0, bit = 1, len = nodes.length; ii < len; ii++, bit <<= 1) {
-      var node = nodes[ii];
-      if (node !== undefined && ii !== excluding) {
-        bitmap |= bit;
-        packedNodes[packedII++] = node;
-      }
-    }
-    return new BitmapIndexedNode(ownerID, bitmap, packedNodes);
-  }
-
-  function expandNodes(ownerID, nodes, bitmap, including, node) {
-    var count = 0;
-    var expandedNodes = new Array(SIZE);
-    for (var ii = 0; bitmap !== 0; ii++, bitmap >>>= 1) {
-      expandedNodes[ii] = bitmap & 1 ? nodes[count++] : undefined;
-    }
-    expandedNodes[including] = node;
-    return new HashArrayMapNode(ownerID, count + 1, expandedNodes);
-  }
-
-  function mergeIntoMapWith(map, merger, iterables) {
-    var iters = [];
-    for (var ii = 0; ii < iterables.length; ii++) {
-      var value = iterables[ii];
-      var iter = KeyedIterable(value);
-      if (!isIterable(value)) {
-        iter = iter.map(function(v ) {return fromJS(v)});
-      }
-      iters.push(iter);
-    }
-    return mergeIntoCollectionWith(map, merger, iters);
-  }
-
-  function deepMerger(existing, value, key) {
-    return existing && existing.mergeDeep && isIterable(value) ?
-      existing.mergeDeep(value) :
-      is(existing, value) ? existing : value;
-  }
-
-  function deepMergerWith(merger) {
-    return function(existing, value, key)  {
-      if (existing && existing.mergeDeepWith && isIterable(value)) {
-        return existing.mergeDeepWith(merger, value);
-      }
-      var nextValue = merger(existing, value, key);
-      return is(existing, nextValue) ? existing : nextValue;
-    };
-  }
-
-  function mergeIntoCollectionWith(collection, merger, iters) {
-    iters = iters.filter(function(x ) {return x.size !== 0});
-    if (iters.length === 0) {
-      return collection;
-    }
-    if (collection.size === 0 && !collection.__ownerID && iters.length === 1) {
-      return collection.constructor(iters[0]);
-    }
-    return collection.withMutations(function(collection ) {
-      var mergeIntoMap = merger ?
-        function(value, key)  {
-          collection.update(key, NOT_SET, function(existing )
-            {return existing === NOT_SET ? value : merger(existing, value, key)}
-          );
-        } :
-        function(value, key)  {
-          collection.set(key, value);
-        }
-      for (var ii = 0; ii < iters.length; ii++) {
-        iters[ii].forEach(mergeIntoMap);
-      }
-    });
-  }
-
-  function updateInDeepMap(existing, keyPathIter, notSetValue, updater) {
-    var isNotSet = existing === NOT_SET;
-    var step = keyPathIter.next();
-    if (step.done) {
-      var existingValue = isNotSet ? notSetValue : existing;
-      var newValue = updater(existingValue);
-      return newValue === existingValue ? existing : newValue;
-    }
-    invariant(
-      isNotSet || (existing && existing.set),
-      'invalid keyPath'
-    );
-    var key = step.value;
-    var nextExisting = isNotSet ? NOT_SET : existing.get(key, NOT_SET);
-    var nextUpdated = updateInDeepMap(
-      nextExisting,
-      keyPathIter,
-      notSetValue,
-      updater
-    );
-    return nextUpdated === nextExisting ? existing :
-      nextUpdated === NOT_SET ? existing.remove(key) :
-      (isNotSet ? emptyMap() : existing).set(key, nextUpdated);
-  }
-
-  function popCount(x) {
-    x = x - ((x >> 1) & 0x55555555);
-    x = (x & 0x33333333) + ((x >> 2) & 0x33333333);
-    x = (x + (x >> 4)) & 0x0f0f0f0f;
-    x = x + (x >> 8);
-    x = x + (x >> 16);
-    return x & 0x7f;
-  }
-
-  function setIn(array, idx, val, canEdit) {
-    var newArray = canEdit ? array : arrCopy(array);
-    newArray[idx] = val;
-    return newArray;
-  }
-
-  function spliceIn(array, idx, val, canEdit) {
-    var newLen = array.length + 1;
-    if (canEdit && idx + 1 === newLen) {
-      array[idx] = val;
-      return array;
-    }
-    var newArray = new Array(newLen);
-    var after = 0;
-    for (var ii = 0; ii < newLen; ii++) {
-      if (ii === idx) {
-        newArray[ii] = val;
-        after = -1;
-      } else {
-        newArray[ii] = array[ii + after];
-      }
-    }
-    return newArray;
-  }
-
-  function spliceOut(array, idx, canEdit) {
-    var newLen = array.length - 1;
-    if (canEdit && idx === newLen) {
-      array.pop();
-      return array;
-    }
-    var newArray = new Array(newLen);
-    var after = 0;
-    for (var ii = 0; ii < newLen; ii++) {
-      if (ii === idx) {
-        after = 1;
-      }
-      newArray[ii] = array[ii + after];
-    }
-    return newArray;
-  }
-
-  var MAX_ARRAY_MAP_SIZE = SIZE / 4;
-  var MAX_BITMAP_INDEXED_SIZE = SIZE / 2;
-  var MIN_HASH_ARRAY_MAP_SIZE = SIZE / 4;
-
-  createClass(List, IndexedCollection);
-
-    // @pragma Construction
-
-    function List(value) {
-      var empty = emptyList();
-      if (value === null || value === undefined) {
-        return empty;
-      }
-      if (isList(value)) {
-        return value;
-      }
-      var iter = IndexedIterable(value);
-      var size = iter.size;
-      if (size === 0) {
-        return empty;
-      }
-      assertNotInfinite(size);
-      if (size > 0 && size < SIZE) {
-        return makeList(0, size, SHIFT, null, new VNode(iter.toArray()));
-      }
-      return empty.withMutations(function(list ) {
-        list.setSize(size);
-        iter.forEach(function(v, i)  {return list.set(i, v)});
-      });
-    }
-
-    List.of = function(/*...values*/) {
-      return this(arguments);
-    };
-
-    List.prototype.toString = function() {
-      return this.__toString('List [', ']');
-    };
-
-    // @pragma Access
-
-    List.prototype.get = function(index, notSetValue) {
-      index = wrapIndex(this, index);
-      if (index >= 0 && index < this.size) {
-        index += this._origin;
-        var node = listNodeFor(this, index);
-        return node && node.array[index & MASK];
-      }
-      return notSetValue;
-    };
-
-    // @pragma Modification
-
-    List.prototype.set = function(index, value) {
-      return updateList(this, index, value);
-    };
-
-    List.prototype.remove = function(index) {
-      return !this.has(index) ? this :
-        index === 0 ? this.shift() :
-        index === this.size - 1 ? this.pop() :
-        this.splice(index, 1);
-    };
-
-    List.prototype.insert = function(index, value) {
-      return this.splice(index, 0, value);
-    };
-
-    List.prototype.clear = function() {
-      if (this.size === 0) {
-        return this;
-      }
-      if (this.__ownerID) {
-        this.size = this._origin = this._capacity = 0;
-        this._level = SHIFT;
-        this._root = this._tail = null;
-        this.__hash = undefined;
-        this.__altered = true;
-        return this;
-      }
-      return emptyList();
-    };
-
-    List.prototype.push = function(/*...values*/) {
-      var values = arguments;
-      var oldSize = this.size;
-      return this.withMutations(function(list ) {
-        setListBounds(list, 0, oldSize + values.length);
-        for (var ii = 0; ii < values.length; ii++) {
-          list.set(oldSize + ii, values[ii]);
-        }
-      });
-    };
-
-    List.prototype.pop = function() {
-      return setListBounds(this, 0, -1);
-    };
-
-    List.prototype.unshift = function(/*...values*/) {
-      var values = arguments;
-      return this.withMutations(function(list ) {
-        setListBounds(list, -values.length);
-        for (var ii = 0; ii < values.length; ii++) {
-          list.set(ii, values[ii]);
-        }
-      });
-    };
-
-    List.prototype.shift = function() {
-      return setListBounds(this, 1);
-    };
-
-    // @pragma Composition
-
-    List.prototype.merge = function(/*...iters*/) {
-      return mergeIntoListWith(this, undefined, arguments);
-    };
-
-    List.prototype.mergeWith = function(merger) {var iters = SLICE$0.call(arguments, 1);
-      return mergeIntoListWith(this, merger, iters);
-    };
-
-    List.prototype.mergeDeep = function(/*...iters*/) {
-      return mergeIntoListWith(this, deepMerger, arguments);
-    };
-
-    List.prototype.mergeDeepWith = function(merger) {var iters = SLICE$0.call(arguments, 1);
-      return mergeIntoListWith(this, deepMergerWith(merger), iters);
-    };
-
-    List.prototype.setSize = function(size) {
-      return setListBounds(this, 0, size);
-    };
-
-    // @pragma Iteration
-
-    List.prototype.slice = function(begin, end) {
-      var size = this.size;
-      if (wholeSlice(begin, end, size)) {
-        return this;
-      }
-      return setListBounds(
-        this,
-        resolveBegin(begin, size),
-        resolveEnd(end, size)
-      );
-    };
-
-    List.prototype.__iterator = function(type, reverse) {
-      var index = 0;
-      var values = iterateList(this, reverse);
-      return new Iterator(function()  {
-        var value = values();
-        return value === DONE ?
-          iteratorDone() :
-          iteratorValue(type, index++, value);
-      });
-    };
-
-    List.prototype.__iterate = function(fn, reverse) {
-      var index = 0;
-      var values = iterateList(this, reverse);
-      var value;
-      while ((value = values()) !== DONE) {
-        if (fn(value, index++, this) === false) {
-          break;
-        }
-      }
-      return index;
-    };
-
-    List.prototype.__ensureOwner = function(ownerID) {
-      if (ownerID === this.__ownerID) {
-        return this;
-      }
-      if (!ownerID) {
-        this.__ownerID = ownerID;
-        return this;
-      }
-      return makeList(this._origin, this._capacity, this._level, this._root, this._tail, ownerID, this.__hash);
-    };
-
-
-  function isList(maybeList) {
-    return !!(maybeList && maybeList[IS_LIST_SENTINEL]);
-  }
-
-  List.isList = isList;
-
-  var IS_LIST_SENTINEL = '@@__IMMUTABLE_LIST__@@';
-
-  var ListPrototype = List.prototype;
-  ListPrototype[IS_LIST_SENTINEL] = true;
-  ListPrototype[DELETE] = ListPrototype.remove;
-  ListPrototype.setIn = MapPrototype.setIn;
-  ListPrototype.deleteIn =
-  ListPrototype.removeIn = MapPrototype.removeIn;
-  ListPrototype.update = MapPrototype.update;
-  ListPrototype.updateIn = MapPrototype.updateIn;
-  ListPrototype.mergeIn = MapPrototype.mergeIn;
-  ListPrototype.mergeDeepIn = MapPrototype.mergeDeepIn;
-  ListPrototype.withMutations = MapPrototype.withMutations;
-  ListPrototype.asMutable = MapPrototype.asMutable;
-  ListPrototype.asImmutable = MapPrototype.asImmutable;
-  ListPrototype.wasAltered = MapPrototype.wasAltered;
-
-
-
-    function VNode(array, ownerID) {
-      this.array = array;
-      this.ownerID = ownerID;
-    }
-
-    // TODO: seems like these methods are very similar
-
-    VNode.prototype.removeBefore = function(ownerID, level, index) {
-      if (index === level ? 1 << level : 0 || this.array.length === 0) {
-        return this;
-      }
-      var originIndex = (index >>> level) & MASK;
-      if (originIndex >= this.array.length) {
-        return new VNode([], ownerID);
-      }
-      var removingFirst = originIndex === 0;
-      var newChild;
-      if (level > 0) {
-        var oldChild = this.array[originIndex];
-        newChild = oldChild && oldChild.removeBefore(ownerID, level - SHIFT, index);
-        if (newChild === oldChild && removingFirst) {
-          return this;
-        }
-      }
-      if (removingFirst && !newChild) {
-        return this;
-      }
-      var editable = editableVNode(this, ownerID);
-      if (!removingFirst) {
-        for (var ii = 0; ii < originIndex; ii++) {
-          editable.array[ii] = undefined;
-        }
-      }
-      if (newChild) {
-        editable.array[originIndex] = newChild;
-      }
-      return editable;
-    };
-
-    VNode.prototype.removeAfter = function(ownerID, level, index) {
-      if (index === (level ? 1 << level : 0) || this.array.length === 0) {
-        return this;
-      }
-      var sizeIndex = ((index - 1) >>> level) & MASK;
-      if (sizeIndex >= this.array.length) {
-        return this;
-      }
-
-      var newChild;
-      if (level > 0) {
-        var oldChild = this.array[sizeIndex];
-        newChild = oldChild && oldChild.removeAfter(ownerID, level - SHIFT, index);
-        if (newChild === oldChild && sizeIndex === this.array.length - 1) {
-          return this;
-        }
-      }
-
-      var editable = editableVNode(this, ownerID);
-      editable.array.splice(sizeIndex + 1);
-      if (newChild) {
-        editable.array[sizeIndex] = newChild;
-      }
-      return editable;
-    };
-
-
-
-  var DONE = {};
-
-  function iterateList(list, reverse) {
-    var left = list._origin;
-    var right = list._capacity;
-    var tailPos = getTailOffset(right);
-    var tail = list._tail;
-
-    return iterateNodeOrLeaf(list._root, list._level, 0);
-
-    function iterateNodeOrLeaf(node, level, offset) {
-      return level === 0 ?
-        iterateLeaf(node, offset) :
-        iterateNode(node, level, offset);
-    }
-
-    function iterateLeaf(node, offset) {
-      var array = offset === tailPos ? tail && tail.array : node && node.array;
-      var from = offset > left ? 0 : left - offset;
-      var to = right - offset;
-      if (to > SIZE) {
-        to = SIZE;
-      }
-      return function()  {
-        if (from === to) {
-          return DONE;
-        }
-        var idx = reverse ? --to : from++;
-        return array && array[idx];
-      };
-    }
-
-    function iterateNode(node, level, offset) {
-      var values;
-      var array = node && node.array;
-      var from = offset > left ? 0 : (left - offset) >> level;
-      var to = ((right - offset) >> level) + 1;
-      if (to > SIZE) {
-        to = SIZE;
-      }
-      return function()  {
-        do {
-          if (values) {
-            var value = values();
-            if (value !== DONE) {
-              return value;
-            }
-            values = null;
-          }
-          if (from === to) {
-            return DONE;
-          }
-          var idx = reverse ? --to : from++;
-          values = iterateNodeOrLeaf(
-            array && array[idx], level - SHIFT, offset + (idx << level)
-          );
-        } while (true);
-      };
-    }
-  }
-
-  function makeList(origin, capacity, level, root, tail, ownerID, hash) {
-    var list = Object.create(ListPrototype);
-    list.size = capacity - origin;
-    list._origin = origin;
-    list._capacity = capacity;
-    list._level = level;
-    list._root = root;
-    list._tail = tail;
-    list.__ownerID = ownerID;
-    list.__hash = hash;
-    list.__altered = false;
-    return list;
-  }
-
-  var EMPTY_LIST;
-  function emptyList() {
-    return EMPTY_LIST || (EMPTY_LIST = makeList(0, 0, SHIFT));
-  }
-
-  function updateList(list, index, value) {
-    index = wrapIndex(list, index);
-
-    if (index !== index) {
-      return list;
-    }
-
-    if (index >= list.size || index < 0) {
-      return list.withMutations(function(list ) {
-        index < 0 ?
-          setListBounds(list, index).set(0, value) :
-          setListBounds(list, 0, index + 1).set(index, value)
-      });
-    }
-
-    index += list._origin;
-
-    var newTail = list._tail;
-    var newRoot = list._root;
-    var didAlter = MakeRef(DID_ALTER);
-    if (index >= getTailOffset(list._capacity)) {
-      newTail = updateVNode(newTail, list.__ownerID, 0, index, value, didAlter);
-    } else {
-      newRoot = updateVNode(newRoot, list.__ownerID, list._level, index, value, didAlter);
-    }
-
-    if (!didAlter.value) {
-      return list;
-    }
-
-    if (list.__ownerID) {
-      list._root = newRoot;
-      list._tail = newTail;
-      list.__hash = undefined;
-      list.__altered = true;
-      return list;
-    }
-    return makeList(list._origin, list._capacity, list._level, newRoot, newTail);
-  }
-
-  function updateVNode(node, ownerID, level, index, value, didAlter) {
-    var idx = (index >>> level) & MASK;
-    var nodeHas = node && idx < node.array.length;
-    if (!nodeHas && value === undefined) {
-      return node;
-    }
-
-    var newNode;
-
-    if (level > 0) {
-      var lowerNode = node && node.array[idx];
-      var newLowerNode = updateVNode(lowerNode, ownerID, level - SHIFT, index, value, didAlter);
-      if (newLowerNode === lowerNode) {
-        return node;
-      }
-      newNode = editableVNode(node, ownerID);
-      newNode.array[idx] = newLowerNode;
-      return newNode;
-    }
-
-    if (nodeHas && node.array[idx] === value) {
-      return node;
-    }
-
-    SetRef(didAlter);
-
-    newNode = editableVNode(node, ownerID);
-    if (value === undefined && idx === newNode.array.length - 1) {
-      newNode.array.pop();
-    } else {
-      newNode.array[idx] = value;
-    }
-    return newNode;
-  }
-
-  function editableVNode(node, ownerID) {
-    if (ownerID && node && ownerID === node.ownerID) {
-      return node;
-    }
-    return new VNode(node ? node.array.slice() : [], ownerID);
-  }
-
-  function listNodeFor(list, rawIndex) {
-    if (rawIndex >= getTailOffset(list._capacity)) {
-      return list._tail;
-    }
-    if (rawIndex < 1 << (list._level + SHIFT)) {
-      var node = list._root;
-      var level = list._level;
-      while (node && level > 0) {
-        node = node.array[(rawIndex >>> level) & MASK];
-        level -= SHIFT;
-      }
-      return node;
-    }
-  }
-
-  function setListBounds(list, begin, end) {
-    // Sanitize begin & end using this shorthand for ToInt32(argument)
-    // http://www.ecma-international.org/ecma-262/6.0/#sec-toint32
-    if (begin !== undefined) {
-      begin = begin | 0;
-    }
-    if (end !== undefined) {
-      end = end | 0;
-    }
-    var owner = list.__ownerID || new OwnerID();
-    var oldOrigin = list._origin;
-    var oldCapacity = list._capacity;
-    var newOrigin = oldOrigin + begin;
-    var newCapacity = end === undefined ? oldCapacity : end < 0 ? oldCapacity + end : oldOrigin + end;
-    if (newOrigin === oldOrigin && newCapacity === oldCapacity) {
-      return list;
-    }
-
-    // If it's going to end after it starts, it's empty.
-    if (newOrigin >= newCapacity) {
-      return list.clear();
-    }
-
-    var newLevel = list._level;
-    var newRoot = list._root;
-
-    // New origin might need creating a higher root.
-    var offsetShift = 0;
-    while (newOrigin + offsetShift < 0) {
-      newRoot = new VNode(newRoot && newRoot.array.length ? [undefined, newRoot] : [], owner);
-      newLevel += SHIFT;
-      offsetShift += 1 << newLevel;
-    }
-    if (offsetShift) {
-      newOrigin += offsetShift;
-      oldOrigin += offsetShift;
-      newCapacity += offsetShift;
-      oldCapacity += offsetShift;
-    }
-
-    var oldTailOffset = getTailOffset(oldCapacity);
-    var newTailOffset = getTailOffset(newCapacity);
-
-    // New size might need creating a higher root.
-    while (newTailOffset >= 1 << (newLevel + SHIFT)) {
-      newRoot = new VNode(newRoot && newRoot.array.length ? [newRoot] : [], owner);
-      newLevel += SHIFT;
-    }
-
-    // Locate or create the new tail.
-    var oldTail = list._tail;
-    var newTail = newTailOffset < oldTailOffset ?
-      listNodeFor(list, newCapacity - 1) :
-      newTailOffset > oldTailOffset ? new VNode([], owner) : oldTail;
-
-    // Merge Tail into tree.
-    if (oldTail && newTailOffset > oldTailOffset && newOrigin < oldCapacity && oldTail.array.length) {
-      newRoot = editableVNode(newRoot, owner);
-      var node = newRoot;
-      for (var level = newLevel; level > SHIFT; level -= SHIFT) {
-        var idx = (oldTailOffset >>> level) & MASK;
-        node = node.array[idx] = editableVNode(node.array[idx], owner);
-      }
-      node.array[(oldTailOffset >>> SHIFT) & MASK] = oldTail;
-    }
-
-    // If the size has been reduced, there's a chance the tail needs to be trimmed.
-    if (newCapacity < oldCapacity) {
-      newTail = newTail && newTail.removeAfter(owner, 0, newCapacity);
-    }
-
-    // If the new origin is within the tail, then we do not need a root.
-    if (newOrigin >= newTailOffset) {
-      newOrigin -= newTailOffset;
-      newCapacity -= newTailOffset;
-      newLevel = SHIFT;
-      newRoot = null;
-      newTail = newTail && newTail.removeBefore(owner, 0, newOrigin);
-
-    // Otherwise, if the root has been trimmed, garbage collect.
-    } else if (newOrigin > oldOrigin || newTailOffset < oldTailOffset) {
-      offsetShift = 0;
-
-      // Identify the new top root node of the subtree of the old root.
-      while (newRoot) {
-        var beginIndex = (newOrigin >>> newLevel) & MASK;
-        if (beginIndex !== (newTailOffset >>> newLevel) & MASK) {
-          break;
-        }
-        if (beginIndex) {
-          offsetShift += (1 << newLevel) * beginIndex;
-        }
-        newLevel -= SHIFT;
-        newRoot = newRoot.array[beginIndex];
-      }
-
-      // Trim the new sides of the new root.
-      if (newRoot && newOrigin > oldOrigin) {
-        newRoot = newRoot.removeBefore(owner, newLevel, newOrigin - offsetShift);
-      }
-      if (newRoot && newTailOffset < oldTailOffset) {
-        newRoot = newRoot.removeAfter(owner, newLevel, newTailOffset - offsetShift);
-      }
-      if (offsetShift) {
-        newOrigin -= offsetShift;
-        newCapacity -= offsetShift;
-      }
-    }
-
-    if (list.__ownerID) {
-      list.size = newCapacity - newOrigin;
-      list._origin = newOrigin;
-      list._capacity = newCapacity;
-      list._level = newLevel;
-      list._root = newRoot;
-      list._tail = newTail;
-      list.__hash = undefined;
-      list.__altered = true;
-      return list;
-    }
-    return makeList(newOrigin, newCapacity, newLevel, newRoot, newTail);
-  }
-
-  function mergeIntoListWith(list, merger, iterables) {
-    var iters = [];
-    var maxSize = 0;
-    for (var ii = 0; ii < iterables.length; ii++) {
-      var value = iterables[ii];
-      var iter = IndexedIterable(value);
-      if (iter.size > maxSize) {
-        maxSize = iter.size;
-      }
-      if (!isIterable(value)) {
-        iter = iter.map(function(v ) {return fromJS(v)});
-      }
-      iters.push(iter);
-    }
-    if (maxSize > list.size) {
-      list = list.setSize(maxSize);
-    }
-    return mergeIntoCollectionWith(list, merger, iters);
-  }
-
-  function getTailOffset(size) {
-    return size < SIZE ? 0 : (((size - 1) >>> SHIFT) << SHIFT);
-  }
-
-  createClass(OrderedMap, Map);
-
-    // @pragma Construction
-
-    function OrderedMap(value) {
-      return value === null || value === undefined ? emptyOrderedMap() :
-        isOrderedMap(value) ? value :
-        emptyOrderedMap().withMutations(function(map ) {
-          var iter = KeyedIterable(value);
-          assertNotInfinite(iter.size);
-          iter.forEach(function(v, k)  {return map.set(k, v)});
-        });
-    }
-
-    OrderedMap.of = function(/*...values*/) {
-      return this(arguments);
-    };
-
-    OrderedMap.prototype.toString = function() {
-      return this.__toString('OrderedMap {', '}');
-    };
-
-    // @pragma Access
-
-    OrderedMap.prototype.get = function(k, notSetValue) {
-      var index = this._map.get(k);
-      return index !== undefined ? this._list.get(index)[1] : notSetValue;
-    };
-
-    // @pragma Modification
-
-    OrderedMap.prototype.clear = function() {
-      if (this.size === 0) {
-        return this;
-      }
-      if (this.__ownerID) {
-        this.size = 0;
-        this._map.clear();
-        this._list.clear();
-        return this;
-      }
-      return emptyOrderedMap();
-    };
-
-    OrderedMap.prototype.set = function(k, v) {
-      return updateOrderedMap(this, k, v);
-    };
-
-    OrderedMap.prototype.remove = function(k) {
-      return updateOrderedMap(this, k, NOT_SET);
-    };
-
-    OrderedMap.prototype.wasAltered = function() {
-      return this._map.wasAltered() || this._list.wasAltered();
-    };
-
-    OrderedMap.prototype.__iterate = function(fn, reverse) {var this$0 = this;
-      return this._list.__iterate(
-        function(entry ) {return entry && fn(entry[1], entry[0], this$0)},
-        reverse
-      );
-    };
-
-    OrderedMap.prototype.__iterator = function(type, reverse) {
-      return this._list.fromEntrySeq().__iterator(type, reverse);
-    };
-
-    OrderedMap.prototype.__ensureOwner = function(ownerID) {
-      if (ownerID === this.__ownerID) {
-        return this;
-      }
-      var newMap = this._map.__ensureOwner(ownerID);
-      var newList = this._list.__ensureOwner(ownerID);
-      if (!ownerID) {
-        this.__ownerID = ownerID;
-        this._map = newMap;
-        this._list = newList;
-        return this;
-      }
-      return makeOrderedMap(newMap, newList, ownerID, this.__hash);
-    };
-
-
-  function isOrderedMap(maybeOrderedMap) {
-    return isMap(maybeOrderedMap) && isOrdered(maybeOrderedMap);
-  }
-
-  OrderedMap.isOrderedMap = isOrderedMap;
-
-  OrderedMap.prototype[IS_ORDERED_SENTINEL] = true;
-  OrderedMap.prototype[DELETE] = OrderedMap.prototype.remove;
-
-
-
-  function makeOrderedMap(map, list, ownerID, hash) {
-    var omap = Object.create(OrderedMap.prototype);
-    omap.size = map ? map.size : 0;
-    omap._map = map;
-    omap._list = list;
-    omap.__ownerID = ownerID;
-    omap.__hash = hash;
-    return omap;
-  }
-
-  var EMPTY_ORDERED_MAP;
-  function emptyOrderedMap() {
-    return EMPTY_ORDERED_MAP || (EMPTY_ORDERED_MAP = makeOrderedMap(emptyMap(), emptyList()));
-  }
-
-  function updateOrderedMap(omap, k, v) {
-    var map = omap._map;
-    var list = omap._list;
-    var i = map.get(k);
-    var has = i !== undefined;
-    var newMap;
-    var newList;
-    if (v === NOT_SET) { // removed
-      if (!has) {
-        return omap;
-      }
-      if (list.size >= SIZE && list.size >= map.size * 2) {
-        newList = list.filter(function(entry, idx)  {return entry !== undefined && i !== idx});
-        newMap = newList.toKeyedSeq().map(function(entry ) {return entry[0]}).flip().toMap();
-        if (omap.__ownerID) {
-          newMap.__ownerID = newList.__ownerID = omap.__ownerID;
-        }
-      } else {
-        newMap = map.remove(k);
-        newList = i === list.size - 1 ? list.pop() : list.set(i, undefined);
-      }
-    } else {
-      if (has) {
-        if (v === list.get(i)[1]) {
-          return omap;
-        }
-        newMap = map;
-        newList = list.set(i, [k, v]);
-      } else {
-        newMap = map.set(k, list.size);
-        newList = list.set(list.size, [k, v]);
-      }
-    }
-    if (omap.__ownerID) {
-      omap.size = newMap.size;
-      omap._map = newMap;
-      omap._list = newList;
-      omap.__hash = undefined;
-      return omap;
-    }
-    return makeOrderedMap(newMap, newList);
-  }
-
-  createClass(ToKeyedSequence, KeyedSeq);
-    function ToKeyedSequence(indexed, useKeys) {
-      this._iter = indexed;
-      this._useKeys = useKeys;
-      this.size = indexed.size;
-    }
-
-    ToKeyedSequence.prototype.get = function(key, notSetValue) {
-      return this._iter.get(key, notSetValue);
-    };
-
-    ToKeyedSequence.prototype.has = function(key) {
-      return this._iter.has(key);
-    };
-
-    ToKeyedSequence.prototype.valueSeq = function() {
-      return this._iter.valueSeq();
-    };
-
-    ToKeyedSequence.prototype.reverse = function() {var this$0 = this;
-      var reversedSequence = reverseFactory(this, true);
-      if (!this._useKeys) {
-        reversedSequence.valueSeq = function()  {return this$0._iter.toSeq().reverse()};
-      }
-      return reversedSequence;
-    };
-
-    ToKeyedSequence.prototype.map = function(mapper, context) {var this$0 = this;
-      var mappedSequence = mapFactory(this, mapper, context);
-      if (!this._useKeys) {
-        mappedSequence.valueSeq = function()  {return this$0._iter.toSeq().map(mapper, context)};
-      }
-      return mappedSequence;
-    };
-
-    ToKeyedSequence.prototype.__iterate = function(fn, reverse) {var this$0 = this;
-      var ii;
-      return this._iter.__iterate(
-        this._useKeys ?
-          function(v, k)  {return fn(v, k, this$0)} :
-          ((ii = reverse ? resolveSize(this) : 0),
-            function(v ) {return fn(v, reverse ? --ii : ii++, this$0)}),
-        reverse
-      );
-    };
-
-    ToKeyedSequence.prototype.__iterator = function(type, reverse) {
-      if (this._useKeys) {
-        return this._iter.__iterator(type, reverse);
-      }
-      var iterator = this._iter.__iterator(ITERATE_VALUES, reverse);
-      var ii = reverse ? resolveSize(this) : 0;
-      return new Iterator(function()  {
-        var step = iterator.next();
-        return step.done ? step :
-          iteratorValue(type, reverse ? --ii : ii++, step.value, step);
-      });
-    };
-
-  ToKeyedSequence.prototype[IS_ORDERED_SENTINEL] = true;
-
-
-  createClass(ToIndexedSequence, IndexedSeq);
-    function ToIndexedSequence(iter) {
-      this._iter = iter;
-      this.size = iter.size;
-    }
-
-    ToIndexedSequence.prototype.includes = function(value) {
-      return this._iter.includes(value);
-    };
-
-    ToIndexedSequence.prototype.__iterate = function(fn, reverse) {var this$0 = this;
-      var iterations = 0;
-      return this._iter.__iterate(function(v ) {return fn(v, iterations++, this$0)}, reverse);
-    };
-
-    ToIndexedSequence.prototype.__iterator = function(type, reverse) {
-      var iterator = this._iter.__iterator(ITERATE_VALUES, reverse);
-      var iterations = 0;
-      return new Iterator(function()  {
-        var step = iterator.next();
-        return step.done ? step :
-          iteratorValue(type, iterations++, step.value, step)
-      });
-    };
-
-
-
-  createClass(ToSetSequence, SetSeq);
-    function ToSetSequence(iter) {
-      this._iter = iter;
-      this.size = iter.size;
-    }
-
-    ToSetSequence.prototype.has = function(key) {
-      return this._iter.includes(key);
-    };
-
-    ToSetSequence.prototype.__iterate = function(fn, reverse) {var this$0 = this;
-      return this._iter.__iterate(function(v ) {return fn(v, v, this$0)}, reverse);
-    };
-
-    ToSetSequence.prototype.__iterator = function(type, reverse) {
-      var iterator = this._iter.__iterator(ITERATE_VALUES, reverse);
-      return new Iterator(function()  {
-        var step = iterator.next();
-        return step.done ? step :
-          iteratorValue(type, step.value, step.value, step);
-      });
-    };
-
-
-
-  createClass(FromEntriesSequence, KeyedSeq);
-    function FromEntriesSequence(entries) {
-      this._iter = entries;
-      this.size = entries.size;
-    }
-
-    FromEntriesSequence.prototype.entrySeq = function() {
-      return this._iter.toSeq();
-    };
-
-    FromEntriesSequence.prototype.__iterate = function(fn, reverse) {var this$0 = this;
-      return this._iter.__iterate(function(entry ) {
-        // Check if entry exists first so array access doesn't throw for holes
-        // in the parent iteration.
-        if (entry) {
-          validateEntry(entry);
-          var indexedIterable = isIterable(entry);
-          return fn(
-            indexedIterable ? entry.get(1) : entry[1],
-            indexedIterable ? entry.get(0) : entry[0],
-            this$0
-          );
-        }
-      }, reverse);
-    };
-
-    FromEntriesSequence.prototype.__iterator = function(type, reverse) {
-      var iterator = this._iter.__iterator(ITERATE_VALUES, reverse);
-      return new Iterator(function()  {
-        while (true) {
-          var step = iterator.next();
-          if (step.done) {
-            return step;
-          }
-          var entry = step.value;
-          // Check if entry exists first so array access doesn't throw for holes
-          // in the parent iteration.
-          if (entry) {
-            validateEntry(entry);
-            var indexedIterable = isIterable(entry);
-            return iteratorValue(
-              type,
-              indexedIterable ? entry.get(0) : entry[0],
-              indexedIterable ? entry.get(1) : entry[1],
-              step
-            );
-          }
-        }
-      });
-    };
-
-
-  ToIndexedSequence.prototype.cacheResult =
-  ToKeyedSequence.prototype.cacheResult =
-  ToSetSequence.prototype.cacheResult =
-  FromEntriesSequence.prototype.cacheResult =
-    cacheResultThrough;
-
-
-  function flipFactory(iterable) {
-    var flipSequence = makeSequence(iterable);
-    flipSequence._iter = iterable;
-    flipSequence.size = iterable.size;
-    flipSequence.flip = function()  {return iterable};
-    flipSequence.reverse = function () {
-      var reversedSequence = iterable.reverse.apply(this); // super.reverse()
-      reversedSequence.flip = function()  {return iterable.reverse()};
-      return reversedSequence;
-    };
-    flipSequence.has = function(key ) {return iterable.includes(key)};
-    flipSequence.includes = function(key ) {return iterable.has(key)};
-    flipSequence.cacheResult = cacheResultThrough;
-    flipSequence.__iterateUncached = function (fn, reverse) {var this$0 = this;
-      return iterable.__iterate(function(v, k)  {return fn(k, v, this$0) !== false}, reverse);
-    }
-    flipSequence.__iteratorUncached = function(type, reverse) {
-      if (type === ITERATE_ENTRIES) {
-        var iterator = iterable.__iterator(type, reverse);
-        return new Iterator(function()  {
-          var step = iterator.next();
-          if (!step.done) {
-            var k = step.value[0];
-            step.value[0] = step.value[1];
-            step.value[1] = k;
-          }
-          return step;
-        });
-      }
-      return iterable.__iterator(
-        type === ITERATE_VALUES ? ITERATE_KEYS : ITERATE_VALUES,
-        reverse
-      );
-    }
-    return flipSequence;
-  }
-
-
-  function mapFactory(iterable, mapper, context) {
-    var mappedSequence = makeSequence(iterable);
-    mappedSequence.size = iterable.size;
-    mappedSequence.has = function(key ) {return iterable.has(key)};
-    mappedSequence.get = function(key, notSetValue)  {
-      var v = iterable.get(key, NOT_SET);
-      return v === NOT_SET ?
-        notSetValue :
-        mapper.call(context, v, key, iterable);
-    };
-    mappedSequence.__iterateUncached = function (fn, reverse) {var this$0 = this;
-      return iterable.__iterate(
-        function(v, k, c)  {return fn(mapper.call(context, v, k, c), k, this$0) !== false},
-        reverse
-      );
-    }
-    mappedSequence.__iteratorUncached = function (type, reverse) {
-      var iterator = iterable.__iterator(ITERATE_ENTRIES, reverse);
-      return new Iterator(function()  {
-        var step = iterator.next();
-        if (step.done) {
-          return step;
-        }
-        var entry = step.value;
-        var key = entry[0];
-        return iteratorValue(
-          type,
-          key,
-          mapper.call(context, entry[1], key, iterable),
-          step
-        );
-      });
-    }
-    return mappedSequence;
-  }
-
-
-  function reverseFactory(iterable, useKeys) {
-    var reversedSequence = makeSequence(iterable);
-    reversedSequence._iter = iterable;
-    reversedSequence.size = iterable.size;
-    reversedSequence.reverse = function()  {return iterable};
-    if (iterable.flip) {
-      reversedSequence.flip = function () {
-        var flipSequence = flipFactory(iterable);
-        flipSequence.reverse = function()  {return iterable.flip()};
-        return flipSequence;
-      };
-    }
-    reversedSequence.get = function(key, notSetValue) 
-      {return iterable.get(useKeys ? key : -1 - key, notSetValue)};
-    reversedSequence.has = function(key )
-      {return iterable.has(useKeys ? key : -1 - key)};
-    reversedSequence.includes = function(value ) {return iterable.includes(value)};
-    reversedSequence.cacheResult = cacheResultThrough;
-    reversedSequence.__iterate = function (fn, reverse) {var this$0 = this;
-      return iterable.__iterate(function(v, k)  {return fn(v, k, this$0)}, !reverse);
-    };
-    reversedSequence.__iterator =
-      function(type, reverse)  {return iterable.__iterator(type, !reverse)};
-    return reversedSequence;
-  }
-
-
-  function filterFactory(iterable, predicate, context, useKeys) {
-    var filterSequence = makeSequence(iterable);
-    if (useKeys) {
-      filterSequence.has = function(key ) {
-        var v = iterable.get(key, NOT_SET);
-        return v !== NOT_SET && !!predicate.call(context, v, key, iterable);
-      };
-      filterSequence.get = function(key, notSetValue)  {
-        var v = iterable.get(key, NOT_SET);
-        return v !== NOT_SET && predicate.call(context, v, key, iterable) ?
-          v : notSetValue;
-      };
-    }
-    filterSequence.__iterateUncached = function (fn, reverse) {var this$0 = this;
-      var iterations = 0;
-      iterable.__iterate(function(v, k, c)  {
-        if (predicate.call(context, v, k, c)) {
-          iterations++;
-          return fn(v, useKeys ? k : iterations - 1, this$0);
-        }
-      }, reverse);
-      return iterations;
-    };
-    filterSequence.__iteratorUncached = function (type, reverse) {
-      var iterator = iterable.__iterator(ITERATE_ENTRIES, reverse);
-      var iterations = 0;
-      return new Iterator(function()  {
-        while (true) {
-          var step = iterator.next();
-          if (step.done) {
-            return step;
-          }
-          var entry = step.value;
-          var key = entry[0];
-          var value = entry[1];
-          if (predicate.call(context, value, key, iterable)) {
-            return iteratorValue(type, useKeys ? key : iterations++, value, step);
-          }
-        }
-      });
-    }
-    return filterSequence;
-  }
-
-
-  function countByFactory(iterable, grouper, context) {
-    var groups = Map().asMutable();
-    iterable.__iterate(function(v, k)  {
-      groups.update(
-        grouper.call(context, v, k, iterable),
-        0,
-        function(a ) {return a + 1}
-      );
-    });
-    return groups.asImmutable();
-  }
-
-
-  function groupByFactory(iterable, grouper, context) {
-    var isKeyedIter = isKeyed(iterable);
-    var groups = (isOrdered(iterable) ? OrderedMap() : Map()).asMutable();
-    iterable.__iterate(function(v, k)  {
-      groups.update(
-        grouper.call(context, v, k, iterable),
-        function(a ) {return (a = a || [], a.push(isKeyedIter ? [k, v] : v), a)}
-      );
-    });
-    var coerce = iterableClass(iterable);
-    return groups.map(function(arr ) {return reify(iterable, coerce(arr))});
-  }
-
-
-  function sliceFactory(iterable, begin, end, useKeys) {
-    var originalSize = iterable.size;
-
-    // Sanitize begin & end using this shorthand for ToInt32(argument)
-    // http://www.ecma-international.org/ecma-262/6.0/#sec-toint32
-    if (begin !== undefined) {
-      begin = begin | 0;
-    }
-    if (end !== undefined) {
-      end = end | 0;
-    }
-
-    if (wholeSlice(begin, end, originalSize)) {
-      return iterable;
-    }
-
-    var resolvedBegin = resolveBegin(begin, originalSize);
-    var resolvedEnd = resolveEnd(end, originalSize);
-
-    // begin or end will be NaN if they were provided as negative numbers and
-    // this iterable's size is unknown. In that case, cache first so there is
-    // a known size and these do not resolve to NaN.
-    if (resolvedBegin !== resolvedBegin || resolvedEnd !== resolvedEnd) {
-      return sliceFactory(iterable.toSeq().cacheResult(), begin, end, useKeys);
-    }
-
-    // Note: resolvedEnd is undefined when the original sequence's length is
-    // unknown and this slice did not supply an end and should contain all
-    // elements after resolvedBegin.
-    // In that case, resolvedSize will be NaN and sliceSize will remain undefined.
-    var resolvedSize = resolvedEnd - resolvedBegin;
-    var sliceSize;
-    if (resolvedSize === resolvedSize) {
-      sliceSize = resolvedSize < 0 ? 0 : resolvedSize;
-    }
-
-    var sliceSeq = makeSequence(iterable);
-
-    // If iterable.size is undefined, the size of the realized sliceSeq is
-    // unknown at this point unless the number of items to slice is 0
-    sliceSeq.size = sliceSize === 0 ? sliceSize : iterable.size && sliceSize || undefined;
-
-    if (!useKeys && isSeq(iterable) && sliceSize >= 0) {
-      sliceSeq.get = function (index, notSetValue) {
-        index = wrapIndex(this, index);
-        return index >= 0 && index < sliceSize ?
-          iterable.get(index + resolvedBegin, notSetValue) :
-          notSetValue;
-      }
-    }
-
-    sliceSeq.__iterateUncached = function(fn, reverse) {var this$0 = this;
-      if (sliceSize === 0) {
-        return 0;
-      }
-      if (reverse) {
-        return this.cacheResult().__iterate(fn, reverse);
-      }
-      var skipped = 0;
-      var isSkipping = true;
-      var iterations = 0;
-      iterable.__iterate(function(v, k)  {
-        if (!(isSkipping && (isSkipping = skipped++ < resolvedBegin))) {
-          iterations++;
-          return fn(v, useKeys ? k : iterations - 1, this$0) !== false &&
-                 iterations !== sliceSize;
-        }
-      });
-      return iterations;
-    };
-
-    sliceSeq.__iteratorUncached = function(type, reverse) {
-      if (sliceSize !== 0 && reverse) {
-        return this.cacheResult().__iterator(type, reverse);
-      }
-      // Don't bother instantiating parent iterator if taking 0.
-      var iterator = sliceSize !== 0 && iterable.__iterator(type, reverse);
-      var skipped = 0;
-      var iterations = 0;
-      return new Iterator(function()  {
-        while (skipped++ < resolvedBegin) {
-          iterator.next();
-        }
-        if (++iterations > sliceSize) {
-          return iteratorDone();
-        }
-        var step = iterator.next();
-        if (useKeys || type === ITERATE_VALUES) {
-          return step;
-        } else if (type === ITERATE_KEYS) {
-          return iteratorValue(type, iterations - 1, undefined, step);
-        } else {
-          return iteratorValue(type, iterations - 1, step.value[1], step);
-        }
-      });
-    }
-
-    return sliceSeq;
-  }
-
-
-  function takeWhileFactory(iterable, predicate, context) {
-    var takeSequence = makeSequence(iterable);
-    takeSequence.__iterateUncached = function(fn, reverse) {var this$0 = this;
-      if (reverse) {
-        return this.cacheResult().__iterate(fn, reverse);
-      }
-      var iterations = 0;
-      iterable.__iterate(function(v, k, c) 
-        {return predicate.call(context, v, k, c) && ++iterations && fn(v, k, this$0)}
-      );
-      return iterations;
-    };
-    takeSequence.__iteratorUncached = function(type, reverse) {var this$0 = this;
-      if (reverse) {
-        return this.cacheResult().__iterator(type, reverse);
-      }
-      var iterator = iterable.__iterator(ITERATE_ENTRIES, reverse);
-      var iterating = true;
-      return new Iterator(function()  {
-        if (!iterating) {
-          return iteratorDone();
-        }
-        var step = iterator.next();
-        if (step.done) {
-          return step;
-        }
-        var entry = step.value;
-        var k = entry[0];
-        var v = entry[1];
-        if (!predicate.call(context, v, k, this$0)) {
-          iterating = false;
-          return iteratorDone();
-        }
-        return type === ITERATE_ENTRIES ? step :
-          iteratorValue(type, k, v, step);
-      });
-    };
-    return takeSequence;
-  }
-
-
-  function skipWhileFactory(iterable, predicate, context, useKeys) {
-    var skipSequence = makeSequence(iterable);
-    skipSequence.__iterateUncached = function (fn, reverse) {var this$0 = this;
-      if (reverse) {
-        return this.cacheResult().__iterate(fn, reverse);
-      }
-      var isSkipping = true;
-      var iterations = 0;
-      iterable.__iterate(function(v, k, c)  {
-        if (!(isSkipping && (isSkipping = predicate.call(context, v, k, c)))) {
-          iterations++;
-          return fn(v, useKeys ? k : iterations - 1, this$0);
-        }
-      });
-      return iterations;
-    };
-    skipSequence.__iteratorUncached = function(type, reverse) {var this$0 = this;
-      if (reverse) {
-        return this.cacheResult().__iterator(type, reverse);
-      }
-      var iterator = iterable.__iterator(ITERATE_ENTRIES, reverse);
-      var skipping = true;
-      var iterations = 0;
-      return new Iterator(function()  {
-        var step, k, v;
-        do {
-          step = iterator.next();
-          if (step.done) {
-            if (useKeys || type === ITERATE_VALUES) {
-              return step;
-            } else if (type === ITERATE_KEYS) {
-              return iteratorValue(type, iterations++, undefined, step);
-            } else {
-              return iteratorValue(type, iterations++, step.value[1], step);
-            }
-          }
-          var entry = step.value;
-          k = entry[0];
-          v = entry[1];
-          skipping && (skipping = predicate.call(context, v, k, this$0));
-        } while (skipping);
-        return type === ITERATE_ENTRIES ? step :
-          iteratorValue(type, k, v, step);
-      });
-    };
-    return skipSequence;
-  }
-
-
-  function concatFactory(iterable, values) {
-    var isKeyedIterable = isKeyed(iterable);
-    var iters = [iterable].concat(values).map(function(v ) {
-      if (!isIterable(v)) {
-        v = isKeyedIterable ?
-          keyedSeqFromValue(v) :
-          indexedSeqFromValue(Array.isArray(v) ? v : [v]);
-      } else if (isKeyedIterable) {
-        v = KeyedIterable(v);
-      }
-      return v;
-    }).filter(function(v ) {return v.size !== 0});
-
-    if (iters.length === 0) {
-      return iterable;
-    }
-
-    if (iters.length === 1) {
-      var singleton = iters[0];
-      if (singleton === iterable ||
-          isKeyedIterable && isKeyed(singleton) ||
-          isIndexed(iterable) && isIndexed(singleton)) {
-        return singleton;
-      }
-    }
-
-    var concatSeq = new ArraySeq(iters);
-    if (isKeyedIterable) {
-      concatSeq = concatSeq.toKeyedSeq();
-    } else if (!isIndexed(iterable)) {
-      concatSeq = concatSeq.toSetSeq();
-    }
-    concatSeq = concatSeq.flatten(true);
-    concatSeq.size = iters.reduce(
-      function(sum, seq)  {
-        if (sum !== undefined) {
-          var size = seq.size;
-          if (size !== undefined) {
-            return sum + size;
-          }
-        }
-      },
-      0
-    );
-    return concatSeq;
-  }
-
-
-  function flattenFactory(iterable, depth, useKeys) {
-    var flatSequence = makeSequence(iterable);
-    flatSequence.__iterateUncached = function(fn, reverse) {
-      var iterations = 0;
-      var stopped = false;
-      function flatDeep(iter, currentDepth) {var this$0 = this;
-        iter.__iterate(function(v, k)  {
-          if ((!depth || currentDepth < depth) && isIterable(v)) {
-            flatDeep(v, currentDepth + 1);
-          } else if (fn(v, useKeys ? k : iterations++, this$0) === false) {
-            stopped = true;
-          }
-          return !stopped;
-        }, reverse);
-      }
-      flatDeep(iterable, 0);
-      return iterations;
-    }
-    flatSequence.__iteratorUncached = function(type, reverse) {
-      var iterator = iterable.__iterator(type, reverse);
-      var stack = [];
-      var iterations = 0;
-      return new Iterator(function()  {
-        while (iterator) {
-          var step = iterator.next();
-          if (step.done !== false) {
-            iterator = stack.pop();
-            continue;
-          }
-          var v = step.value;
-          if (type === ITERATE_ENTRIES) {
-            v = v[1];
-          }
-          if ((!depth || stack.length < depth) && isIterable(v)) {
-            stack.push(iterator);
-            iterator = v.__iterator(type, reverse);
-          } else {
-            return useKeys ? step : iteratorValue(type, iterations++, v, step);
-          }
-        }
-        return iteratorDone();
-      });
-    }
-    return flatSequence;
-  }
-
-
-  function flatMapFactory(iterable, mapper, context) {
-    var coerce = iterableClass(iterable);
-    return iterable.toSeq().map(
-      function(v, k)  {return coerce(mapper.call(context, v, k, iterable))}
-    ).flatten(true);
-  }
-
-
-  function interposeFactory(iterable, separator) {
-    var interposedSequence = makeSequence(iterable);
-    interposedSequence.size = iterable.size && iterable.size * 2 -1;
-    interposedSequence.__iterateUncached = function(fn, reverse) {var this$0 = this;
-      var iterations = 0;
-      iterable.__iterate(function(v, k) 
-        {return (!iterations || fn(separator, iterations++, this$0) !== false) &&
-        fn(v, iterations++, this$0) !== false},
-        reverse
-      );
-      return iterations;
-    };
-    interposedSequence.__iteratorUncached = function(type, reverse) {
-      var iterator = iterable.__iterator(ITERATE_VALUES, reverse);
-      var iterations = 0;
-      var step;
-      return new Iterator(function()  {
-        if (!step || iterations % 2) {
-          step = iterator.next();
-          if (step.done) {
-            return step;
-          }
-        }
-        return iterations % 2 ?
-          iteratorValue(type, iterations++, separator) :
-          iteratorValue(type, iterations++, step.value, step);
-      });
-    };
-    return interposedSequence;
-  }
-
-
-  function sortFactory(iterable, comparator, mapper) {
-    if (!comparator) {
-      comparator = defaultComparator;
-    }
-    var isKeyedIterable = isKeyed(iterable);
-    var index = 0;
-    var entries = iterable.toSeq().map(
-      function(v, k)  {return [k, v, index++, mapper ? mapper(v, k, iterable) : v]}
-    ).toArray();
-    entries.sort(function(a, b)  {return comparator(a[3], b[3]) || a[2] - b[2]}).forEach(
-      isKeyedIterable ?
-      function(v, i)  { entries[i].length = 2; } :
-      function(v, i)  { entries[i] = v[1]; }
-    );
-    return isKeyedIterable ? KeyedSeq(entries) :
-      isIndexed(iterable) ? IndexedSeq(entries) :
-      SetSeq(entries);
-  }
-
-
-  function maxFactory(iterable, comparator, mapper) {
-    if (!comparator) {
-      comparator = defaultComparator;
-    }
-    if (mapper) {
-      var entry = iterable.toSeq()
-        .map(function(v, k)  {return [v, mapper(v, k, iterable)]})
-        .reduce(function(a, b)  {return maxCompare(comparator, a[1], b[1]) ? b : a});
-      return entry && entry[0];
-    } else {
-      return iterable.reduce(function(a, b)  {return maxCompare(comparator, a, b) ? b : a});
-    }
-  }
-
-  function maxCompare(comparator, a, b) {
-    var comp = comparator(b, a);
-    // b is considered the new max if the comparator declares them equal, but
-    // they are not equal and b is in fact a nullish value.
-    return (comp === 0 && b !== a && (b === undefined || b === null || b !== b)) || comp > 0;
-  }
-
-
-  function zipWithFactory(keyIter, zipper, iters) {
-    var zipSequence = makeSequence(keyIter);
-    zipSequence.size = new ArraySeq(iters).map(function(i ) {return i.size}).min();
-    // Note: this a generic base implementation of __iterate in terms of
-    // __iterator which may be more generically useful in the future.
-    zipSequence.__iterate = function(fn, reverse) {
-      /* generic:
-      var iterator = this.__iterator(ITERATE_ENTRIES, reverse);
-      var step;
-      var iterations = 0;
-      while (!(step = iterator.next()).done) {
-        iterations++;
-        if (fn(step.value[1], step.value[0], this) === false) {
-          break;
-        }
-      }
-      return iterations;
-      */
-      // indexed:
-      var iterator = this.__iterator(ITERATE_VALUES, reverse);
-      var step;
-      var iterations = 0;
-      while (!(step = iterator.next()).done) {
-        if (fn(step.value, iterations++, this) === false) {
-          break;
-        }
-      }
-      return iterations;
-    };
-    zipSequence.__iteratorUncached = function(type, reverse) {
-      var iterators = iters.map(function(i )
-        {return (i = Iterable(i), getIterator(reverse ? i.reverse() : i))}
-      );
-      var iterations = 0;
-      var isDone = false;
-      return new Iterator(function()  {
-        var steps;
-        if (!isDone) {
-          steps = iterators.map(function(i ) {return i.next()});
-          isDone = steps.some(function(s ) {return s.done});
-        }
-        if (isDone) {
-          return iteratorDone();
-        }
-        return iteratorValue(
-          type,
-          iterations++,
-          zipper.apply(null, steps.map(function(s ) {return s.value}))
-        );
-      });
-    };
-    return zipSequence
-  }
-
-
-  // #pragma Helper Functions
-
-  function reify(iter, seq) {
-    return isSeq(iter) ? seq : iter.constructor(seq);
-  }
-
-  function validateEntry(entry) {
-    if (entry !== Object(entry)) {
-      throw new TypeError('Expected [K, V] tuple: ' + entry);
-    }
-  }
-
-  function resolveSize(iter) {
-    assertNotInfinite(iter.size);
-    return ensureSize(iter);
-  }
-
-  function iterableClass(iterable) {
-    return isKeyed(iterable) ? KeyedIterable :
-      isIndexed(iterable) ? IndexedIterable :
-      SetIterable;
-  }
-
-  function makeSequence(iterable) {
-    return Object.create(
-      (
-        isKeyed(iterable) ? KeyedSeq :
-        isIndexed(iterable) ? IndexedSeq :
-        SetSeq
-      ).prototype
-    );
-  }
-
-  function cacheResultThrough() {
-    if (this._iter.cacheResult) {
-      this._iter.cacheResult();
-      this.size = this._iter.size;
-      return this;
-    } else {
-      return Seq.prototype.cacheResult.call(this);
-    }
-  }
-
-  function defaultComparator(a, b) {
-    return a > b ? 1 : a < b ? -1 : 0;
-  }
-
-  function forceIterator(keyPath) {
-    var iter = getIterator(keyPath);
-    if (!iter) {
-      // Array might not be iterable in this environment, so we need a fallback
-      // to our wrapped type.
-      if (!isArrayLike(keyPath)) {
-        throw new TypeError('Expected iterable or array-like: ' + keyPath);
-      }
-      iter = getIterator(Iterable(keyPath));
-    }
-    return iter;
-  }
-
-  createClass(Record, KeyedCollection);
-
-    function Record(defaultValues, name) {
-      var hasInitialized;
-
-      var RecordType = function Record(values) {
-        if (values instanceof RecordType) {
-          return values;
-        }
-        if (!(this instanceof RecordType)) {
-          return new RecordType(values);
-        }
-        if (!hasInitialized) {
-          hasInitialized = true;
-          var keys = Object.keys(defaultValues);
-          setProps(RecordTypePrototype, keys);
-          RecordTypePrototype.size = keys.length;
-          RecordTypePrototype._name = name;
-          RecordTypePrototype._keys = keys;
-          RecordTypePrototype._defaultValues = defaultValues;
-        }
-        this._map = Map(values);
-      };
-
-      var RecordTypePrototype = RecordType.prototype = Object.create(RecordPrototype);
-      RecordTypePrototype.constructor = RecordType;
-
-      return RecordType;
-    }
-
-    Record.prototype.toString = function() {
-      return this.__toString(recordName(this) + ' {', '}');
-    };
-
-    // @pragma Access
-
-    Record.prototype.has = function(k) {
-      return this._defaultValues.hasOwnProperty(k);
-    };
-
-    Record.prototype.get = function(k, notSetValue) {
-      if (!this.has(k)) {
-        return notSetValue;
-      }
-      var defaultVal = this._defaultValues[k];
-      return this._map ? this._map.get(k, defaultVal) : defaultVal;
-    };
-
-    // @pragma Modification
-
-    Record.prototype.clear = function() {
-      if (this.__ownerID) {
-        this._map && this._map.clear();
-        return this;
-      }
-      var RecordType = this.constructor;
-      return RecordType._empty || (RecordType._empty = makeRecord(this, emptyMap()));
-    };
-
-    Record.prototype.set = function(k, v) {
-      if (!this.has(k)) {
-        throw new Error('Cannot set unknown key "' + k + '" on ' + recordName(this));
-      }
-      var newMap = this._map && this._map.set(k, v);
-      if (this.__ownerID || newMap === this._map) {
-        return this;
-      }
-      return makeRecord(this, newMap);
-    };
-
-    Record.prototype.remove = function(k) {
-      if (!this.has(k)) {
-        return this;
-      }
-      var newMap = this._map && this._map.remove(k);
-      if (this.__ownerID || newMap === this._map) {
-        return this;
-      }
-      return makeRecord(this, newMap);
-    };
-
-    Record.prototype.wasAltered = function() {
-      return this._map.wasAltered();
-    };
-
-    Record.prototype.__iterator = function(type, reverse) {var this$0 = this;
-      return KeyedIterable(this._defaultValues).map(function(_, k)  {return this$0.get(k)}).__iterator(type, reverse);
-    };
-
-    Record.prototype.__iterate = function(fn, reverse) {var this$0 = this;
-      return KeyedIterable(this._defaultValues).map(function(_, k)  {return this$0.get(k)}).__iterate(fn, reverse);
-    };
-
-    Record.prototype.__ensureOwner = function(ownerID) {
-      if (ownerID === this.__ownerID) {
-        return this;
-      }
-      var newMap = this._map && this._map.__ensureOwner(ownerID);
-      if (!ownerID) {
-        this.__ownerID = ownerID;
-        this._map = newMap;
-        return this;
-      }
-      return makeRecord(this, newMap, ownerID);
-    };
-
-
-  var RecordPrototype = Record.prototype;
-  RecordPrototype[DELETE] = RecordPrototype.remove;
-  RecordPrototype.deleteIn =
-  RecordPrototype.removeIn = MapPrototype.removeIn;
-  RecordPrototype.merge = MapPrototype.merge;
-  RecordPrototype.mergeWith = MapPrototype.mergeWith;
-  RecordPrototype.mergeIn = MapPrototype.mergeIn;
-  RecordPrototype.mergeDeep = MapPrototype.mergeDeep;
-  RecordPrototype.mergeDeepWith = MapPrototype.mergeDeepWith;
-  RecordPrototype.mergeDeepIn = MapPrototype.mergeDeepIn;
-  RecordPrototype.setIn = MapPrototype.setIn;
-  RecordPrototype.update = MapPrototype.update;
-  RecordPrototype.updateIn = MapPrototype.updateIn;
-  RecordPrototype.withMutations = MapPrototype.withMutations;
-  RecordPrototype.asMutable = MapPrototype.asMutable;
-  RecordPrototype.asImmutable = MapPrototype.asImmutable;
-
-
-  function makeRecord(likeRecord, map, ownerID) {
-    var record = Object.create(Object.getPrototypeOf(likeRecord));
-    record._map = map;
-    record.__ownerID = ownerID;
-    return record;
-  }
-
-  function recordName(record) {
-    return record._name || record.constructor.name || 'Record';
-  }
-
-  function setProps(prototype, names) {
-    try {
-      names.forEach(setProp.bind(undefined, prototype));
-    } catch (error) {
-      // Object.defineProperty failed. Probably IE8.
-    }
-  }
-
-  function setProp(prototype, name) {
-    Object.defineProperty(prototype, name, {
-      get: function() {
-        return this.get(name);
-      },
-      set: function(value) {
-        invariant(this.__ownerID, 'Cannot set on an immutable record.');
-        this.set(name, value);
-      }
-    });
-  }
-
-  createClass(Set, SetCollection);
-
-    // @pragma Construction
-
-    function Set(value) {
-      return value === null || value === undefined ? emptySet() :
-        isSet(value) && !isOrdered(value) ? value :
-        emptySet().withMutations(function(set ) {
-          var iter = SetIterable(value);
-          assertNotInfinite(iter.size);
-          iter.forEach(function(v ) {return set.add(v)});
-        });
-    }
-
-    Set.of = function(/*...values*/) {
-      return this(arguments);
-    };
-
-    Set.fromKeys = function(value) {
-      return this(KeyedIterable(value).keySeq());
-    };
-
-    Set.prototype.toString = function() {
-      return this.__toString('Set {', '}');
-    };
-
-    // @pragma Access
-
-    Set.prototype.has = function(value) {
-      return this._map.has(value);
-    };
-
-    // @pragma Modification
-
-    Set.prototype.add = function(value) {
-      return updateSet(this, this._map.set(value, true));
-    };
-
-    Set.prototype.remove = function(value) {
-      return updateSet(this, this._map.remove(value));
-    };
-
-    Set.prototype.clear = function() {
-      return updateSet(this, this._map.clear());
-    };
-
-    // @pragma Composition
-
-    Set.prototype.union = function() {var iters = SLICE$0.call(arguments, 0);
-      iters = iters.filter(function(x ) {return x.size !== 0});
-      if (iters.length === 0) {
-        return this;
-      }
-      if (this.size === 0 && !this.__ownerID && iters.length === 1) {
-        return this.constructor(iters[0]);
-      }
-      return this.withMutations(function(set ) {
-        for (var ii = 0; ii < iters.length; ii++) {
-          SetIterable(iters[ii]).forEach(function(value ) {return set.add(value)});
-        }
-      });
-    };
-
-    Set.prototype.intersect = function() {var iters = SLICE$0.call(arguments, 0);
-      if (iters.length === 0) {
-        return this;
-      }
-      iters = iters.map(function(iter ) {return SetIterable(iter)});
-      var originalSet = this;
-      return this.withMutations(function(set ) {
-        originalSet.forEach(function(value ) {
-          if (!iters.every(function(iter ) {return iter.includes(value)})) {
-            set.remove(value);
-          }
-        });
-      });
-    };
-
-    Set.prototype.subtract = function() {var iters = SLICE$0.call(arguments, 0);
-      if (iters.length === 0) {
-        return this;
-      }
-      iters = iters.map(function(iter ) {return SetIterable(iter)});
-      var originalSet = this;
-      return this.withMutations(function(set ) {
-        originalSet.forEach(function(value ) {
-          if (iters.some(function(iter ) {return iter.includes(value)})) {
-            set.remove(value);
-          }
-        });
-      });
-    };
-
-    Set.prototype.merge = function() {
-      return this.union.apply(this, arguments);
-    };
-
-    Set.prototype.mergeWith = function(merger) {var iters = SLICE$0.call(arguments, 1);
-      return this.union.apply(this, iters);
-    };
-
-    Set.prototype.sort = function(comparator) {
-      // Late binding
-      return OrderedSet(sortFactory(this, comparator));
-    };
-
-    Set.prototype.sortBy = function(mapper, comparator) {
-      // Late binding
-      return OrderedSet(sortFactory(this, comparator, mapper));
-    };
-
-    Set.prototype.wasAltered = function() {
-      return this._map.wasAltered();
-    };
-
-    Set.prototype.__iterate = function(fn, reverse) {var this$0 = this;
-      return this._map.__iterate(function(_, k)  {return fn(k, k, this$0)}, reverse);
-    };
-
-    Set.prototype.__iterator = function(type, reverse) {
-      return this._map.map(function(_, k)  {return k}).__iterator(type, reverse);
-    };
-
-    Set.prototype.__ensureOwner = function(ownerID) {
-      if (ownerID === this.__ownerID) {
-        return this;
-      }
-      var newMap = this._map.__ensureOwner(ownerID);
-      if (!ownerID) {
-        this.__ownerID = ownerID;
-        this._map = newMap;
-        return this;
-      }
-      return this.__make(newMap, ownerID);
-    };
-
-
-  function isSet(maybeSet) {
-    return !!(maybeSet && maybeSet[IS_SET_SENTINEL]);
-  }
-
-  Set.isSet = isSet;
-
-  var IS_SET_SENTINEL = '@@__IMMUTABLE_SET__@@';
-
-  var SetPrototype = Set.prototype;
-  SetPrototype[IS_SET_SENTINEL] = true;
-  SetPrototype[DELETE] = SetPrototype.remove;
-  SetPrototype.mergeDeep = SetPrototype.merge;
-  SetPrototype.mergeDeepWith = SetPrototype.mergeWith;
-  SetPrototype.withMutations = MapPrototype.withMutations;
-  SetPrototype.asMutable = MapPrototype.asMutable;
-  SetPrototype.asImmutable = MapPrototype.asImmutable;
-
-  SetPrototype.__empty = emptySet;
-  SetPrototype.__make = makeSet;
-
-  function updateSet(set, newMap) {
-    if (set.__ownerID) {
-      set.size = newMap.size;
-      set._map = newMap;
-      return set;
-    }
-    return newMap === set._map ? set :
-      newMap.size === 0 ? set.__empty() :
-      set.__make(newMap);
-  }
-
-  function makeSet(map, ownerID) {
-    var set = Object.create(SetPrototype);
-    set.size = map ? map.size : 0;
-    set._map = map;
-    set.__ownerID = ownerID;
-    return set;
-  }
-
-  var EMPTY_SET;
-  function emptySet() {
-    return EMPTY_SET || (EMPTY_SET = makeSet(emptyMap()));
-  }
-
-  createClass(OrderedSet, Set);
-
-    // @pragma Construction
-
-    function OrderedSet(value) {
-      return value === null || value === undefined ? emptyOrderedSet() :
-        isOrderedSet(value) ? value :
-        emptyOrderedSet().withMutations(function(set ) {
-          var iter = SetIterable(value);
-          assertNotInfinite(iter.size);
-          iter.forEach(function(v ) {return set.add(v)});
-        });
-    }
-
-    OrderedSet.of = function(/*...values*/) {
-      return this(arguments);
-    };
-
-    OrderedSet.fromKeys = function(value) {
-      return this(KeyedIterable(value).keySeq());
-    };
-
-    OrderedSet.prototype.toString = function() {
-      return this.__toString('OrderedSet {', '}');
-    };
-
-
-  function isOrderedSet(maybeOrderedSet) {
-    return isSet(maybeOrderedSet) && isOrdered(maybeOrderedSet);
-  }
-
-  OrderedSet.isOrderedSet = isOrderedSet;
-
-  var OrderedSetPrototype = OrderedSet.prototype;
-  OrderedSetPrototype[IS_ORDERED_SENTINEL] = true;
-
-  OrderedSetPrototype.__empty = emptyOrderedSet;
-  OrderedSetPrototype.__make = makeOrderedSet;
-
-  function makeOrderedSet(map, ownerID) {
-    var set = Object.create(OrderedSetPrototype);
-    set.size = map ? map.size : 0;
-    set._map = map;
-    set.__ownerID = ownerID;
-    return set;
-  }
-
-  var EMPTY_ORDERED_SET;
-  function emptyOrderedSet() {
-    return EMPTY_ORDERED_SET || (EMPTY_ORDERED_SET = makeOrderedSet(emptyOrderedMap()));
-  }
-
-  createClass(Stack, IndexedCollection);
-
-    // @pragma Construction
-
-    function Stack(value) {
-      return value === null || value === undefined ? emptyStack() :
-        isStack(value) ? value :
-        emptyStack().unshiftAll(value);
-    }
-
-    Stack.of = function(/*...values*/) {
-      return this(arguments);
-    };
-
-    Stack.prototype.toString = function() {
-      return this.__toString('Stack [', ']');
-    };
-
-    // @pragma Access
-
-    Stack.prototype.get = function(index, notSetValue) {
-      var head = this._head;
-      index = wrapIndex(this, index);
-      while (head && index--) {
-        head = head.next;
-      }
-      return head ? head.value : notSetValue;
-    };
-
-    Stack.prototype.peek = function() {
-      return this._head && this._head.value;
-    };
-
-    // @pragma Modification
-
-    Stack.prototype.push = function(/*...values*/) {
-      if (arguments.length === 0) {
-        return this;
-      }
-      var newSize = this.size + arguments.length;
-      var head = this._head;
-      for (var ii = arguments.length - 1; ii >= 0; ii--) {
-        head = {
-          value: arguments[ii],
-          next: head
-        };
-      }
-      if (this.__ownerID) {
-        this.size = newSize;
-        this._head = head;
-        this.__hash = undefined;
-        this.__altered = true;
-        return this;
-      }
-      return makeStack(newSize, head);
-    };
-
-    Stack.prototype.pushAll = function(iter) {
-      iter = IndexedIterable(iter);
-      if (iter.size === 0) {
-        return this;
-      }
-      assertNotInfinite(iter.size);
-      var newSize = this.size;
-      var head = this._head;
-      iter.reverse().forEach(function(value ) {
-        newSize++;
-        head = {
-          value: value,
-          next: head
-        };
-      });
-      if (this.__ownerID) {
-        this.size = newSize;
-        this._head = head;
-        this.__hash = undefined;
-        this.__altered = true;
-        return this;
-      }
-      return makeStack(newSize, head);
-    };
-
-    Stack.prototype.pop = function() {
-      return this.slice(1);
-    };
-
-    Stack.prototype.unshift = function(/*...values*/) {
-      return this.push.apply(this, arguments);
-    };
-
-    Stack.prototype.unshiftAll = function(iter) {
-      return this.pushAll(iter);
-    };
-
-    Stack.prototype.shift = function() {
-      return this.pop.apply(this, arguments);
-    };
-
-    Stack.prototype.clear = function() {
-      if (this.size === 0) {
-        return this;
-      }
-      if (this.__ownerID) {
-        this.size = 0;
-        this._head = undefined;
-        this.__hash = undefined;
-        this.__altered = true;
-        return this;
-      }
-      return emptyStack();
-    };
-
-    Stack.prototype.slice = function(begin, end) {
-      if (wholeSlice(begin, end, this.size)) {
-        return this;
-      }
-      var resolvedBegin = resolveBegin(begin, this.size);
-      var resolvedEnd = resolveEnd(end, this.size);
-      if (resolvedEnd !== this.size) {
-        // super.slice(begin, end);
-        return IndexedCollection.prototype.slice.call(this, begin, end);
-      }
-      var newSize = this.size - resolvedBegin;
-      var head = this._head;
-      while (resolvedBegin--) {
-        head = head.next;
-      }
-      if (this.__ownerID) {
-        this.size = newSize;
-        this._head = head;
-        this.__hash = undefined;
-        this.__altered = true;
-        return this;
-      }
-      return makeStack(newSize, head);
-    };
-
-    // @pragma Mutability
-
-    Stack.prototype.__ensureOwner = function(ownerID) {
-      if (ownerID === this.__ownerID) {
-        return this;
-      }
-      if (!ownerID) {
-        this.__ownerID = ownerID;
-        this.__altered = false;
-        return this;
-      }
-      return makeStack(this.size, this._head, ownerID, this.__hash);
-    };
-
-    // @pragma Iteration
-
-    Stack.prototype.__iterate = function(fn, reverse) {
-      if (reverse) {
-        return this.reverse().__iterate(fn);
-      }
-      var iterations = 0;
-      var node = this._head;
-      while (node) {
-        if (fn(node.value, iterations++, this) === false) {
-          break;
-        }
-        node = node.next;
-      }
-      return iterations;
-    };
-
-    Stack.prototype.__iterator = function(type, reverse) {
-      if (reverse) {
-        return this.reverse().__iterator(type);
-      }
-      var iterations = 0;
-      var node = this._head;
-      return new Iterator(function()  {
-        if (node) {
-          var value = node.value;
-          node = node.next;
-          return iteratorValue(type, iterations++, value);
-        }
-        return iteratorDone();
-      });
-    };
-
-
-  function isStack(maybeStack) {
-    return !!(maybeStack && maybeStack[IS_STACK_SENTINEL]);
-  }
-
-  Stack.isStack = isStack;
-
-  var IS_STACK_SENTINEL = '@@__IMMUTABLE_STACK__@@';
-
-  var StackPrototype = Stack.prototype;
-  StackPrototype[IS_STACK_SENTINEL] = true;
-  StackPrototype.withMutations = MapPrototype.withMutations;
-  StackPrototype.asMutable = MapPrototype.asMutable;
-  StackPrototype.asImmutable = MapPrototype.asImmutable;
-  StackPrototype.wasAltered = MapPrototype.wasAltered;
-
-
-  function makeStack(size, head, ownerID, hash) {
-    var map = Object.create(StackPrototype);
-    map.size = size;
-    map._head = head;
-    map.__ownerID = ownerID;
-    map.__hash = hash;
-    map.__altered = false;
-    return map;
-  }
-
-  var EMPTY_STACK;
-  function emptyStack() {
-    return EMPTY_STACK || (EMPTY_STACK = makeStack(0));
-  }
-
-  /**
-   * Contributes additional methods to a constructor
-   */
-  function mixin(ctor, methods) {
-    var keyCopier = function(key ) { ctor.prototype[key] = methods[key]; };
-    Object.keys(methods).forEach(keyCopier);
-    Object.getOwnPropertySymbols &&
-      Object.getOwnPropertySymbols(methods).forEach(keyCopier);
-    return ctor;
-  }
-
-  Iterable.Iterator = Iterator;
-
-  mixin(Iterable, {
-
-    // ### Conversion to other types
-
-    toArray: function() {
-      assertNotInfinite(this.size);
-      var array = new Array(this.size || 0);
-      this.valueSeq().__iterate(function(v, i)  { array[i] = v; });
-      return array;
-    },
-
-    toIndexedSeq: function() {
-      return new ToIndexedSequence(this);
-    },
-
-    toJS: function() {
-      return this.toSeq().map(
-        function(value ) {return value && typeof value.toJS === 'function' ? value.toJS() : value}
-      ).__toJS();
-    },
-
-    toJSON: function() {
-      return this.toSeq().map(
-        function(value ) {return value && typeof value.toJSON === 'function' ? value.toJSON() : value}
-      ).__toJS();
-    },
-
-    toKeyedSeq: function() {
-      return new ToKeyedSequence(this, true);
-    },
-
-    toMap: function() {
-      // Use Late Binding here to solve the circular dependency.
-      return Map(this.toKeyedSeq());
-    },
-
-    toObject: function() {
-      assertNotInfinite(this.size);
-      var object = {};
-      this.__iterate(function(v, k)  { object[k] = v; });
-      return object;
-    },
-
-    toOrderedMap: function() {
-      // Use Late Binding here to solve the circular dependency.
-      return OrderedMap(this.toKeyedSeq());
-    },
-
-    toOrderedSet: function() {
-      // Use Late Binding here to solve the circular dependency.
-      return OrderedSet(isKeyed(this) ? this.valueSeq() : this);
-    },
-
-    toSet: function() {
-      // Use Late Binding here to solve the circular dependency.
-      return Set(isKeyed(this) ? this.valueSeq() : this);
-    },
-
-    toSetSeq: function() {
-      return new ToSetSequence(this);
-    },
-
-    toSeq: function() {
-      return isIndexed(this) ? this.toIndexedSeq() :
-        isKeyed(this) ? this.toKeyedSeq() :
-        this.toSetSeq();
-    },
-
-    toStack: function() {
-      // Use Late Binding here to solve the circular dependency.
-      return Stack(isKeyed(this) ? this.valueSeq() : this);
-    },
-
-    toList: function() {
-      // Use Late Binding here to solve the circular dependency.
-      return List(isKeyed(this) ? this.valueSeq() : this);
-    },
-
-
-    // ### Common JavaScript methods and properties
-
-    toString: function() {
-      return '[Iterable]';
-    },
-
-    __toString: function(head, tail) {
-      if (this.size === 0) {
-        return head + tail;
-      }
-      return head + ' ' + this.toSeq().map(this.__toStringMapper).join(', ') + ' ' + tail;
-    },
-
-
-    // ### ES6 Collection methods (ES6 Array and Map)
-
-    concat: function() {var values = SLICE$0.call(arguments, 0);
-      return reify(this, concatFactory(this, values));
-    },
-
-    includes: function(searchValue) {
-      return this.some(function(value ) {return is(value, searchValue)});
-    },
-
-    entries: function() {
-      return this.__iterator(ITERATE_ENTRIES);
-    },
-
-    every: function(predicate, context) {
-      assertNotInfinite(this.size);
-      var returnValue = true;
-      this.__iterate(function(v, k, c)  {
-        if (!predicate.call(context, v, k, c)) {
-          returnValue = false;
-          return false;
-        }
-      });
-      return returnValue;
-    },
-
-    filter: function(predicate, context) {
-      return reify(this, filterFactory(this, predicate, context, true));
-    },
-
-    find: function(predicate, context, notSetValue) {
-      var entry = this.findEntry(predicate, context);
-      return entry ? entry[1] : notSetValue;
-    },
-
-    findEntry: function(predicate, context) {
-      var found;
-      this.__iterate(function(v, k, c)  {
-        if (predicate.call(context, v, k, c)) {
-          found = [k, v];
-          return false;
-        }
-      });
-      return found;
-    },
-
-    findLastEntry: function(predicate, context) {
-      return this.toSeq().reverse().findEntry(predicate, context);
-    },
-
-    forEach: function(sideEffect, context) {
-      assertNotInfinite(this.size);
-      return this.__iterate(context ? sideEffect.bind(context) : sideEffect);
-    },
-
-    join: function(separator) {
-      assertNotInfinite(this.size);
-      separator = separator !== undefined ? '' + separator : ',';
-      var joined = '';
-      var isFirst = true;
-      this.__iterate(function(v ) {
-        isFirst ? (isFirst = false) : (joined += separator);
-        joined += v !== null && v !== undefined ? v.toString() : '';
-      });
-      return joined;
-    },
-
-    keys: function() {
-      return this.__iterator(ITERATE_KEYS);
-    },
-
-    map: function(mapper, context) {
-      return reify(this, mapFactory(this, mapper, context));
-    },
-
-    reduce: function(reducer, initialReduction, context) {
-      assertNotInfinite(this.size);
-      var reduction;
-      var useFirst;
-      if (arguments.length < 2) {
-        useFirst = true;
-      } else {
-        reduction = initialReduction;
-      }
-      this.__iterate(function(v, k, c)  {
-        if (useFirst) {
-          useFirst = false;
-          reduction = v;
-        } else {
-          reduction = reducer.call(context, reduction, v, k, c);
-        }
-      });
-      return reduction;
-    },
-
-    reduceRight: function(reducer, initialReduction, context) {
-      var reversed = this.toKeyedSeq().reverse();
-      return reversed.reduce.apply(reversed, arguments);
-    },
-
-    reverse: function() {
-      return reify(this, reverseFactory(this, true));
-    },
-
-    slice: function(begin, end) {
-      return reify(this, sliceFactory(this, begin, end, true));
-    },
-
-    some: function(predicate, context) {
-      return !this.every(not(predicate), context);
-    },
-
-    sort: function(comparator) {
-      return reify(this, sortFactory(this, comparator));
-    },
-
-    values: function() {
-      return this.__iterator(ITERATE_VALUES);
-    },
-
-
-    // ### More sequential methods
-
-    butLast: function() {
-      return this.slice(0, -1);
-    },
-
-    isEmpty: function() {
-      return this.size !== undefined ? this.size === 0 : !this.some(function()  {return true});
-    },
-
-    count: function(predicate, context) {
-      return ensureSize(
-        predicate ? this.toSeq().filter(predicate, context) : this
-      );
-    },
-
-    countBy: function(grouper, context) {
-      return countByFactory(this, grouper, context);
-    },
-
-    equals: function(other) {
-      return deepEqual(this, other);
-    },
-
-    entrySeq: function() {
-      var iterable = this;
-      if (iterable._cache) {
-        // We cache as an entries array, so we can just return the cache!
-        return new ArraySeq(iterable._cache);
-      }
-      var entriesSequence = iterable.toSeq().map(entryMapper).toIndexedSeq();
-      entriesSequence.fromEntrySeq = function()  {return iterable.toSeq()};
-      return entriesSequence;
-    },
-
-    filterNot: function(predicate, context) {
-      return this.filter(not(predicate), context);
-    },
-
-    findLast: function(predicate, context, notSetValue) {
-      return this.toKeyedSeq().reverse().find(predicate, context, notSetValue);
-    },
-
-    first: function() {
-      return this.find(returnTrue);
-    },
-
-    flatMap: function(mapper, context) {
-      return reify(this, flatMapFactory(this, mapper, context));
-    },
-
-    flatten: function(depth) {
-      return reify(this, flattenFactory(this, depth, true));
-    },
-
-    fromEntrySeq: function() {
-      return new FromEntriesSequence(this);
-    },
-
-    get: function(searchKey, notSetValue) {
-      return this.find(function(_, key)  {return is(key, searchKey)}, undefined, notSetValue);
-    },
-
-    getIn: function(searchKeyPath, notSetValue) {
-      var nested = this;
-      // Note: in an ES6 environment, we would prefer:
-      // for (var key of searchKeyPath) {
-      var iter = forceIterator(searchKeyPath);
-      var step;
-      while (!(step = iter.next()).done) {
-        var key = step.value;
-        nested = nested && nested.get ? nested.get(key, NOT_SET) : NOT_SET;
-        if (nested === NOT_SET) {
-          return notSetValue;
-        }
-      }
-      return nested;
-    },
-
-    groupBy: function(grouper, context) {
-      return groupByFactory(this, grouper, context);
-    },
-
-    has: function(searchKey) {
-      return this.get(searchKey, NOT_SET) !== NOT_SET;
-    },
-
-    hasIn: function(searchKeyPath) {
-      return this.getIn(searchKeyPath, NOT_SET) !== NOT_SET;
-    },
-
-    isSubset: function(iter) {
-      iter = typeof iter.includes === 'function' ? iter : Iterable(iter);
-      return this.every(function(value ) {return iter.includes(value)});
-    },
-
-    isSuperset: function(iter) {
-      iter = typeof iter.isSubset === 'function' ? iter : Iterable(iter);
-      return iter.isSubset(this);
-    },
-
-    keySeq: function() {
-      return this.toSeq().map(keyMapper).toIndexedSeq();
-    },
-
-    last: function() {
-      return this.toSeq().reverse().first();
-    },
-
-    max: function(comparator) {
-      return maxFactory(this, comparator);
-    },
-
-    maxBy: function(mapper, comparator) {
-      return maxFactory(this, comparator, mapper);
-    },
-
-    min: function(comparator) {
-      return maxFactory(this, comparator ? neg(comparator) : defaultNegComparator);
-    },
-
-    minBy: function(mapper, comparator) {
-      return maxFactory(this, comparator ? neg(comparator) : defaultNegComparator, mapper);
-    },
-
-    rest: function() {
-      return this.slice(1);
-    },
-
-    skip: function(amount) {
-      return this.slice(Math.max(0, amount));
-    },
-
-    skipLast: function(amount) {
-      return reify(this, this.toSeq().reverse().skip(amount).reverse());
-    },
-
-    skipWhile: function(predicate, context) {
-      return reify(this, skipWhileFactory(this, predicate, context, true));
-    },
-
-    skipUntil: function(predicate, context) {
-      return this.skipWhile(not(predicate), context);
-    },
-
-    sortBy: function(mapper, comparator) {
-      return reify(this, sortFactory(this, comparator, mapper));
-    },
-
-    take: function(amount) {
-      return this.slice(0, Math.max(0, amount));
-    },
-
-    takeLast: function(amount) {
-      return reify(this, this.toSeq().reverse().take(amount).reverse());
-    },
-
-    takeWhile: function(predicate, context) {
-      return reify(this, takeWhileFactory(this, predicate, context));
-    },
-
-    takeUntil: function(predicate, context) {
-      return this.takeWhile(not(predicate), context);
-    },
-
-    valueSeq: function() {
-      return this.toIndexedSeq();
-    },
-
-
-    // ### Hashable Object
-
-    hashCode: function() {
-      return this.__hash || (this.__hash = hashIterable(this));
-    }
-
-
-    // ### Internal
-
-    // abstract __iterate(fn, reverse)
-
-    // abstract __iterator(type, reverse)
-  });
-
-  // var IS_ITERABLE_SENTINEL = '@@__IMMUTABLE_ITERABLE__@@';
-  // var IS_KEYED_SENTINEL = '@@__IMMUTABLE_KEYED__@@';
-  // var IS_INDEXED_SENTINEL = '@@__IMMUTABLE_INDEXED__@@';
-  // var IS_ORDERED_SENTINEL = '@@__IMMUTABLE_ORDERED__@@';
-
-  var IterablePrototype = Iterable.prototype;
-  IterablePrototype[IS_ITERABLE_SENTINEL] = true;
-  IterablePrototype[ITERATOR_SYMBOL] = IterablePrototype.values;
-  IterablePrototype.__toJS = IterablePrototype.toArray;
-  IterablePrototype.__toStringMapper = quoteString;
-  IterablePrototype.inspect =
-  IterablePrototype.toSource = function() { return this.toString(); };
-  IterablePrototype.chain = IterablePrototype.flatMap;
-  IterablePrototype.contains = IterablePrototype.includes;
-
-  // Temporary warning about using length
-  (function () {
-    try {
-      Object.defineProperty(IterablePrototype, 'length', {
-        get: function () {
-          if (!Iterable.noLengthWarning) {
-            var stack;
-            try {
-              throw new Error();
-            } catch (error) {
-              stack = error.stack;
-            }
-            if (stack.indexOf('_wrapObject') === -1) {
-              console && console.warn && console.warn(
-                'iterable.length has been deprecated, '+
-                'use iterable.size or iterable.count(). '+
-                'This warning will become a silent error in a future version. ' +
-                stack
-              );
-              return this.size;
-            }
-          }
-        }
-      });
-    } catch (e) {}
-  })();
-
-
-
-  mixin(KeyedIterable, {
-
-    // ### More sequential methods
-
-    flip: function() {
-      return reify(this, flipFactory(this));
-    },
-
-    findKey: function(predicate, context) {
-      var entry = this.findEntry(predicate, context);
-      return entry && entry[0];
-    },
-
-    findLastKey: function(predicate, context) {
-      return this.toSeq().reverse().findKey(predicate, context);
-    },
-
-    keyOf: function(searchValue) {
-      return this.findKey(function(value ) {return is(value, searchValue)});
-    },
-
-    lastKeyOf: function(searchValue) {
-      return this.findLastKey(function(value ) {return is(value, searchValue)});
-    },
-
-    mapEntries: function(mapper, context) {var this$0 = this;
-      var iterations = 0;
-      return reify(this,
-        this.toSeq().map(
-          function(v, k)  {return mapper.call(context, [k, v], iterations++, this$0)}
-        ).fromEntrySeq()
-      );
-    },
-
-    mapKeys: function(mapper, context) {var this$0 = this;
-      return reify(this,
-        this.toSeq().flip().map(
-          function(k, v)  {return mapper.call(context, k, v, this$0)}
-        ).flip()
-      );
-    }
-
-  });
-
-  var KeyedIterablePrototype = KeyedIterable.prototype;
-  KeyedIterablePrototype[IS_KEYED_SENTINEL] = true;
-  KeyedIterablePrototype[ITERATOR_SYMBOL] = IterablePrototype.entries;
-  KeyedIterablePrototype.__toJS = IterablePrototype.toObject;
-  KeyedIterablePrototype.__toStringMapper = function(v, k)  {return JSON.stringify(k) + ': ' + quoteString(v)};
-
-
-
-  mixin(IndexedIterable, {
-
-    // ### Conversion to other types
-
-    toKeyedSeq: function() {
-      return new ToKeyedSequence(this, false);
-    },
-
-
-    // ### ES6 Collection methods (ES6 Array and Map)
-
-    filter: function(predicate, context) {
-      return reify(this, filterFactory(this, predicate, context, false));
-    },
-
-    findIndex: function(predicate, context) {
-      var entry = this.findEntry(predicate, context);
-      return entry ? entry[0] : -1;
-    },
-
-    indexOf: function(searchValue) {
-      var key = this.toKeyedSeq().keyOf(searchValue);
-      return key === undefined ? -1 : key;
-    },
-
-    lastIndexOf: function(searchValue) {
-      var key = this.toKeyedSeq().reverse().keyOf(searchValue);
-      return key === undefined ? -1 : key;
-
-      // var index =
-      // return this.toSeq().reverse().indexOf(searchValue);
-    },
-
-    reverse: function() {
-      return reify(this, reverseFactory(this, false));
-    },
-
-    slice: function(begin, end) {
-      return reify(this, sliceFactory(this, begin, end, false));
-    },
-
-    splice: function(index, removeNum /*, ...values*/) {
-      var numArgs = arguments.length;
-      removeNum = Math.max(removeNum | 0, 0);
-      if (numArgs === 0 || (numArgs === 2 && !removeNum)) {
-        return this;
-      }
-      // If index is negative, it should resolve relative to the size of the
-      // collection. However size may be expensive to compute if not cached, so
-      // only call count() if the number is in fact negative.
-      index = resolveBegin(index, index < 0 ? this.count() : this.size);
-      var spliced = this.slice(0, index);
-      return reify(
-        this,
-        numArgs === 1 ?
-          spliced :
-          spliced.concat(arrCopy(arguments, 2), this.slice(index + removeNum))
-      );
-    },
-
-
-    // ### More collection methods
-
-    findLastIndex: function(predicate, context) {
-      var key = this.toKeyedSeq().findLastKey(predicate, context);
-      return key === undefined ? -1 : key;
-    },
-
-    first: function() {
-      return this.get(0);
-    },
-
-    flatten: function(depth) {
-      return reify(this, flattenFactory(this, depth, false));
-    },
-
-    get: function(index, notSetValue) {
-      index = wrapIndex(this, index);
-      return (index < 0 || (this.size === Infinity ||
-          (this.size !== undefined && index > this.size))) ?
-        notSetValue :
-        this.find(function(_, key)  {return key === index}, undefined, notSetValue);
-    },
-
-    has: function(index) {
-      index = wrapIndex(this, index);
-      return index >= 0 && (this.size !== undefined ?
-        this.size === Infinity || index < this.size :
-        this.indexOf(index) !== -1
-      );
-    },
-
-    interpose: function(separator) {
-      return reify(this, interposeFactory(this, separator));
-    },
-
-    interleave: function(/*...iterables*/) {
-      var iterables = [this].concat(arrCopy(arguments));
-      var zipped = zipWithFactory(this.toSeq(), IndexedSeq.of, iterables);
-      var interleaved = zipped.flatten(true);
-      if (zipped.size) {
-        interleaved.size = zipped.size * iterables.length;
-      }
-      return reify(this, interleaved);
-    },
-
-    last: function() {
-      return this.get(-1);
-    },
-
-    skipWhile: function(predicate, context) {
-      return reify(this, skipWhileFactory(this, predicate, context, false));
-    },
-
-    zip: function(/*, ...iterables */) {
-      var iterables = [this].concat(arrCopy(arguments));
-      return reify(this, zipWithFactory(this, defaultZipper, iterables));
-    },
-
-    zipWith: function(zipper/*, ...iterables */) {
-      var iterables = arrCopy(arguments);
-      iterables[0] = this;
-      return reify(this, zipWithFactory(this, zipper, iterables));
-    }
-
-  });
-
-  IndexedIterable.prototype[IS_INDEXED_SENTINEL] = true;
-  IndexedIterable.prototype[IS_ORDERED_SENTINEL] = true;
-
-
-
-  mixin(SetIterable, {
-
-    // ### ES6 Collection methods (ES6 Array and Map)
-
-    get: function(value, notSetValue) {
-      return this.has(value) ? value : notSetValue;
-    },
-
-    includes: function(value) {
-      return this.has(value);
-    },
-
-
-    // ### More sequential methods
-
-    keySeq: function() {
-      return this.valueSeq();
-    }
-
-  });
-
-  SetIterable.prototype.has = IterablePrototype.includes;
-
-
-  // Mixin subclasses
-
-  mixin(KeyedSeq, KeyedIterable.prototype);
-  mixin(IndexedSeq, IndexedIterable.prototype);
-  mixin(SetSeq, SetIterable.prototype);
-
-  mixin(KeyedCollection, KeyedIterable.prototype);
-  mixin(IndexedCollection, IndexedIterable.prototype);
-  mixin(SetCollection, SetIterable.prototype);
-
-
-  // #pragma Helper functions
-
-  function keyMapper(v, k) {
-    return k;
-  }
-
-  function entryMapper(v, k) {
-    return [k, v];
-  }
-
-  function not(predicate) {
-    return function() {
-      return !predicate.apply(this, arguments);
-    }
-  }
-
-  function neg(predicate) {
-    return function() {
-      return -predicate.apply(this, arguments);
-    }
-  }
-
-  function quoteString(value) {
-    return typeof value === 'string' ? JSON.stringify(value) : value;
-  }
-
-  function defaultZipper() {
-    return arrCopy(arguments);
-  }
-
-  function defaultNegComparator(a, b) {
-    return a < b ? 1 : a > b ? -1 : 0;
-  }
-
-  function hashIterable(iterable) {
-    if (iterable.size === Infinity) {
-      return 0;
-    }
-    var ordered = isOrdered(iterable);
-    var keyed = isKeyed(iterable);
-    var h = ordered ? 1 : 0;
-    var size = iterable.__iterate(
-      keyed ?
-        ordered ?
-          function(v, k)  { h = 31 * h + hashMerge(hash(v), hash(k)) | 0; } :
-          function(v, k)  { h = h + hashMerge(hash(v), hash(k)) | 0; } :
-        ordered ?
-          function(v ) { h = 31 * h + hash(v) | 0; } :
-          function(v ) { h = h + hash(v) | 0; }
-    );
-    return murmurHashOfSize(size, h);
-  }
-
-  function murmurHashOfSize(size, h) {
-    h = imul(h, 0xCC9E2D51);
-    h = imul(h << 15 | h >>> -15, 0x1B873593);
-    h = imul(h << 13 | h >>> -13, 5);
-    h = (h + 0xE6546B64 | 0) ^ size;
-    h = imul(h ^ h >>> 16, 0x85EBCA6B);
-    h = imul(h ^ h >>> 13, 0xC2B2AE35);
-    h = smi(h ^ h >>> 16);
-    return h;
-  }
-
-  function hashMerge(a, b) {
-    return a ^ b + 0x9E3779B9 + (a << 6) + (a >> 2) | 0; // int
-  }
-
-  var Immutable = {
-
-    Iterable: Iterable,
-
-    Seq: Seq,
-    Collection: Collection,
-    Map: Map,
-    OrderedMap: OrderedMap,
-    List: List,
-    Stack: Stack,
-    Set: Set,
-    OrderedSet: OrderedSet,
-
-    Record: Record,
-    Range: Range,
-    Repeat: Repeat,
-
-    is: is,
-    fromJS: fromJS
-
-  };
-
-  return Immutable;
-
-}));
-
-/***/ }),
-/* 116 */
-/***/ (function(module, exports, __webpack_require__) {
-
-"use strict";
-/**
- * Copyright (c) 2013-present, Facebook, Inc.
- *
- * This source code is licensed under the MIT license found in the
- * LICENSE file in the root directory of this source tree.
- *
- */
-
-
-
-/**
- * Use invariant() to assert state which your program assumes to be true.
- *
- * Provide sprintf-style format (only %s is supported) and arguments
- * to provide information about what broke and what you were
- * expecting.
- *
- * The invariant message will be stripped in production, but the invariant
- * will remain to ensure logic does not differ in production.
- */
-
-var validateFormat = function validateFormat(format) {};
-
-if (true) {
-  validateFormat = function validateFormat(format) {
-    if (format === undefined) {
-      throw new Error('invariant requires an error message argument');
-    }
-  };
-}
-
-function invariant(condition, format, a, b, c, d, e, f) {
-  validateFormat(format);
-
-  if (!condition) {
-    var error;
-    if (format === undefined) {
-      error = new Error('Minified exception occurred; use the non-minified dev environment ' + 'for the full error message and additional helpful warnings.');
-    } else {
-      var args = [a, b, c, d, e, f];
-      var argIndex = 0;
-      error = new Error(format.replace(/%s/g, function () {
-        return args[argIndex++];
-      }));
-      error.name = 'Invariant Violation';
-    }
-
-    error.framesToPop = 1; // we don't care about invariant's own frame
-    throw error;
-  }
-}
-
-module.exports = invariant;
-
-/***/ }),
-/* 117 */
-/***/ (function(module, exports, __webpack_require__) {
-
-"use strict";
-/**
- * Copyright (c) 2013-present, Facebook, Inc.
- * All rights reserved.
- *
- * This source code is licensed under the BSD-style license found in the
- * LICENSE file in the root directory of this source tree. An additional grant
- * of patent rights can be found in the PATENTS file in the same directory.
- *
- * @providesModule EditorState
- * @format
- * 
- */
-
-
-
-var _assign = __webpack_require__(12);
-
-var _extends = _assign || function (target) { for (var i = 1; i < arguments.length; i++) { var source = arguments[i]; for (var key in source) { if (Object.prototype.hasOwnProperty.call(source, key)) { target[key] = source[key]; } } } return target; };
-
-function _classCallCheck(instance, Constructor) { if (!(instance instanceof Constructor)) { throw new TypeError("Cannot call a class as a function"); } }
-
-var BlockTree = __webpack_require__(153);
-var ContentState = __webpack_require__(137);
-var EditorBidiService = __webpack_require__(189);
-var Immutable = __webpack_require__(115);
-var SelectionState = __webpack_require__(127);
-
-var OrderedSet = Immutable.OrderedSet,
-    Record = Immutable.Record,
-    Stack = Immutable.Stack;
-
-
-var defaultRecord = {
-  allowUndo: true,
-  currentContent: null,
-  decorator: null,
-  directionMap: null,
-  forceSelection: false,
-  inCompositionMode: false,
-  inlineStyleOverride: null,
-  lastChangeType: null,
-  nativelyRenderedContent: null,
-  redoStack: Stack(),
-  selection: null,
-  treeMap: null,
-  undoStack: Stack()
-};
-
-var EditorStateRecord = Record(defaultRecord);
-
-var EditorState = function () {
-  EditorState.createEmpty = function createEmpty(decorator) {
-    return EditorState.createWithContent(ContentState.createFromText(''), decorator);
-  };
-
-  EditorState.createWithContent = function createWithContent(contentState, decorator) {
-    var firstKey = contentState.getBlockMap().first().getKey();
-    return EditorState.create({
-      currentContent: contentState,
-      undoStack: Stack(),
-      redoStack: Stack(),
-      decorator: decorator || null,
-      selection: SelectionState.createEmpty(firstKey)
-    });
-  };
-
-  EditorState.create = function create(config) {
-    var currentContent = config.currentContent,
-        decorator = config.decorator;
-
-    var recordConfig = _extends({}, config, {
-      treeMap: generateNewTreeMap(currentContent, decorator),
-      directionMap: EditorBidiService.getDirectionMap(currentContent)
-    });
-    return new EditorState(new EditorStateRecord(recordConfig));
-  };
-
-  EditorState.set = function set(editorState, put) {
-    var map = editorState.getImmutable().withMutations(function (state) {
-      var existingDecorator = state.get('decorator');
-      var decorator = existingDecorator;
-      if (put.decorator === null) {
-        decorator = null;
-      } else if (put.decorator) {
-        decorator = put.decorator;
-      }
-
-      var newContent = put.currentContent || editorState.getCurrentContent();
-
-      if (decorator !== existingDecorator) {
-        var treeMap = state.get('treeMap');
-        var newTreeMap;
-        if (decorator && existingDecorator) {
-          newTreeMap = regenerateTreeForNewDecorator(newContent, newContent.getBlockMap(), treeMap, decorator, existingDecorator);
-        } else {
-          newTreeMap = generateNewTreeMap(newContent, decorator);
-        }
-
-        state.merge({
-          decorator: decorator,
-          treeMap: newTreeMap,
-          nativelyRenderedContent: null
-        });
-        return;
-      }
-
-      var existingContent = editorState.getCurrentContent();
-      if (newContent !== existingContent) {
-        state.set('treeMap', regenerateTreeForNewBlocks(editorState, newContent.getBlockMap(), newContent.getEntityMap(), decorator));
-      }
-
-      state.merge(put);
-    });
-
-    return new EditorState(map);
-  };
-
-  EditorState.prototype.toJS = function toJS() {
-    return this.getImmutable().toJS();
-  };
-
-  EditorState.prototype.getAllowUndo = function getAllowUndo() {
-    return this.getImmutable().get('allowUndo');
-  };
-
-  EditorState.prototype.getCurrentContent = function getCurrentContent() {
-    return this.getImmutable().get('currentContent');
-  };
-
-  EditorState.prototype.getUndoStack = function getUndoStack() {
-    return this.getImmutable().get('undoStack');
-  };
-
-  EditorState.prototype.getRedoStack = function getRedoStack() {
-    return this.getImmutable().get('redoStack');
-  };
-
-  EditorState.prototype.getSelection = function getSelection() {
-    return this.getImmutable().get('selection');
-  };
-
-  EditorState.prototype.getDecorator = function getDecorator() {
-    return this.getImmutable().get('decorator');
-  };
-
-  EditorState.prototype.isInCompositionMode = function isInCompositionMode() {
-    return this.getImmutable().get('inCompositionMode');
-  };
-
-  EditorState.prototype.mustForceSelection = function mustForceSelection() {
-    return this.getImmutable().get('forceSelection');
-  };
-
-  EditorState.prototype.getNativelyRenderedContent = function getNativelyRenderedContent() {
-    return this.getImmutable().get('nativelyRenderedContent');
-  };
-
-  EditorState.prototype.getLastChangeType = function getLastChangeType() {
-    return this.getImmutable().get('lastChangeType');
-  };
-
-  /**
-   * While editing, the user may apply inline style commands with a collapsed
-   * cursor, intending to type text that adopts the specified style. In this
-   * case, we track the specified style as an "override" that takes precedence
-   * over the inline style of the text adjacent to the cursor.
-   *
-   * If null, there is no override in place.
-   */
-
-
-  EditorState.prototype.getInlineStyleOverride = function getInlineStyleOverride() {
-    return this.getImmutable().get('inlineStyleOverride');
-  };
-
-  EditorState.setInlineStyleOverride = function setInlineStyleOverride(editorState, inlineStyleOverride) {
-    return EditorState.set(editorState, { inlineStyleOverride: inlineStyleOverride });
-  };
-
-  /**
-   * Get the appropriate inline style for the editor state. If an
-   * override is in place, use it. Otherwise, the current style is
-   * based on the location of the selection state.
-   */
-
-
-  EditorState.prototype.getCurrentInlineStyle = function getCurrentInlineStyle() {
-    var override = this.getInlineStyleOverride();
-    if (override != null) {
-      return override;
-    }
-
-    var content = this.getCurrentContent();
-    var selection = this.getSelection();
-
-    if (selection.isCollapsed()) {
-      return getInlineStyleForCollapsedSelection(content, selection);
-    }
-
-    return getInlineStyleForNonCollapsedSelection(content, selection);
-  };
-
-  EditorState.prototype.getBlockTree = function getBlockTree(blockKey) {
-    return this.getImmutable().getIn(['treeMap', blockKey]);
-  };
-
-  EditorState.prototype.isSelectionAtStartOfContent = function isSelectionAtStartOfContent() {
-    var firstKey = this.getCurrentContent().getBlockMap().first().getKey();
-    return this.getSelection().hasEdgeWithin(firstKey, 0, 0);
-  };
-
-  EditorState.prototype.isSelectionAtEndOfContent = function isSelectionAtEndOfContent() {
-    var content = this.getCurrentContent();
-    var blockMap = content.getBlockMap();
-    var last = blockMap.last();
-    var end = last.getLength();
-    return this.getSelection().hasEdgeWithin(last.getKey(), end, end);
-  };
-
-  EditorState.prototype.getDirectionMap = function getDirectionMap() {
-    return this.getImmutable().get('directionMap');
-  };
-
-  /**
-   * Incorporate native DOM selection changes into the EditorState. This
-   * method can be used when we simply want to accept whatever the DOM
-   * has given us to represent selection, and we do not need to re-render
-   * the editor.
-   *
-   * To forcibly move the DOM selection, see `EditorState.forceSelection`.
-   */
-
-
-  EditorState.acceptSelection = function acceptSelection(editorState, selection) {
-    return updateSelection(editorState, selection, false);
-  };
-
-  /**
-   * At times, we need to force the DOM selection to be where we
-   * need it to be. This can occur when the anchor or focus nodes
-   * are non-text nodes, for instance. In this case, we want to trigger
-   * a re-render of the editor, which in turn forces selection into
-   * the correct place in the DOM. The `forceSelection` method
-   * accomplishes this.
-   *
-   * This method should be used in cases where you need to explicitly
-   * move the DOM selection from one place to another without a change
-   * in ContentState.
-   */
-
-
-  EditorState.forceSelection = function forceSelection(editorState, selection) {
-    if (!selection.getHasFocus()) {
-      selection = selection.set('hasFocus', true);
-    }
-    return updateSelection(editorState, selection, true);
-  };
-
-  /**
-   * Move selection to the end of the editor without forcing focus.
-   */
-
-
-  EditorState.moveSelectionToEnd = function moveSelectionToEnd(editorState) {
-    var content = editorState.getCurrentContent();
-    var lastBlock = content.getLastBlock();
-    var lastKey = lastBlock.getKey();
-    var length = lastBlock.getLength();
-
-    return EditorState.acceptSelection(editorState, new SelectionState({
-      anchorKey: lastKey,
-      anchorOffset: length,
-      focusKey: lastKey,
-      focusOffset: length,
-      isBackward: false
-    }));
-  };
-
-  /**
-   * Force focus to the end of the editor. This is useful in scenarios
-   * where we want to programmatically focus the input and it makes sense
-   * to allow the user to continue working seamlessly.
-   */
-
-
-  EditorState.moveFocusToEnd = function moveFocusToEnd(editorState) {
-    var afterSelectionMove = EditorState.moveSelectionToEnd(editorState);
-    return EditorState.forceSelection(afterSelectionMove, afterSelectionMove.getSelection());
-  };
-
-  /**
-   * Push the current ContentState onto the undo stack if it should be
-   * considered a boundary state, and set the provided ContentState as the
-   * new current content.
-   */
-
-
-  EditorState.push = function push(editorState, contentState, changeType) {
-    if (editorState.getCurrentContent() === contentState) {
-      return editorState;
-    }
-
-    var forceSelection = changeType !== 'insert-characters';
-    var directionMap = EditorBidiService.getDirectionMap(contentState, editorState.getDirectionMap());
-
-    if (!editorState.getAllowUndo()) {
-      return EditorState.set(editorState, {
-        currentContent: contentState,
-        directionMap: directionMap,
-        lastChangeType: changeType,
-        selection: contentState.getSelectionAfter(),
-        forceSelection: forceSelection,
-        inlineStyleOverride: null
-      });
-    }
-
-    var selection = editorState.getSelection();
-    var currentContent = editorState.getCurrentContent();
-    var undoStack = editorState.getUndoStack();
-    var newContent = contentState;
-
-    if (selection !== currentContent.getSelectionAfter() || mustBecomeBoundary(editorState, changeType)) {
-      undoStack = undoStack.push(currentContent);
-      newContent = newContent.set('selectionBefore', selection);
-    } else if (changeType === 'insert-characters' || changeType === 'backspace-character' || changeType === 'delete-character') {
-      // Preserve the previous selection.
-      newContent = newContent.set('selectionBefore', currentContent.getSelectionBefore());
-    }
-
-    var inlineStyleOverride = editorState.getInlineStyleOverride();
-
-    // Don't discard inline style overrides for the following change types:
-    var overrideChangeTypes = ['adjust-depth', 'change-block-type', 'split-block'];
-
-    if (overrideChangeTypes.indexOf(changeType) === -1) {
-      inlineStyleOverride = null;
-    }
-
-    var editorStateChanges = {
-      currentContent: newContent,
-      directionMap: directionMap,
-      undoStack: undoStack,
-      redoStack: Stack(),
-      lastChangeType: changeType,
-      selection: contentState.getSelectionAfter(),
-      forceSelection: forceSelection,
-      inlineStyleOverride: inlineStyleOverride
-    };
-
-    return EditorState.set(editorState, editorStateChanges);
-  };
-
-  /**
-   * Make the top ContentState in the undo stack the new current content and
-   * push the current content onto the redo stack.
-   */
-
-
-  EditorState.undo = function undo(editorState) {
-    if (!editorState.getAllowUndo()) {
-      return editorState;
-    }
-
-    var undoStack = editorState.getUndoStack();
-    var newCurrentContent = undoStack.peek();
-    if (!newCurrentContent) {
-      return editorState;
-    }
-
-    var currentContent = editorState.getCurrentContent();
-    var directionMap = EditorBidiService.getDirectionMap(newCurrentContent, editorState.getDirectionMap());
-
-    return EditorState.set(editorState, {
-      currentContent: newCurrentContent,
-      directionMap: directionMap,
-      undoStack: undoStack.shift(),
-      redoStack: editorState.getRedoStack().push(currentContent),
-      forceSelection: true,
-      inlineStyleOverride: null,
-      lastChangeType: 'undo',
-      nativelyRenderedContent: null,
-      selection: currentContent.getSelectionBefore()
-    });
-  };
-
-  /**
-   * Make the top ContentState in the redo stack the new current content and
-   * push the current content onto the undo stack.
-   */
-
-
-  EditorState.redo = function redo(editorState) {
-    if (!editorState.getAllowUndo()) {
-      return editorState;
-    }
-
-    var redoStack = editorState.getRedoStack();
-    var newCurrentContent = redoStack.peek();
-    if (!newCurrentContent) {
-      return editorState;
-    }
-
-    var currentContent = editorState.getCurrentContent();
-    var directionMap = EditorBidiService.getDirectionMap(newCurrentContent, editorState.getDirectionMap());
-
-    return EditorState.set(editorState, {
-      currentContent: newCurrentContent,
-      directionMap: directionMap,
-      undoStack: editorState.getUndoStack().push(currentContent),
-      redoStack: redoStack.shift(),
-      forceSelection: true,
-      inlineStyleOverride: null,
-      lastChangeType: 'redo',
-      nativelyRenderedContent: null,
-      selection: newCurrentContent.getSelectionAfter()
-    });
-  };
-
-  /**
-   * Not for public consumption.
-   */
-
-
-  function EditorState(immutable) {
-    _classCallCheck(this, EditorState);
-
-    this._immutable = immutable;
-  }
-
-  /**
-   * Not for public consumption.
-   */
-
-
-  EditorState.prototype.getImmutable = function getImmutable() {
-    return this._immutable;
-  };
-
-  return EditorState;
-}();
-
-/**
- * Set the supplied SelectionState as the new current selection, and set
- * the `force` flag to trigger manual selection placement by the view.
- */
-
-
-function updateSelection(editorState, selection, forceSelection) {
-  return EditorState.set(editorState, {
-    selection: selection,
-    forceSelection: forceSelection,
-    nativelyRenderedContent: null,
-    inlineStyleOverride: null
-  });
-}
-
-/**
- * Regenerate the entire tree map for a given ContentState and decorator.
- * Returns an OrderedMap that maps all available ContentBlock objects.
- */
-function generateNewTreeMap(contentState, decorator) {
-  return contentState.getBlockMap().map(function (block) {
-    return BlockTree.generate(contentState, block, decorator);
-  }).toOrderedMap();
-}
-
-/**
- * Regenerate tree map objects for all ContentBlocks that have changed
- * between the current editorState and newContent. Returns an OrderedMap
- * with only changed regenerated tree map objects.
- */
-function regenerateTreeForNewBlocks(editorState, newBlockMap, newEntityMap, decorator) {
-  var contentState = editorState.getCurrentContent().set('entityMap', newEntityMap);
-  var prevBlockMap = contentState.getBlockMap();
-  var prevTreeMap = editorState.getImmutable().get('treeMap');
-  return prevTreeMap.merge(newBlockMap.toSeq().filter(function (block, key) {
-    return block !== prevBlockMap.get(key);
-  }).map(function (block) {
-    return BlockTree.generate(contentState, block, decorator);
-  }));
-}
-
-/**
- * Generate tree map objects for a new decorator object, preserving any
- * decorations that are unchanged from the previous decorator.
- *
- * Note that in order for this to perform optimally, decoration Lists for
- * decorators should be preserved when possible to allow for direct immutable
- * List comparison.
- */
-function regenerateTreeForNewDecorator(content, blockMap, previousTreeMap, decorator, existingDecorator) {
-  return previousTreeMap.merge(blockMap.toSeq().filter(function (block) {
-    return decorator.getDecorations(block, content) !== existingDecorator.getDecorations(block, content);
-  }).map(function (block) {
-    return BlockTree.generate(content, block, decorator);
-  }));
-}
-
-/**
- * Return whether a change should be considered a boundary state, given
- * the previous change type. Allows us to discard potential boundary states
- * during standard typing or deletion behavior.
- */
-function mustBecomeBoundary(editorState, changeType) {
-  var lastChangeType = editorState.getLastChangeType();
-  return changeType !== lastChangeType || changeType !== 'insert-characters' && changeType !== 'backspace-character' && changeType !== 'delete-character';
-}
-
-function getInlineStyleForCollapsedSelection(content, selection) {
-  var startKey = selection.getStartKey();
-  var startOffset = selection.getStartOffset();
-  var startBlock = content.getBlockForKey(startKey);
-
-  // If the cursor is not at the start of the block, look backward to
-  // preserve the style of the preceding character.
-  if (startOffset > 0) {
-    return startBlock.getInlineStyleAt(startOffset - 1);
-  }
-
-  // The caret is at position zero in this block. If the block has any
-  // text at all, use the style of the first character.
-  if (startBlock.getLength()) {
-    return startBlock.getInlineStyleAt(0);
-  }
-
-  // Otherwise, look upward in the document to find the closest character.
-  return lookUpwardForInlineStyle(content, startKey);
-}
-
-function getInlineStyleForNonCollapsedSelection(content, selection) {
-  var startKey = selection.getStartKey();
-  var startOffset = selection.getStartOffset();
-  var startBlock = content.getBlockForKey(startKey);
-
-  // If there is a character just inside the selection, use its style.
-  if (startOffset < startBlock.getLength()) {
-    return startBlock.getInlineStyleAt(startOffset);
-  }
-
-  // Check if the selection at the end of a non-empty block. Use the last
-  // style in the block.
-  if (startOffset > 0) {
-    return startBlock.getInlineStyleAt(startOffset - 1);
-  }
-
-  // Otherwise, look upward in the document to find the closest character.
-  return lookUpwardForInlineStyle(content, startKey);
-}
-
-function lookUpwardForInlineStyle(content, fromKey) {
-  var lastNonEmpty = content.getBlockMap().reverse().skipUntil(function (_, k) {
-    return k === fromKey;
-  }).skip(1).skipUntil(function (block, _) {
-    return block.getLength();
-  }).first();
-
-  if (lastNonEmpty) return lastNonEmpty.getInlineStyleAt(lastNonEmpty.getLength() - 1);
-  return OrderedSet();
-}
-
-module.exports = EditorState;
-
-/***/ }),
-/* 118 */
-/***/ (function(module, exports, __webpack_require__) {
-
-"use strict";
-/**
- * Copyright (c) 2013-present, Facebook, Inc.
- * All rights reserved.
- *
- * This source code is licensed under the BSD-style license found in the
- * LICENSE file in the root directory of this source tree. An additional grant
- * of patent rights can be found in the PATENTS file in the same directory.
- *
- * @providesModule DraftModifier
- * @format
- * 
- */
-
-
-
-var CharacterMetadata = __webpack_require__(119);
-var ContentStateInlineStyle = __webpack_require__(178);
-var DraftFeatureFlags = __webpack_require__(124);
-var Immutable = __webpack_require__(115);
-
-var applyEntityToContentState = __webpack_require__(179);
-var getCharacterRemovalRange = __webpack_require__(181);
-var getContentStateFragment = __webpack_require__(133);
-var insertFragmentIntoContentState = __webpack_require__(184);
-var insertTextIntoContentState = __webpack_require__(185);
-var invariant = __webpack_require__(116);
-var modifyBlockForContentState = __webpack_require__(186);
-var removeEntitiesAtEdges = __webpack_require__(150);
-var removeRangeFromContentState = __webpack_require__(187);
-var splitBlockInContentState = __webpack_require__(188);
-
-var OrderedSet = Immutable.OrderedSet;
-
-/**
- * `DraftModifier` provides a set of convenience methods that apply
- * modifications to a `ContentState` object based on a target `SelectionState`.
- *
- * Any change to a `ContentState` should be decomposable into a series of
- * transaction functions that apply the required changes and return output
- * `ContentState` objects.
- *
- * These functions encapsulate some of the most common transaction sequences.
- */
-
-var DraftModifier = {
-  replaceText: function replaceText(contentState, rangeToReplace, text, inlineStyle, entityKey) {
-    var withoutEntities = removeEntitiesAtEdges(contentState, rangeToReplace);
-    var withoutText = removeRangeFromContentState(withoutEntities, rangeToReplace);
-
-    var character = CharacterMetadata.create({
-      style: inlineStyle || OrderedSet(),
-      entity: entityKey || null
-    });
-
-    return insertTextIntoContentState(withoutText, withoutText.getSelectionAfter(), text, character);
-  },
-
-  insertText: function insertText(contentState, targetRange, text, inlineStyle, entityKey) {
-    !targetRange.isCollapsed() ?  true ? invariant(false, 'Target range must be collapsed for `insertText`.') : invariant(false) : void 0;
-    return DraftModifier.replaceText(contentState, targetRange, text, inlineStyle, entityKey);
-  },
-
-  moveText: function moveText(contentState, removalRange, targetRange) {
-    var movedFragment = getContentStateFragment(contentState, removalRange);
-
-    var afterRemoval = DraftModifier.removeRange(contentState, removalRange, 'backward');
-
-    return DraftModifier.replaceWithFragment(afterRemoval, targetRange, movedFragment);
-  },
-
-  replaceWithFragment: function replaceWithFragment(contentState, targetRange, fragment) {
-    var withoutEntities = removeEntitiesAtEdges(contentState, targetRange);
-    var withoutText = removeRangeFromContentState(withoutEntities, targetRange);
-
-    return insertFragmentIntoContentState(withoutText, withoutText.getSelectionAfter(), fragment);
-  },
-
-  removeRange: function removeRange(contentState, rangeToRemove, removalDirection) {
-    var startKey = void 0,
-        endKey = void 0,
-        startBlock = void 0,
-        endBlock = void 0;
-    if (rangeToRemove.getIsBackward()) {
-      rangeToRemove = rangeToRemove.merge({
-        anchorKey: rangeToRemove.getFocusKey(),
-        anchorOffset: rangeToRemove.getFocusOffset(),
-        focusKey: rangeToRemove.getAnchorKey(),
-        focusOffset: rangeToRemove.getAnchorOffset(),
-        isBackward: false
-      });
-    }
-    startKey = rangeToRemove.getAnchorKey();
-    endKey = rangeToRemove.getFocusKey();
-    startBlock = contentState.getBlockForKey(startKey);
-    endBlock = contentState.getBlockForKey(endKey);
-    var startOffset = rangeToRemove.getStartOffset();
-    var endOffset = rangeToRemove.getEndOffset();
-
-    var startEntityKey = startBlock.getEntityAt(startOffset);
-    var endEntityKey = endBlock.getEntityAt(endOffset - 1);
-
-    // Check whether the selection state overlaps with a single entity.
-    // If so, try to remove the appropriate substring of the entity text.
-    if (startKey === endKey) {
-      if (startEntityKey && startEntityKey === endEntityKey) {
-        var _adjustedRemovalRange = getCharacterRemovalRange(contentState.getEntityMap(), startBlock, endBlock, rangeToRemove, removalDirection);
-        return removeRangeFromContentState(contentState, _adjustedRemovalRange);
-      }
-    }
-    var adjustedRemovalRange = rangeToRemove;
-    if (DraftFeatureFlags.draft_segmented_entities_behavior) {
-      // Adjust the selection to properly delete segemented and immutable
-      // entities
-      adjustedRemovalRange = getCharacterRemovalRange(contentState.getEntityMap(), startBlock, endBlock, rangeToRemove, removalDirection);
-    }
-
-    var withoutEntities = removeEntitiesAtEdges(contentState, adjustedRemovalRange);
-    return removeRangeFromContentState(withoutEntities, adjustedRemovalRange);
-  },
-
-  splitBlock: function splitBlock(contentState, selectionState) {
-    var withoutEntities = removeEntitiesAtEdges(contentState, selectionState);
-    var withoutText = removeRangeFromContentState(withoutEntities, selectionState);
-
-    return splitBlockInContentState(withoutText, withoutText.getSelectionAfter());
-  },
-
-  applyInlineStyle: function applyInlineStyle(contentState, selectionState, inlineStyle) {
-    return ContentStateInlineStyle.add(contentState, selectionState, inlineStyle);
-  },
-
-  removeInlineStyle: function removeInlineStyle(contentState, selectionState, inlineStyle) {
-    return ContentStateInlineStyle.remove(contentState, selectionState, inlineStyle);
-  },
-
-  setBlockType: function setBlockType(contentState, selectionState, blockType) {
-    return modifyBlockForContentState(contentState, selectionState, function (block) {
-      return block.merge({ type: blockType, depth: 0 });
-    });
-  },
-
-  setBlockData: function setBlockData(contentState, selectionState, blockData) {
-    return modifyBlockForContentState(contentState, selectionState, function (block) {
-      return block.merge({ data: blockData });
-    });
-  },
-
-  mergeBlockData: function mergeBlockData(contentState, selectionState, blockData) {
-    return modifyBlockForContentState(contentState, selectionState, function (block) {
-      return block.merge({ data: block.getData().merge(blockData) });
-    });
-  },
-
-  applyEntity: function applyEntity(contentState, selectionState, entityKey) {
-    var withoutEntities = removeEntitiesAtEdges(contentState, selectionState);
-    return applyEntityToContentState(withoutEntities, selectionState, entityKey);
-  }
-};
-
-module.exports = DraftModifier;
-
-/***/ }),
-/* 119 */
-/***/ (function(module, exports, __webpack_require__) {
-
-"use strict";
-/**
- * Copyright (c) 2013-present, Facebook, Inc.
- * All rights reserved.
- *
- * This source code is licensed under the BSD-style license found in the
- * LICENSE file in the root directory of this source tree. An additional grant
- * of patent rights can be found in the PATENTS file in the same directory.
- *
- * @providesModule CharacterMetadata
- * @format
- * 
- */
-
-
-
-function _classCallCheck(instance, Constructor) { if (!(instance instanceof Constructor)) { throw new TypeError("Cannot call a class as a function"); } }
-
-function _possibleConstructorReturn(self, call) { if (!self) { throw new ReferenceError("this hasn't been initialised - super() hasn't been called"); } return call && (typeof call === "object" || typeof call === "function") ? call : self; }
-
-function _inherits(subClass, superClass) { if (typeof superClass !== "function" && superClass !== null) { throw new TypeError("Super expression must either be null or a function, not " + typeof superClass); } subClass.prototype = Object.create(superClass && superClass.prototype, { constructor: { value: subClass, enumerable: false, writable: true, configurable: true } }); if (superClass) Object.setPrototypeOf ? Object.setPrototypeOf(subClass, superClass) : subClass.__proto__ = superClass; }
-
-var _require = __webpack_require__(115),
-    Map = _require.Map,
-    OrderedSet = _require.OrderedSet,
-    Record = _require.Record;
-
-// Immutable.map is typed such that the value for every key in the map
-// must be the same type
-
-
-var EMPTY_SET = OrderedSet();
-
-var defaultRecord = {
-  style: EMPTY_SET,
-  entity: null
-};
-
-var CharacterMetadataRecord = Record(defaultRecord);
-
-var CharacterMetadata = function (_CharacterMetadataRec) {
-  _inherits(CharacterMetadata, _CharacterMetadataRec);
-
-  function CharacterMetadata() {
-    _classCallCheck(this, CharacterMetadata);
-
-    return _possibleConstructorReturn(this, _CharacterMetadataRec.apply(this, arguments));
-  }
-
-  CharacterMetadata.prototype.getStyle = function getStyle() {
-    return this.get('style');
-  };
-
-  CharacterMetadata.prototype.getEntity = function getEntity() {
-    return this.get('entity');
-  };
-
-  CharacterMetadata.prototype.hasStyle = function hasStyle(style) {
-    return this.getStyle().includes(style);
-  };
-
-  CharacterMetadata.applyStyle = function applyStyle(record, style) {
-    var withStyle = record.set('style', record.getStyle().add(style));
-    return CharacterMetadata.create(withStyle);
-  };
-
-  CharacterMetadata.removeStyle = function removeStyle(record, style) {
-    var withoutStyle = record.set('style', record.getStyle().remove(style));
-    return CharacterMetadata.create(withoutStyle);
-  };
-
-  CharacterMetadata.applyEntity = function applyEntity(record, entityKey) {
-    var withEntity = record.getEntity() === entityKey ? record : record.set('entity', entityKey);
-    return CharacterMetadata.create(withEntity);
-  };
-
-  /**
-   * Use this function instead of the `CharacterMetadata` constructor.
-   * Since most content generally uses only a very small number of
-   * style/entity permutations, we can reuse these objects as often as
-   * possible.
-   */
-
-
-  CharacterMetadata.create = function create(config) {
-    if (!config) {
-      return EMPTY;
-    }
-
-    var defaultConfig = {
-      style: EMPTY_SET,
-      entity: null
-    };
-
-    // Fill in unspecified properties, if necessary.
-    var configMap = Map(defaultConfig).merge(config);
-
-    var existing = pool.get(configMap);
-    if (existing) {
-      return existing;
-    }
-
-    var newCharacter = new CharacterMetadata(configMap);
-    pool = pool.set(configMap, newCharacter);
-    return newCharacter;
-  };
-
-  return CharacterMetadata;
-}(CharacterMetadataRecord);
-
-var EMPTY = new CharacterMetadata();
-var pool = Map([[Map(defaultRecord), EMPTY]]);
-
-CharacterMetadata.EMPTY = EMPTY;
-
-module.exports = CharacterMetadata;
-
-/***/ }),
-/* 120 */
-/***/ (function(module, exports, __webpack_require__) {
-
-"use strict";
-/**
- * Copyright (c) 2013-present, Facebook, Inc.
- * All rights reserved.
- *
- * This source code is licensed under the BSD-style license found in the
- * LICENSE file in the root directory of this source tree. An additional grant
- * of patent rights can be found in the PATENTS file in the same directory.
- *
- * @providesModule ContentBlockNode
- * @format
- * 
- *
- * This file is a fork of ContentBlock adding support for nesting references by
- * providing links to children, parent, prevSibling, and nextSibling.
- *
- * This is unstable and not part of the public API and should not be used by
- * production systems. This file may be update/removed without notice.
- */
-
-
-
-function _classCallCheck(instance, Constructor) { if (!(instance instanceof Constructor)) { throw new TypeError("Cannot call a class as a function"); } }
-
-function _possibleConstructorReturn(self, call) { if (!self) { throw new ReferenceError("this hasn't been initialised - super() hasn't been called"); } return call && (typeof call === "object" || typeof call === "function") ? call : self; }
-
-function _inherits(subClass, superClass) { if (typeof superClass !== "function" && superClass !== null) { throw new TypeError("Super expression must either be null or a function, not " + typeof superClass); } subClass.prototype = Object.create(superClass && superClass.prototype, { constructor: { value: subClass, enumerable: false, writable: true, configurable: true } }); if (superClass) Object.setPrototypeOf ? Object.setPrototypeOf(subClass, superClass) : subClass.__proto__ = superClass; }
-
-var CharacterMetadata = __webpack_require__(119);
-var Immutable = __webpack_require__(115);
-
-var findRangesImmutable = __webpack_require__(130);
-
-var List = Immutable.List,
-    Map = Immutable.Map,
-    OrderedSet = Immutable.OrderedSet,
-    Record = Immutable.Record,
-    Repeat = Immutable.Repeat;
-
-
-var EMPTY_SET = OrderedSet();
-
-var defaultRecord = {
-  parent: null,
-  characterList: List(),
-  data: Map(),
-  depth: 0,
-  key: '',
-  text: '',
-  type: 'unstyled',
-  children: List(),
-  prevSibling: null,
-  nextSibling: null
-};
-
-var haveEqualStyle = function haveEqualStyle(charA, charB) {
-  return charA.getStyle() === charB.getStyle();
-};
-
-var haveEqualEntity = function haveEqualEntity(charA, charB) {
-  return charA.getEntity() === charB.getEntity();
-};
-
-var decorateCharacterList = function decorateCharacterList(config) {
-  if (!config) {
-    return config;
-  }
-
-  var characterList = config.characterList,
-      text = config.text;
-
-
-  if (text && !characterList) {
-    config.characterList = List(Repeat(CharacterMetadata.EMPTY, text.length));
-  }
-
-  return config;
-};
-
-var ContentBlockNode = function (_Record) {
-  _inherits(ContentBlockNode, _Record);
-
-  function ContentBlockNode() {
-    var props = arguments.length > 0 && arguments[0] !== undefined ? arguments[0] : defaultRecord;
-
-    _classCallCheck(this, ContentBlockNode);
-
-    return _possibleConstructorReturn(this, _Record.call(this, decorateCharacterList(props)));
-  }
-
-  ContentBlockNode.prototype.getKey = function getKey() {
-    return this.get('key');
-  };
-
-  ContentBlockNode.prototype.getType = function getType() {
-    return this.get('type');
-  };
-
-  ContentBlockNode.prototype.getText = function getText() {
-    return this.get('text');
-  };
-
-  ContentBlockNode.prototype.getCharacterList = function getCharacterList() {
-    return this.get('characterList');
-  };
-
-  ContentBlockNode.prototype.getLength = function getLength() {
-    return this.getText().length;
-  };
-
-  ContentBlockNode.prototype.getDepth = function getDepth() {
-    return this.get('depth');
-  };
-
-  ContentBlockNode.prototype.getData = function getData() {
-    return this.get('data');
-  };
-
-  ContentBlockNode.prototype.getInlineStyleAt = function getInlineStyleAt(offset) {
-    var character = this.getCharacterList().get(offset);
-    return character ? character.getStyle() : EMPTY_SET;
-  };
-
-  ContentBlockNode.prototype.getEntityAt = function getEntityAt(offset) {
-    var character = this.getCharacterList().get(offset);
-    return character ? character.getEntity() : null;
-  };
-
-  ContentBlockNode.prototype.getChildKeys = function getChildKeys() {
-    return this.get('children');
-  };
-
-  ContentBlockNode.prototype.getParentKey = function getParentKey() {
-    return this.get('parent');
-  };
-
-  ContentBlockNode.prototype.getPrevSiblingKey = function getPrevSiblingKey() {
-    return this.get('prevSibling');
-  };
-
-  ContentBlockNode.prototype.getNextSiblingKey = function getNextSiblingKey() {
-    return this.get('nextSibling');
-  };
-
-  ContentBlockNode.prototype.findStyleRanges = function findStyleRanges(filterFn, callback) {
-    findRangesImmutable(this.getCharacterList(), haveEqualStyle, filterFn, callback);
-  };
-
-  ContentBlockNode.prototype.findEntityRanges = function findEntityRanges(filterFn, callback) {
-    findRangesImmutable(this.getCharacterList(), haveEqualEntity, filterFn, callback);
-  };
-
-  return ContentBlockNode;
-}(Record(defaultRecord));
-
-module.exports = ContentBlockNode;
-
-/***/ }),
-/* 121 */
-/***/ (function(module, exports, __webpack_require__) {
-
-"use strict";
-
-
-/**
- * Copyright (c) 2013-present, Facebook, Inc.
- *
- * This source code is licensed under the MIT license found in the
- * LICENSE file in the root directory of this source tree.
- *
- * 
- */
-
-var nullthrows = function nullthrows(x) {
-  if (x != null) {
-    return x;
-  }
-  throw new Error("Got unexpected null or undefined");
-};
-
-module.exports = nullthrows;
-
-/***/ }),
-/* 122 */
-/***/ (function(module, exports, __webpack_require__) {
-
-"use strict";
-/**
- * Copyright (c) 2013-present, Facebook, Inc.
- *
- * This source code is licensed under the MIT license found in the
- * LICENSE file in the root directory of this source tree.
- *
- */
-
-
-
-var UserAgentData = __webpack_require__(199);
-var VersionRange = __webpack_require__(202);
-
-var mapObject = __webpack_require__(203);
-var memoizeStringOnly = __webpack_require__(204);
-
-/**
- * Checks to see whether `name` and `version` satisfy `query`.
- *
- * @param {string} name Name of the browser, device, engine or platform
- * @param {?string} version Version of the browser, engine or platform
- * @param {string} query Query of form "Name [range expression]"
- * @param {?function} normalizer Optional pre-processor for range expression
- * @return {boolean}
- */
-function compare(name, version, query, normalizer) {
-  // check for exact match with no version
-  if (name === query) {
-    return true;
-  }
-
-  // check for non-matching names
-  if (!query.startsWith(name)) {
-    return false;
-  }
-
-  // full comparison with version
-  var range = query.slice(name.length);
-  if (version) {
-    range = normalizer ? normalizer(range) : range;
-    return VersionRange.contains(range, version);
-  }
-
-  return false;
-}
-
-/**
- * Normalizes `version` by stripping any "NT" prefix, but only on the Windows
- * platform.
- *
- * Mimics the stripping performed by the `UserAgentWindowsPlatform` PHP class.
- *
- * @param {string} version
- * @return {string}
- */
-function normalizePlatformVersion(version) {
-  if (UserAgentData.platformName === 'Windows') {
-    return version.replace(/^\s*NT/, '');
-  }
-
-  return version;
-}
-
-/**
- * Provides client-side access to the authoritative PHP-generated User Agent
- * information supplied by the server.
- */
-var UserAgent = {
-  /**
-   * Check if the User Agent browser matches `query`.
-   *
-   * `query` should be a string like "Chrome" or "Chrome > 33".
-   *
-   * Valid browser names include:
-   *
-   * - ACCESS NetFront
-   * - AOL
-   * - Amazon Silk
-   * - Android
-   * - BlackBerry
-   * - BlackBerry PlayBook
-   * - Chrome
-   * - Chrome for iOS
-   * - Chrome frame
-   * - Facebook PHP SDK
-   * - Facebook for iOS
-   * - Firefox
-   * - IE
-   * - IE Mobile
-   * - Mobile Safari
-   * - Motorola Internet Browser
-   * - Nokia
-   * - Openwave Mobile Browser
-   * - Opera
-   * - Opera Mini
-   * - Opera Mobile
-   * - Safari
-   * - UIWebView
-   * - Unknown
-   * - webOS
-   * - etc...
-   *
-   * An authoritative list can be found in the PHP `BrowserDetector` class and
-   * related classes in the same file (see calls to `new UserAgentBrowser` here:
-   * https://fburl.com/50728104).
-   *
-   * @note Function results are memoized
-   *
-   * @param {string} query Query of the form "Name [range expression]"
-   * @return {boolean}
-   */
-  isBrowser: function isBrowser(query) {
-    return compare(UserAgentData.browserName, UserAgentData.browserFullVersion, query);
-  },
-
-
-  /**
-   * Check if the User Agent browser uses a 32 or 64 bit architecture.
-   *
-   * @note Function results are memoized
-   *
-   * @param {string} query Query of the form "32" or "64".
-   * @return {boolean}
-   */
-  isBrowserArchitecture: function isBrowserArchitecture(query) {
-    return compare(UserAgentData.browserArchitecture, null, query);
-  },
-
-
-  /**
-   * Check if the User Agent device matches `query`.
-   *
-   * `query` should be a string like "iPhone" or "iPad".
-   *
-   * Valid device names include:
-   *
-   * - Kindle
-   * - Kindle Fire
-   * - Unknown
-   * - iPad
-   * - iPhone
-   * - iPod
-   * - etc...
-   *
-   * An authoritative list can be found in the PHP `DeviceDetector` class and
-   * related classes in the same file (see calls to `new UserAgentDevice` here:
-   * https://fburl.com/50728332).
-   *
-   * @note Function results are memoized
-   *
-   * @param {string} query Query of the form "Name"
-   * @return {boolean}
-   */
-  isDevice: function isDevice(query) {
-    return compare(UserAgentData.deviceName, null, query);
-  },
-
-
-  /**
-   * Check if the User Agent rendering engine matches `query`.
-   *
-   * `query` should be a string like "WebKit" or "WebKit >= 537".
-   *
-   * Valid engine names include:
-   *
-   * - Gecko
-   * - Presto
-   * - Trident
-   * - WebKit
-   * - etc...
-   *
-   * An authoritative list can be found in the PHP `RenderingEngineDetector`
-   * class related classes in the same file (see calls to `new
-   * UserAgentRenderingEngine` here: https://fburl.com/50728617).
-   *
-   * @note Function results are memoized
-   *
-   * @param {string} query Query of the form "Name [range expression]"
-   * @return {boolean}
-   */
-  isEngine: function isEngine(query) {
-    return compare(UserAgentData.engineName, UserAgentData.engineVersion, query);
-  },
-
-
-  /**
-   * Check if the User Agent platform matches `query`.
-   *
-   * `query` should be a string like "Windows" or "iOS 5 - 6".
-   *
-   * Valid platform names include:
-   *
-   * - Android
-   * - BlackBerry OS
-   * - Java ME
-   * - Linux
-   * - Mac OS X
-   * - Mac OS X Calendar
-   * - Mac OS X Internet Account
-   * - Symbian
-   * - SymbianOS
-   * - Windows
-   * - Windows Mobile
-   * - Windows Phone
-   * - iOS
-   * - iOS Facebook Integration Account
-   * - iOS Facebook Social Sharing UI
-   * - webOS
-   * - Chrome OS
-   * - etc...
-   *
-   * An authoritative list can be found in the PHP `PlatformDetector` class and
-   * related classes in the same file (see calls to `new UserAgentPlatform`
-   * here: https://fburl.com/50729226).
-   *
-   * @note Function results are memoized
-   *
-   * @param {string} query Query of the form "Name [range expression]"
-   * @return {boolean}
-   */
-  isPlatform: function isPlatform(query) {
-    return compare(UserAgentData.platformName, UserAgentData.platformFullVersion, query, normalizePlatformVersion);
-  },
-
-
-  /**
-   * Check if the User Agent platform is a 32 or 64 bit architecture.
-   *
-   * @note Function results are memoized
-   *
-   * @param {string} query Query of the form "32" or "64".
-   * @return {boolean}
-   */
-  isPlatformArchitecture: function isPlatformArchitecture(query) {
-    return compare(UserAgentData.platformArchitecture, null, query);
-  }
-};
-
-module.exports = mapObject(UserAgent, memoizeStringOnly);
-
-/***/ }),
-/* 123 */
-/***/ (function(module, exports, __webpack_require__) {
-
-"use strict";
-/**
- * Copyright (c) 2013-present, Facebook, Inc.
- * All rights reserved.
- *
- * This source code is licensed under the BSD-style license found in the
- * LICENSE file in the root directory of this source tree. An additional grant
- * of patent rights can be found in the PATENTS file in the same directory.
- *
- * @providesModule generateRandomKey
- * @format
- * 
- */
-
-
-
-var seenKeys = {};
-var MULTIPLIER = Math.pow(2, 24);
-
-function generateRandomKey() {
-  var key = void 0;
-  while (key === undefined || seenKeys.hasOwnProperty(key) || !isNaN(+key)) {
-    key = Math.floor(Math.random() * MULTIPLIER).toString(32);
-  }
-  seenKeys[key] = true;
-  return key;
-}
-
-module.exports = generateRandomKey;
-
-/***/ }),
-/* 124 */
-/***/ (function(module, exports, __webpack_require__) {
-
-"use strict";
-/**
- * Copyright 2013-present, Facebook, Inc.
- * All rights reserved.
- *
- * This source code is licensed under the BSD-style license found in the
- * LICENSE file in the root directory of this source tree. An additional grant
- * of patent rights can be found in the PATENTS file in the same directory.
- *
- * @providesModule DraftFeatureFlags
- * @format
- * 
- */
-
-
-
-var DraftFeatureFlags = __webpack_require__(177);
-
-module.exports = DraftFeatureFlags;
-
-/***/ }),
-/* 125 */
-/***/ (function(module, exports, __webpack_require__) {
-
-"use strict";
-/**
- * Copyright (c) 2013-present, Facebook, Inc.
- * All rights reserved.
- *
- * This source code is licensed under the BSD-style license found in the
- * LICENSE file in the root directory of this source tree. An additional grant
- * of patent rights can be found in the PATENTS file in the same directory.
- *
- * @providesModule ContentBlock
- * @format
- * 
- */
-
-
-
-function _classCallCheck(instance, Constructor) { if (!(instance instanceof Constructor)) { throw new TypeError("Cannot call a class as a function"); } }
-
-function _possibleConstructorReturn(self, call) { if (!self) { throw new ReferenceError("this hasn't been initialised - super() hasn't been called"); } return call && (typeof call === "object" || typeof call === "function") ? call : self; }
-
-function _inherits(subClass, superClass) { if (typeof superClass !== "function" && superClass !== null) { throw new TypeError("Super expression must either be null or a function, not " + typeof superClass); } subClass.prototype = Object.create(superClass && superClass.prototype, { constructor: { value: subClass, enumerable: false, writable: true, configurable: true } }); if (superClass) Object.setPrototypeOf ? Object.setPrototypeOf(subClass, superClass) : subClass.__proto__ = superClass; }
-
-var CharacterMetadata = __webpack_require__(119);
-var Immutable = __webpack_require__(115);
-
-var findRangesImmutable = __webpack_require__(130);
-
-var List = Immutable.List,
-    Map = Immutable.Map,
-    OrderedSet = Immutable.OrderedSet,
-    Record = Immutable.Record,
-    Repeat = Immutable.Repeat;
-
-
-var EMPTY_SET = OrderedSet();
-
-var defaultRecord = {
-  key: '',
-  type: 'unstyled',
-  text: '',
-  characterList: List(),
-  depth: 0,
-  data: Map()
-};
-
-var ContentBlockRecord = Record(defaultRecord);
-
-var decorateCharacterList = function decorateCharacterList(config) {
-  if (!config) {
-    return config;
-  }
-
-  var characterList = config.characterList,
-      text = config.text;
-
-
-  if (text && !characterList) {
-    config.characterList = List(Repeat(CharacterMetadata.EMPTY, text.length));
-  }
-
-  return config;
-};
-
-var ContentBlock = function (_ContentBlockRecord) {
-  _inherits(ContentBlock, _ContentBlockRecord);
-
-  function ContentBlock(config) {
-    _classCallCheck(this, ContentBlock);
-
-    return _possibleConstructorReturn(this, _ContentBlockRecord.call(this, decorateCharacterList(config)));
-  }
-
-  ContentBlock.prototype.getKey = function getKey() {
-    return this.get('key');
-  };
-
-  ContentBlock.prototype.getType = function getType() {
-    return this.get('type');
-  };
-
-  ContentBlock.prototype.getText = function getText() {
-    return this.get('text');
-  };
-
-  ContentBlock.prototype.getCharacterList = function getCharacterList() {
-    return this.get('characterList');
-  };
-
-  ContentBlock.prototype.getLength = function getLength() {
-    return this.getText().length;
-  };
-
-  ContentBlock.prototype.getDepth = function getDepth() {
-    return this.get('depth');
-  };
-
-  ContentBlock.prototype.getData = function getData() {
-    return this.get('data');
-  };
-
-  ContentBlock.prototype.getInlineStyleAt = function getInlineStyleAt(offset) {
-    var character = this.getCharacterList().get(offset);
-    return character ? character.getStyle() : EMPTY_SET;
-  };
-
-  ContentBlock.prototype.getEntityAt = function getEntityAt(offset) {
-    var character = this.getCharacterList().get(offset);
-    return character ? character.getEntity() : null;
-  };
-
-  /**
-   * Execute a callback for every contiguous range of styles within the block.
-   */
-
-
-  ContentBlock.prototype.findStyleRanges = function findStyleRanges(filterFn, callback) {
-    findRangesImmutable(this.getCharacterList(), haveEqualStyle, filterFn, callback);
-  };
-
-  /**
-   * Execute a callback for every contiguous range of entities within the block.
-   */
-
-
-  ContentBlock.prototype.findEntityRanges = function findEntityRanges(filterFn, callback) {
-    findRangesImmutable(this.getCharacterList(), haveEqualEntity, filterFn, callback);
-  };
-
-  return ContentBlock;
-}(ContentBlockRecord);
-
-function haveEqualStyle(charA, charB) {
-  return charA.getStyle() === charB.getStyle();
-}
-
-function haveEqualEntity(charA, charB) {
-  return charA.getEntity() === charB.getEntity();
-}
-
-module.exports = ContentBlock;
-
-/***/ }),
-/* 126 */
-/***/ (function(module, exports, __webpack_require__) {
-
-"use strict";
-/**
- * Copyright (c) 2013-present, Facebook, Inc.
- *
- * This source code is licensed under the MIT license found in the
- * LICENSE file in the root directory of this source tree.
- *
- * @typechecks
- */
-
-/**
- * Unicode-enabled replacesments for basic String functions.
- *
- * All the functions in this module assume that the input string is a valid
- * UTF-16 encoding of a Unicode sequence. If it's not the case, the behavior
- * will be undefined.
- *
- * WARNING: Since this module is typechecks-enforced, you may find new bugs
- * when replacing normal String functions with ones provided here.
- */
-
-
-
-var invariant = __webpack_require__(116);
-
-// These two ranges are consecutive so anything in [HIGH_START, LOW_END] is a
-// surrogate code unit.
-var SURROGATE_HIGH_START = 0xD800;
-var SURROGATE_HIGH_END = 0xDBFF;
-var SURROGATE_LOW_START = 0xDC00;
-var SURROGATE_LOW_END = 0xDFFF;
-var SURROGATE_UNITS_REGEX = /[\uD800-\uDFFF]/;
-
-/**
- * @param {number} codeUnit   A Unicode code-unit, in range [0, 0x10FFFF]
- * @return {boolean}          Whether code-unit is in a surrogate (hi/low) range
- */
-function isCodeUnitInSurrogateRange(codeUnit) {
-  return SURROGATE_HIGH_START <= codeUnit && codeUnit <= SURROGATE_LOW_END;
-}
-
-/**
- * Returns whether the two characters starting at `index` form a surrogate pair.
- * For example, given the string s = "\uD83D\uDE0A", (s, 0) returns true and
- * (s, 1) returns false.
- *
- * @param {string} str
- * @param {number} index
- * @return {boolean}
- */
-function isSurrogatePair(str, index) {
-  !(0 <= index && index < str.length) ?  true ? invariant(false, 'isSurrogatePair: Invalid index %s for string length %s.', index, str.length) : invariant(false) : void 0;
-  if (index + 1 === str.length) {
-    return false;
-  }
-  var first = str.charCodeAt(index);
-  var second = str.charCodeAt(index + 1);
-  return SURROGATE_HIGH_START <= first && first <= SURROGATE_HIGH_END && SURROGATE_LOW_START <= second && second <= SURROGATE_LOW_END;
-}
-
-/**
- * @param {string} str  Non-empty string
- * @return {boolean}    True if the input includes any surrogate code units
- */
-function hasSurrogateUnit(str) {
-  return SURROGATE_UNITS_REGEX.test(str);
-}
-
-/**
- * Return the length of the original Unicode character at given position in the
- * String by looking into the UTF-16 code unit; that is equal to 1 for any
- * non-surrogate characters in BMP ([U+0000..U+D7FF] and [U+E000, U+FFFF]); and
- * returns 2 for the hi/low surrogates ([U+D800..U+DFFF]), which are in fact
- * representing non-BMP characters ([U+10000..U+10FFFF]).
- *
- * Examples:
- * - '\u0020' => 1
- * - '\u3020' => 1
- * - '\uD835' => 2
- * - '\uD835\uDDEF' => 2
- * - '\uDDEF' => 2
- *
- * @param {string} str  Non-empty string
- * @param {number} pos  Position in the string to look for one code unit
- * @return {number}      Number 1 or 2
- */
-function getUTF16Length(str, pos) {
-  return 1 + isCodeUnitInSurrogateRange(str.charCodeAt(pos));
-}
-
-/**
- * Fully Unicode-enabled replacement for String#length
- *
- * @param {string} str  Valid Unicode string
- * @return {number}     The number of Unicode characters in the string
- */
-function strlen(str) {
-  // Call the native functions if there's no surrogate char
-  if (!hasSurrogateUnit(str)) {
-    return str.length;
-  }
-
-  var len = 0;
-  for (var pos = 0; pos < str.length; pos += getUTF16Length(str, pos)) {
-    len++;
-  }
-  return len;
-}
-
-/**
- * Fully Unicode-enabled replacement for String#substr()
- *
- * @param {string} str      Valid Unicode string
- * @param {number} start    Location in Unicode sequence to begin extracting
- * @param {?number} length  The number of Unicode characters to extract
- *                          (default: to the end of the string)
- * @return {string}         Extracted sub-string
- */
-function substr(str, start, length) {
-  start = start || 0;
-  length = length === undefined ? Infinity : length || 0;
-
-  // Call the native functions if there's no surrogate char
-  if (!hasSurrogateUnit(str)) {
-    return str.substr(start, length);
-  }
-
-  // Obvious cases
-  var size = str.length;
-  if (size <= 0 || start > size || length <= 0) {
-    return '';
-  }
-
-  // Find the actual starting position
-  var posA = 0;
-  if (start > 0) {
-    for (; start > 0 && posA < size; start--) {
-      posA += getUTF16Length(str, posA);
-    }
-    if (posA >= size) {
-      return '';
-    }
-  } else if (start < 0) {
-    for (posA = size; start < 0 && 0 < posA; start++) {
-      posA -= getUTF16Length(str, posA - 1);
-    }
-    if (posA < 0) {
-      posA = 0;
-    }
-  }
-
-  // Find the actual ending position
-  var posB = size;
-  if (length < size) {
-    for (posB = posA; length > 0 && posB < size; length--) {
-      posB += getUTF16Length(str, posB);
-    }
-  }
-
-  return str.substring(posA, posB);
-}
-
-/**
- * Fully Unicode-enabled replacement for String#substring()
- *
- * @param {string} str    Valid Unicode string
- * @param {number} start  Location in Unicode sequence to begin extracting
- * @param {?number} end   Location in Unicode sequence to end extracting
- *                        (default: end of the string)
- * @return {string}       Extracted sub-string
- */
-function substring(str, start, end) {
-  start = start || 0;
-  end = end === undefined ? Infinity : end || 0;
-
-  if (start < 0) {
-    start = 0;
-  }
-  if (end < 0) {
-    end = 0;
-  }
-
-  var length = Math.abs(end - start);
-  start = start < end ? start : end;
-  return substr(str, start, length);
-}
-
-/**
- * Get a list of Unicode code-points from a String
- *
- * @param {string} str        Valid Unicode string
- * @return {array<number>}    A list of code-points in [0..0x10FFFF]
- */
-function getCodePoints(str) {
-  var codePoints = [];
-  for (var pos = 0; pos < str.length; pos += getUTF16Length(str, pos)) {
-    codePoints.push(str.codePointAt(pos));
-  }
-  return codePoints;
-}
-
-var UnicodeUtils = {
-  getCodePoints: getCodePoints,
-  getUTF16Length: getUTF16Length,
-  hasSurrogateUnit: hasSurrogateUnit,
-  isCodeUnitInSurrogateRange: isCodeUnitInSurrogateRange,
-  isSurrogatePair: isSurrogatePair,
-  strlen: strlen,
-  substring: substring,
-  substr: substr
-};
-
-module.exports = UnicodeUtils;
-
-/***/ }),
-/* 127 */
-/***/ (function(module, exports, __webpack_require__) {
-
-"use strict";
-/**
- * Copyright (c) 2013-present, Facebook, Inc.
- * All rights reserved.
- *
- * This source code is licensed under the BSD-style license found in the
- * LICENSE file in the root directory of this source tree. An additional grant
- * of patent rights can be found in the PATENTS file in the same directory.
- *
- * @providesModule SelectionState
- * @format
- * 
- */
-
-
-
-function _classCallCheck(instance, Constructor) { if (!(instance instanceof Constructor)) { throw new TypeError("Cannot call a class as a function"); } }
-
-function _possibleConstructorReturn(self, call) { if (!self) { throw new ReferenceError("this hasn't been initialised - super() hasn't been called"); } return call && (typeof call === "object" || typeof call === "function") ? call : self; }
-
-function _inherits(subClass, superClass) { if (typeof superClass !== "function" && superClass !== null) { throw new TypeError("Super expression must either be null or a function, not " + typeof superClass); } subClass.prototype = Object.create(superClass && superClass.prototype, { constructor: { value: subClass, enumerable: false, writable: true, configurable: true } }); if (superClass) Object.setPrototypeOf ? Object.setPrototypeOf(subClass, superClass) : subClass.__proto__ = superClass; }
-
-var Immutable = __webpack_require__(115);
-
-var Record = Immutable.Record;
-
-
-var defaultRecord = {
-  anchorKey: '',
-  anchorOffset: 0,
-  focusKey: '',
-  focusOffset: 0,
-  isBackward: false,
-  hasFocus: false
-};
-
-var SelectionStateRecord = Record(defaultRecord);
-
-var SelectionState = function (_SelectionStateRecord) {
-  _inherits(SelectionState, _SelectionStateRecord);
-
-  function SelectionState() {
-    _classCallCheck(this, SelectionState);
-
-    return _possibleConstructorReturn(this, _SelectionStateRecord.apply(this, arguments));
-  }
-
-  SelectionState.prototype.serialize = function serialize() {
-    return 'Anchor: ' + this.getAnchorKey() + ':' + this.getAnchorOffset() + ', ' + 'Focus: ' + this.getFocusKey() + ':' + this.getFocusOffset() + ', ' + 'Is Backward: ' + String(this.getIsBackward()) + ', ' + 'Has Focus: ' + String(this.getHasFocus());
-  };
-
-  SelectionState.prototype.getAnchorKey = function getAnchorKey() {
-    return this.get('anchorKey');
-  };
-
-  SelectionState.prototype.getAnchorOffset = function getAnchorOffset() {
-    return this.get('anchorOffset');
-  };
-
-  SelectionState.prototype.getFocusKey = function getFocusKey() {
-    return this.get('focusKey');
-  };
-
-  SelectionState.prototype.getFocusOffset = function getFocusOffset() {
-    return this.get('focusOffset');
-  };
-
-  SelectionState.prototype.getIsBackward = function getIsBackward() {
-    return this.get('isBackward');
-  };
-
-  SelectionState.prototype.getHasFocus = function getHasFocus() {
-    return this.get('hasFocus');
-  };
-
-  /**
-   * Return whether the specified range overlaps with an edge of the
-   * SelectionState.
-   */
-
-
-  SelectionState.prototype.hasEdgeWithin = function hasEdgeWithin(blockKey, start, end) {
-    var anchorKey = this.getAnchorKey();
-    var focusKey = this.getFocusKey();
-
-    if (anchorKey === focusKey && anchorKey === blockKey) {
-      var selectionStart = this.getStartOffset();
-      var selectionEnd = this.getEndOffset();
-      return start <= selectionEnd && selectionStart <= end;
-    }
-
-    if (blockKey !== anchorKey && blockKey !== focusKey) {
-      return false;
-    }
-
-    var offsetToCheck = blockKey === anchorKey ? this.getAnchorOffset() : this.getFocusOffset();
-
-    return start <= offsetToCheck && end >= offsetToCheck;
-  };
-
-  SelectionState.prototype.isCollapsed = function isCollapsed() {
-    return this.getAnchorKey() === this.getFocusKey() && this.getAnchorOffset() === this.getFocusOffset();
-  };
-
-  SelectionState.prototype.getStartKey = function getStartKey() {
-    return this.getIsBackward() ? this.getFocusKey() : this.getAnchorKey();
-  };
-
-  SelectionState.prototype.getStartOffset = function getStartOffset() {
-    return this.getIsBackward() ? this.getFocusOffset() : this.getAnchorOffset();
-  };
-
-  SelectionState.prototype.getEndKey = function getEndKey() {
-    return this.getIsBackward() ? this.getAnchorKey() : this.getFocusKey();
-  };
-
-  SelectionState.prototype.getEndOffset = function getEndOffset() {
-    return this.getIsBackward() ? this.getAnchorOffset() : this.getFocusOffset();
-  };
-
-  SelectionState.createEmpty = function createEmpty(key) {
-    return new SelectionState({
-      anchorKey: key,
-      anchorOffset: 0,
-      focusKey: key,
-      focusOffset: 0,
-      isBackward: false,
-      hasFocus: false
-    });
-  };
-
-  return SelectionState;
-}(SelectionStateRecord);
-
-module.exports = SelectionState;
-
-/***/ }),
-/* 128 */
-/***/ (function(module, exports, __webpack_require__) {
-
-"use strict";
-
-
-/**
- * Copyright (c) 2013-present, Facebook, Inc.
- *
- * This source code is licensed under the MIT license found in the
- * LICENSE file in the root directory of this source tree.
- *
- */
-
-/**
- * This function is used to mark string literals representing CSS class names
- * so that they can be transformed statically. This allows for modularization
- * and minification of CSS class names.
- *
- * In static_upstream, this function is actually implemented, but it should
- * eventually be replaced with something more descriptive, and the transform
- * that is used in the main stack should be ported for use elsewhere.
- *
- * @param string|object className to modularize, or an object of key/values.
- *                      In the object case, the values are conditions that
- *                      determine if the className keys should be included.
- * @param [string ...]  Variable list of classNames in the string case.
- * @return string       Renderable space-separated CSS className.
- */
-function cx(classNames) {
-  if (typeof classNames == 'object') {
-    return Object.keys(classNames).filter(function (className) {
-      return classNames[className];
-    }).map(replace).join(' ');
-  }
-  return Array.prototype.map.call(arguments, replace).join(' ');
-}
-
-function replace(str) {
-  return str.replace(/\//g, '-');
-}
-
-module.exports = cx;
-
-/***/ }),
-/* 129 */
-/***/ (function(module, exports, __webpack_require__) {
-
-"use strict";
-/**
- * Copyright (c) 2013-present, Facebook, Inc.
- * All rights reserved.
- *
- * This source code is licensed under the BSD-style license found in the
- * LICENSE file in the root directory of this source tree. An additional grant
- * of patent rights can be found in the PATENTS file in the same directory.
- *
- * @providesModule BlockMapBuilder
- * @format
- * 
- */
-
-
-
-var Immutable = __webpack_require__(115);
-
-var OrderedMap = Immutable.OrderedMap;
-
-
-var BlockMapBuilder = {
-  createFromArray: function createFromArray(blocks) {
-    return OrderedMap(blocks.map(function (block) {
-      return [block.getKey(), block];
-    }));
-  }
-};
-
-module.exports = BlockMapBuilder;
-
-/***/ }),
-/* 130 */
-/***/ (function(module, exports, __webpack_require__) {
-
-"use strict";
-/**
- * Copyright (c) 2013-present, Facebook, Inc.
- * All rights reserved.
- *
- * This source code is licensed under the BSD-style license found in the
- * LICENSE file in the root directory of this source tree. An additional grant
- * of patent rights can be found in the PATENTS file in the same directory.
- *
- * @providesModule findRangesImmutable
- * @format
- * 
- */
-
-
-
-/**
- * Search through an array to find contiguous stretches of elements that
- * match a specified filter function.
- *
- * When ranges are found, execute a specified `found` function to supply
- * the values to the caller.
- */
-function findRangesImmutable(haystack, areEqualFn, filterFn, foundFn) {
-  if (!haystack.size) {
-    return;
-  }
-
-  var cursor = 0;
-
-  haystack.reduce(function (value, nextValue, nextIndex) {
-    if (!areEqualFn(value, nextValue)) {
-      if (filterFn(value)) {
-        foundFn(cursor, nextIndex);
-      }
-      cursor = nextIndex;
-    }
-    return nextValue;
-  });
-
-  filterFn(haystack.last()) && foundFn(cursor, haystack.count());
-}
-
-module.exports = findRangesImmutable;
-
-/***/ }),
-/* 131 */
-/***/ (function(module, exports, __webpack_require__) {
-
-"use strict";
-/**
- * Copyright (c) 2013-present, Facebook, Inc.
- * All rights reserved.
- *
- * This source code is licensed under the BSD-style license found in the
- * LICENSE file in the root directory of this source tree. An additional grant
- * of patent rights can be found in the PATENTS file in the same directory.
- *
- * @providesModule isEventHandled
- * @format
- * 
- */
-
-
-
-/**
- * Utility method for determining whether or not the value returned
- * from a handler indicates that it was handled.
- */
-function isEventHandled(value) {
-  return value === 'handled' || value === true;
-}
-
-module.exports = isEventHandled;
-
-/***/ }),
-/* 132 */
-/***/ (function(module, exports, __webpack_require__) {
-
-"use strict";
-/**
- * Copyright (c) 2013-present, Facebook, Inc.
- * All rights reserved.
- *
- * This source code is licensed under the BSD-style license found in the
- * LICENSE file in the root directory of this source tree. An additional grant
- * of patent rights can be found in the PATENTS file in the same directory.
- *
- * @providesModule removeTextWithStrategy
- * @format
- * 
- */
-
-
-
-var DraftModifier = __webpack_require__(118);
-
-/**
- * For a collapsed selection state, remove text based on the specified strategy.
- * If the selection state is not collapsed, remove the entire selected range.
- */
-function removeTextWithStrategy(editorState, strategy, direction) {
-  var selection = editorState.getSelection();
-  var content = editorState.getCurrentContent();
-  var target = selection;
-  if (selection.isCollapsed()) {
-    if (direction === 'forward') {
-      if (editorState.isSelectionAtEndOfContent()) {
-        return content;
-      }
-    } else if (editorState.isSelectionAtStartOfContent()) {
-      return content;
-    }
-
-    target = strategy(editorState);
-    if (target === selection) {
-      return content;
-    }
-  }
-  return DraftModifier.removeRange(content, target, direction);
-}
-
-module.exports = removeTextWithStrategy;
-
-/***/ }),
-/* 133 */
-/***/ (function(module, exports, __webpack_require__) {
-
-"use strict";
-/**
- * Copyright (c) 2013-present, Facebook, Inc.
- * All rights reserved.
- *
- * This source code is licensed under the BSD-style license found in the
- * LICENSE file in the root directory of this source tree. An additional grant
- * of patent rights can be found in the PATENTS file in the same directory.
- *
- * @providesModule getContentStateFragment
- * @format
- * 
- */
-
-
-
-var randomizeBlockMapKeys = __webpack_require__(149);
-var removeEntitiesAtEdges = __webpack_require__(150);
-
-var getContentStateFragment = function getContentStateFragment(contentState, selectionState) {
-  var startKey = selectionState.getStartKey();
-  var startOffset = selectionState.getStartOffset();
-  var endKey = selectionState.getEndKey();
-  var endOffset = selectionState.getEndOffset();
-
-  // Edge entities should be stripped to ensure that we don't preserve
-  // invalid partial entities when the fragment is reused. We do, however,
-  // preserve entities that are entirely within the selection range.
-  var contentWithoutEdgeEntities = removeEntitiesAtEdges(contentState, selectionState);
-
-  var blockMap = contentWithoutEdgeEntities.getBlockMap();
-  var blockKeys = blockMap.keySeq();
-  var startIndex = blockKeys.indexOf(startKey);
-  var endIndex = blockKeys.indexOf(endKey) + 1;
-
-  return randomizeBlockMapKeys(blockMap.slice(startIndex, endIndex).map(function (block, blockKey) {
-    var text = block.getText();
-    var chars = block.getCharacterList();
-
-    if (startKey === endKey) {
-      return block.merge({
-        text: text.slice(startOffset, endOffset),
-        characterList: chars.slice(startOffset, endOffset)
-      });
-    }
-
-    if (blockKey === startKey) {
-      return block.merge({
-        text: text.slice(startOffset),
-        characterList: chars.slice(startOffset)
-      });
-    }
-
-    if (blockKey === endKey) {
-      return block.merge({
-        text: text.slice(0, endOffset),
-        characterList: chars.slice(0, endOffset)
-      });
-    }
-
-    return block;
-  }));
-};
-
-module.exports = getContentStateFragment;
-
-/***/ }),
-/* 134 */
-/***/ (function(module, exports, __webpack_require__) {
-
-"use strict";
-
-
-var _assign = __webpack_require__(12);
-
-var _extends = _assign || function (target) { for (var i = 1; i < arguments.length; i++) { var source = arguments[i]; for (var key in source) { if (Object.prototype.hasOwnProperty.call(source, key)) { target[key] = source[key]; } } } return target; };
-
-/**
- * Copyright (c) 2013-present, Facebook, Inc.
- * All rights reserved.
- *
- * This source code is licensed under the BSD-style license found in the
- * LICENSE file in the root directory of this source tree. An additional grant
- * of patent rights can be found in the PATENTS file in the same directory.
- *
- * @providesModule DraftEntity
- * @format
- * 
- */
-
-var DraftEntityInstance = __webpack_require__(154);
-var Immutable = __webpack_require__(115);
-
-var invariant = __webpack_require__(116);
-
-var Map = Immutable.Map;
-
-
-var instances = Map();
-var instanceKey = 0;
-
-/**
- * Temporary utility for generating the warnings
- */
-function logWarning(oldMethodCall, newMethodCall) {
-  console.warn('WARNING: ' + oldMethodCall + ' will be deprecated soon!\nPlease use "' + newMethodCall + '" instead.');
-}
-
-/**
- * A "document entity" is an object containing metadata associated with a
- * piece of text in a ContentBlock.
- *
- * For example, a `link` entity might include a `uri` property. When a
- * ContentBlock is rendered in the browser, text that refers to that link
- * entity may be rendered as an anchor, with the `uri` as the href value.
- *
- * In a ContentBlock, every position in the text may correspond to zero
- * or one entities. This correspondence is tracked using a key string,
- * generated via DraftEntity.create() and used to obtain entity metadata
- * via DraftEntity.get().
- */
-var DraftEntity = {
-  /**
-   * WARNING: This method will be deprecated soon!
-   * Please use 'contentState.getLastCreatedEntityKey' instead.
-   * ---
-   * Get the random key string from whatever entity was last created.
-   * We need this to support the new API, as part of transitioning to put Entity
-   * storage in contentState.
-   */
-  getLastCreatedEntityKey: function getLastCreatedEntityKey() {
-    logWarning('DraftEntity.getLastCreatedEntityKey', 'contentState.getLastCreatedEntityKey');
-    return DraftEntity.__getLastCreatedEntityKey();
-  },
-
-  /**
-   * WARNING: This method will be deprecated soon!
-   * Please use 'contentState.createEntity' instead.
-   * ---
-   * Create a DraftEntityInstance and store it for later retrieval.
-   *
-   * A random key string will be generated and returned. This key may
-   * be used to track the entity's usage in a ContentBlock, and for
-   * retrieving data about the entity at render time.
-   */
-  create: function create(type, mutability, data) {
-    logWarning('DraftEntity.create', 'contentState.createEntity');
-    return DraftEntity.__create(type, mutability, data);
-  },
-
-  /**
-   * WARNING: This method will be deprecated soon!
-   * Please use 'contentState.addEntity' instead.
-   * ---
-   * Add an existing DraftEntityInstance to the DraftEntity map. This is
-   * useful when restoring instances from the server.
-   */
-  add: function add(instance) {
-    logWarning('DraftEntity.add', 'contentState.addEntity');
-    return DraftEntity.__add(instance);
-  },
-
-  /**
-   * WARNING: This method will be deprecated soon!
-   * Please use 'contentState.getEntity' instead.
-   * ---
-   * Retrieve the entity corresponding to the supplied key string.
-   */
-  get: function get(key) {
-    logWarning('DraftEntity.get', 'contentState.getEntity');
-    return DraftEntity.__get(key);
-  },
-
-  /**
-   * WARNING: This method will be deprecated soon!
-   * Please use 'contentState.mergeEntityData' instead.
-   * ---
-   * Entity instances are immutable. If you need to update the data for an
-   * instance, this method will merge your data updates and return a new
-   * instance.
-   */
-  mergeData: function mergeData(key, toMerge) {
-    logWarning('DraftEntity.mergeData', 'contentState.mergeEntityData');
-    return DraftEntity.__mergeData(key, toMerge);
-  },
-
-  /**
-   * WARNING: This method will be deprecated soon!
-   * Please use 'contentState.replaceEntityData' instead.
-   * ---
-   * Completely replace the data for a given instance.
-   */
-  replaceData: function replaceData(key, newData) {
-    logWarning('DraftEntity.replaceData', 'contentState.replaceEntityData');
-    return DraftEntity.__replaceData(key, newData);
-  },
-
-  // ***********************************WARNING******************************
-  // --- the above public API will be deprecated in the next version of Draft!
-  // The methods below this line are private - don't call them directly.
-
-  /**
-   * Get the random key string from whatever entity was last created.
-   * We need this to support the new API, as part of transitioning to put Entity
-   * storage in contentState.
-   */
-  __getLastCreatedEntityKey: function __getLastCreatedEntityKey() {
-    return '' + instanceKey;
-  },
-
-  /**
-   * Create a DraftEntityInstance and store it for later retrieval.
-   *
-   * A random key string will be generated and returned. This key may
-   * be used to track the entity's usage in a ContentBlock, and for
-   * retrieving data about the entity at render time.
-   */
-  __create: function __create(type, mutability, data) {
-    return DraftEntity.__add(new DraftEntityInstance({ type: type, mutability: mutability, data: data || {} }));
-  },
-
-  /**
-   * Add an existing DraftEntityInstance to the DraftEntity map. This is
-   * useful when restoring instances from the server.
-   */
-  __add: function __add(instance) {
-    var key = '' + ++instanceKey;
-    instances = instances.set(key, instance);
-    return key;
-  },
-
-  /**
-   * Retrieve the entity corresponding to the supplied key string.
-   */
-  __get: function __get(key) {
-    var instance = instances.get(key);
-    !!!instance ?  true ? invariant(false, 'Unknown DraftEntity key: %s.', key) : invariant(false) : void 0;
-    return instance;
-  },
-
-  /**
-   * Entity instances are immutable. If you need to update the data for an
-   * instance, this method will merge your data updates and return a new
-   * instance.
-   */
-  __mergeData: function __mergeData(key, toMerge) {
-    var instance = DraftEntity.__get(key);
-    var newData = _extends({}, instance.getData(), toMerge);
-    var newInstance = instance.set('data', newData);
-    instances = instances.set(key, newInstance);
-    return newInstance;
-  },
-
-  /**
-   * Completely replace the data for a given instance.
-   */
-  __replaceData: function __replaceData(key, newData) {
-    var instance = DraftEntity.__get(key);
-    var newInstance = instance.set('data', newData);
-    instances = instances.set(key, newInstance);
-    return newInstance;
-  }
-};
-
-module.exports = DraftEntity;
-
-/***/ }),
-/* 135 */
-/***/ (function(module, exports, __webpack_require__) {
-
-"use strict";
-/**
- * Copyright (c) 2013-present, Facebook, Inc.
- * All rights reserved.
- *
- * This source code is licensed under the BSD-style license found in the
- * LICENSE file in the root directory of this source tree. An additional grant
- * of patent rights can be found in the PATENTS file in the same directory.
- *
- * @providesModule DraftOffsetKey
- * @format
- * 
- */
-
-
-
-var KEY_DELIMITER = '-';
-
-var DraftOffsetKey = {
-  encode: function encode(blockKey, decoratorKey, leafKey) {
-    return blockKey + KEY_DELIMITER + decoratorKey + KEY_DELIMITER + leafKey;
-  },
-
-  decode: function decode(offsetKey) {
-    var _offsetKey$split = offsetKey.split(KEY_DELIMITER),
-        blockKey = _offsetKey$split[0],
-        decoratorKey = _offsetKey$split[1],
-        leafKey = _offsetKey$split[2];
-
-    return {
-      blockKey: blockKey,
-      decoratorKey: parseInt(decoratorKey, 10),
-      leafKey: parseInt(leafKey, 10)
-    };
-  }
-};
-
-module.exports = DraftOffsetKey;
-
-/***/ }),
-/* 136 */
-/***/ (function(module, exports, __webpack_require__) {
-
-"use strict";
-
-
-/**
- * Copyright (c) 2013-present, Facebook, Inc.
- *
- * This source code is licensed under the MIT license found in the
- * LICENSE file in the root directory of this source tree.
- *
- * 
- */
-
-function makeEmptyFunction(arg) {
-  return function () {
-    return arg;
-  };
-}
-
-/**
- * This function accepts and discards inputs; it has no side effects. This is
- * primarily useful idiomatically for overridable function endpoints which
- * always need to be callable, since JS lacks a null-call idiom ala Cocoa.
- */
-var emptyFunction = function emptyFunction() {};
-
-emptyFunction.thatReturns = makeEmptyFunction;
-emptyFunction.thatReturnsFalse = makeEmptyFunction(false);
-emptyFunction.thatReturnsTrue = makeEmptyFunction(true);
-emptyFunction.thatReturnsNull = makeEmptyFunction(null);
-emptyFunction.thatReturnsThis = function () {
-  return this;
-};
-emptyFunction.thatReturnsArgument = function (arg) {
-  return arg;
-};
-
-module.exports = emptyFunction;
-
-/***/ }),
-/* 137 */
-/***/ (function(module, exports, __webpack_require__) {
-
-"use strict";
-/**
- * Copyright (c) 2013-present, Facebook, Inc.
- * All rights reserved.
- *
- * This source code is licensed under the BSD-style license found in the
- * LICENSE file in the root directory of this source tree. An additional grant
- * of patent rights can be found in the PATENTS file in the same directory.
- *
- * @providesModule ContentState
- * @format
- * 
- */
-
-
-
-function _classCallCheck(instance, Constructor) { if (!(instance instanceof Constructor)) { throw new TypeError("Cannot call a class as a function"); } }
-
-function _possibleConstructorReturn(self, call) { if (!self) { throw new ReferenceError("this hasn't been initialised - super() hasn't been called"); } return call && (typeof call === "object" || typeof call === "function") ? call : self; }
-
-function _inherits(subClass, superClass) { if (typeof superClass !== "function" && superClass !== null) { throw new TypeError("Super expression must either be null or a function, not " + typeof superClass); } subClass.prototype = Object.create(superClass && superClass.prototype, { constructor: { value: subClass, enumerable: false, writable: true, configurable: true } }); if (superClass) Object.setPrototypeOf ? Object.setPrototypeOf(subClass, superClass) : subClass.__proto__ = superClass; }
-
-var BlockMapBuilder = __webpack_require__(129);
-var CharacterMetadata = __webpack_require__(119);
-var ContentBlock = __webpack_require__(125);
-var ContentBlockNode = __webpack_require__(120);
-var DraftEntity = __webpack_require__(134);
-var DraftFeatureFlags = __webpack_require__(124);
-var Immutable = __webpack_require__(115);
-var SelectionState = __webpack_require__(127);
-
-var generateRandomKey = __webpack_require__(123);
-var sanitizeDraftText = __webpack_require__(138);
-
-var List = Immutable.List,
-    Record = Immutable.Record,
-    Repeat = Immutable.Repeat;
-
-
-var experimentalTreeDataSupport = DraftFeatureFlags.draft_tree_data_support;
-
-var defaultRecord = {
-  entityMap: null,
-  blockMap: null,
-  selectionBefore: null,
-  selectionAfter: null
-};
-
-var ContentBlockNodeRecord = experimentalTreeDataSupport ? ContentBlockNode : ContentBlock;
-
-var ContentStateRecord = Record(defaultRecord);
-
-var ContentState = function (_ContentStateRecord) {
-  _inherits(ContentState, _ContentStateRecord);
-
-  function ContentState() {
-    _classCallCheck(this, ContentState);
-
-    return _possibleConstructorReturn(this, _ContentStateRecord.apply(this, arguments));
-  }
-
-  ContentState.prototype.getEntityMap = function getEntityMap() {
-    // TODO: update this when we fully remove DraftEntity
-    return DraftEntity;
-  };
-
-  ContentState.prototype.getBlockMap = function getBlockMap() {
-    return this.get('blockMap');
-  };
-
-  ContentState.prototype.getSelectionBefore = function getSelectionBefore() {
-    return this.get('selectionBefore');
-  };
-
-  ContentState.prototype.getSelectionAfter = function getSelectionAfter() {
-    return this.get('selectionAfter');
-  };
-
-  ContentState.prototype.getBlockForKey = function getBlockForKey(key) {
-    var block = this.getBlockMap().get(key);
-    return block;
-  };
-
-  ContentState.prototype.getKeyBefore = function getKeyBefore(key) {
-    return this.getBlockMap().reverse().keySeq().skipUntil(function (v) {
-      return v === key;
-    }).skip(1).first();
-  };
-
-  ContentState.prototype.getKeyAfter = function getKeyAfter(key) {
-    return this.getBlockMap().keySeq().skipUntil(function (v) {
-      return v === key;
-    }).skip(1).first();
-  };
-
-  ContentState.prototype.getBlockAfter = function getBlockAfter(key) {
-    return this.getBlockMap().skipUntil(function (_, k) {
-      return k === key;
-    }).skip(1).first();
-  };
-
-  ContentState.prototype.getBlockBefore = function getBlockBefore(key) {
-    return this.getBlockMap().reverse().skipUntil(function (_, k) {
-      return k === key;
-    }).skip(1).first();
-  };
-
-  ContentState.prototype.getBlocksAsArray = function getBlocksAsArray() {
-    return this.getBlockMap().toArray();
-  };
-
-  ContentState.prototype.getFirstBlock = function getFirstBlock() {
-    return this.getBlockMap().first();
-  };
-
-  ContentState.prototype.getLastBlock = function getLastBlock() {
-    return this.getBlockMap().last();
-  };
-
-  ContentState.prototype.getPlainText = function getPlainText(delimiter) {
-    return this.getBlockMap().map(function (block) {
-      return block ? block.getText() : '';
-    }).join(delimiter || '\n');
-  };
-
-  ContentState.prototype.getLastCreatedEntityKey = function getLastCreatedEntityKey() {
-    // TODO: update this when we fully remove DraftEntity
-    return DraftEntity.__getLastCreatedEntityKey();
-  };
-
-  ContentState.prototype.hasText = function hasText() {
-    var blockMap = this.getBlockMap();
-    return blockMap.size > 1 || blockMap.first().getLength() > 0;
-  };
-
-  ContentState.prototype.createEntity = function createEntity(type, mutability, data) {
-    // TODO: update this when we fully remove DraftEntity
-    DraftEntity.__create(type, mutability, data);
-    return this;
-  };
-
-  ContentState.prototype.mergeEntityData = function mergeEntityData(key, toMerge) {
-    // TODO: update this when we fully remove DraftEntity
-    DraftEntity.__mergeData(key, toMerge);
-    return this;
-  };
-
-  ContentState.prototype.replaceEntityData = function replaceEntityData(key, newData) {
-    // TODO: update this when we fully remove DraftEntity
-    DraftEntity.__replaceData(key, newData);
-    return this;
-  };
-
-  ContentState.prototype.addEntity = function addEntity(instance) {
-    // TODO: update this when we fully remove DraftEntity
-    DraftEntity.__add(instance);
-    return this;
-  };
-
-  ContentState.prototype.getEntity = function getEntity(key) {
-    // TODO: update this when we fully remove DraftEntity
-    return DraftEntity.__get(key);
-  };
-
-  ContentState.createFromBlockArray = function createFromBlockArray(
-  // TODO: update flow type when we completely deprecate the old entity API
-  blocks, entityMap) {
-    // TODO: remove this when we completely deprecate the old entity API
-    var theBlocks = Array.isArray(blocks) ? blocks : blocks.contentBlocks;
-    var blockMap = BlockMapBuilder.createFromArray(theBlocks);
-    var selectionState = blockMap.isEmpty() ? new SelectionState() : SelectionState.createEmpty(blockMap.first().getKey());
-    return new ContentState({
-      blockMap: blockMap,
-      entityMap: entityMap || DraftEntity,
-      selectionBefore: selectionState,
-      selectionAfter: selectionState
-    });
-  };
-
-  ContentState.createFromText = function createFromText(text) {
-    var delimiter = arguments.length > 1 && arguments[1] !== undefined ? arguments[1] : /\r\n?|\n/g;
-
-    var strings = text.split(delimiter);
-    var blocks = strings.map(function (block) {
-      block = sanitizeDraftText(block);
-      return new ContentBlockNodeRecord({
-        key: generateRandomKey(),
-        text: block,
-        type: 'unstyled',
-        characterList: List(Repeat(CharacterMetadata.EMPTY, block.length))
-      });
-    });
-    return ContentState.createFromBlockArray(blocks);
-  };
-
-  return ContentState;
-}(ContentStateRecord);
-
-module.exports = ContentState;
-
-/***/ }),
-/* 138 */
-/***/ (function(module, exports, __webpack_require__) {
-
-"use strict";
-/**
- * Copyright (c) 2013-present, Facebook, Inc.
- * All rights reserved.
- *
- * This source code is licensed under the BSD-style license found in the
- * LICENSE file in the root directory of this source tree. An additional grant
- * of patent rights can be found in the PATENTS file in the same directory.
- *
- * @providesModule sanitizeDraftText
- * @format
- * 
- */
-
-
-
-var REGEX_BLOCK_DELIMITER = new RegExp('\r', 'g');
-
-function sanitizeDraftText(input) {
-  return input.replace(REGEX_BLOCK_DELIMITER, '');
-}
-
-module.exports = sanitizeDraftText;
-
-/***/ }),
-/* 139 */
-/***/ (function(module, exports, __webpack_require__) {
-
-"use strict";
-/**
- * Copyright (c) 2013-present, Facebook, Inc.
- *
- * This source code is licensed under the MIT license found in the
- * LICENSE file in the root directory of this source tree.
- *
- * @typechecks
- * 
- */
-
-/**
- * Constants to represent text directionality
- *
- * Also defines a *global* direciton, to be used in bidi algorithms as a
- * default fallback direciton, when no better direction is found or provided.
- *
- * NOTE: Use `setGlobalDir()`, or update `initGlobalDir()`, to set the initial
- *       global direction value based on the application.
- *
- * Part of the implementation of Unicode Bidirectional Algorithm (UBA)
- * Unicode Standard Annex #9 (UAX9)
- * http://www.unicode.org/reports/tr9/
- */
-
-
-
-var invariant = __webpack_require__(116);
-
-var NEUTRAL = 'NEUTRAL'; // No strong direction
-var LTR = 'LTR'; // Left-to-Right direction
-var RTL = 'RTL'; // Right-to-Left direction
-
-var globalDir = null;
-
-// == Helpers ==
-
-/**
- * Check if a directionality value is a Strong one
- */
-function isStrong(dir) {
-  return dir === LTR || dir === RTL;
-}
-
-/**
- * Get string value to be used for `dir` HTML attribute or `direction` CSS
- * property.
- */
-function getHTMLDir(dir) {
-  !isStrong(dir) ?  true ? invariant(false, '`dir` must be a strong direction to be converted to HTML Direction') : invariant(false) : void 0;
-  return dir === LTR ? 'ltr' : 'rtl';
-}
-
-/**
- * Get string value to be used for `dir` HTML attribute or `direction` CSS
- * property, but returns null if `dir` has same value as `otherDir`.
- * `null`.
- */
-function getHTMLDirIfDifferent(dir, otherDir) {
-  !isStrong(dir) ?  true ? invariant(false, '`dir` must be a strong direction to be converted to HTML Direction') : invariant(false) : void 0;
-  !isStrong(otherDir) ?  true ? invariant(false, '`otherDir` must be a strong direction to be converted to HTML Direction') : invariant(false) : void 0;
-  return dir === otherDir ? null : getHTMLDir(dir);
-}
-
-// == Global Direction ==
-
-/**
- * Set the global direction.
- */
-function setGlobalDir(dir) {
-  globalDir = dir;
-}
-
-/**
- * Initialize the global direction
- */
-function initGlobalDir() {
-  setGlobalDir(LTR);
-}
-
-/**
- * Get the global direction
- */
-function getGlobalDir() {
-  if (!globalDir) {
-    this.initGlobalDir();
-  }
-  !globalDir ?  true ? invariant(false, 'Global direction not set.') : invariant(false) : void 0;
-  return globalDir;
-}
-
-var UnicodeBidiDirection = {
-  // Values
-  NEUTRAL: NEUTRAL,
-  LTR: LTR,
-  RTL: RTL,
-  // Helpers
-  isStrong: isStrong,
-  getHTMLDir: getHTMLDir,
-  getHTMLDirIfDifferent: getHTMLDirIfDifferent,
-  // Global Direction
-  setGlobalDir: setGlobalDir,
-  initGlobalDir: initGlobalDir,
-  getGlobalDir: getGlobalDir
-};
-
-module.exports = UnicodeBidiDirection;
-
-/***/ }),
-/* 140 */
-/***/ (function(module, exports, __webpack_require__) {
-
-"use strict";
-/**
- * Copyright (c) 2013-present, Facebook, Inc.
- * All rights reserved.
- *
- * This source code is licensed under the BSD-style license found in the
- * LICENSE file in the root directory of this source tree. An additional grant
- * of patent rights can be found in the PATENTS file in the same directory.
- *
- * @providesModule DefaultDraftBlockRenderMap
- * @format
- * 
- */
-
-
-
-var _require = __webpack_require__(115),
-    Map = _require.Map;
-
-var React = __webpack_require__(0);
-
-var cx = __webpack_require__(128);
-
-var UL_WRAP = React.createElement('ul', { className: cx('public/DraftStyleDefault/ul') });
-var OL_WRAP = React.createElement('ol', { className: cx('public/DraftStyleDefault/ol') });
-var PRE_WRAP = React.createElement('pre', { className: cx('public/DraftStyleDefault/pre') });
-
-var DefaultDraftBlockRenderMap = Map({
-  'header-one': {
-    element: 'h1'
-  },
-  'header-two': {
-    element: 'h2'
-  },
-  'header-three': {
-    element: 'h3'
-  },
-  'header-four': {
-    element: 'h4'
-  },
-  'header-five': {
-    element: 'h5'
-  },
-  'header-six': {
-    element: 'h6'
-  },
-  'unordered-list-item': {
-    element: 'li',
-    wrapper: UL_WRAP
-  },
-  'ordered-list-item': {
-    element: 'li',
-    wrapper: OL_WRAP
-  },
-  blockquote: {
-    element: 'blockquote'
-  },
-  atomic: {
-    element: 'figure'
-  },
-  'code-block': {
-    element: 'pre',
-    wrapper: PRE_WRAP
-  },
-  unstyled: {
-    element: 'div',
-    aliasedElements: ['p']
-  }
-});
-
-module.exports = DefaultDraftBlockRenderMap;
-
-/***/ }),
-/* 141 */
-/***/ (function(module, exports, __webpack_require__) {
-
-"use strict";
-
-
-/**
- * Copyright (c) 2013-present, Facebook, Inc.
- *
- * This source code is licensed under the MIT license found in the
- * LICENSE file in the root directory of this source tree.
- *
- */
-
-module.exports = {
-  BACKSPACE: 8,
-  TAB: 9,
-  RETURN: 13,
-  ALT: 18,
-  ESC: 27,
-  SPACE: 32,
-  PAGE_UP: 33,
-  PAGE_DOWN: 34,
-  END: 35,
-  HOME: 36,
-  LEFT: 37,
-  UP: 38,
-  RIGHT: 39,
-  DOWN: 40,
-  DELETE: 46,
-  COMMA: 188,
-  PERIOD: 190,
-  A: 65,
-  Z: 90,
-  ZERO: 48,
-  NUMPAD_0: 96,
-  NUMPAD_9: 105
-};
-
-/***/ }),
-/* 142 */
-/***/ (function(module, exports, __webpack_require__) {
-
-"use strict";
-/**
- * Copyright (c) 2013-present, Facebook, Inc.
- * All rights reserved.
- *
- * This source code is licensed under the BSD-style license found in the
- * LICENSE file in the root directory of this source tree. An additional grant
- * of patent rights can be found in the PATENTS file in the same directory.
- *
- * @providesModule getEntityKeyForSelection
- * @format
- * 
- */
-
-
-
-/**
- * Return the entity key that should be used when inserting text for the
- * specified target selection, only if the entity is `MUTABLE`. `IMMUTABLE`
- * and `SEGMENTED` entities should not be used for insertion behavior.
- */
-function getEntityKeyForSelection(contentState, targetSelection) {
-  var entityKey;
-
-  if (targetSelection.isCollapsed()) {
-    var key = targetSelection.getAnchorKey();
-    var offset = targetSelection.getAnchorOffset();
-    if (offset > 0) {
-      entityKey = contentState.getBlockForKey(key).getEntityAt(offset - 1);
-      if (entityKey !== contentState.getBlockForKey(key).getEntityAt(offset)) {
-        return null;
-      }
-      return filterKey(contentState.getEntityMap(), entityKey);
-    }
-    return null;
-  }
-
-  var startKey = targetSelection.getStartKey();
-  var startOffset = targetSelection.getStartOffset();
-  var startBlock = contentState.getBlockForKey(startKey);
-
-  entityKey = startOffset === startBlock.getLength() ? null : startBlock.getEntityAt(startOffset);
-
-  return filterKey(contentState.getEntityMap(), entityKey);
-}
-
-/**
- * Determine whether an entity key corresponds to a `MUTABLE` entity. If so,
- * return it. If not, return null.
- */
-function filterKey(entityMap, entityKey) {
-  if (entityKey) {
-    var entity = entityMap.__get(entityKey);
-    return entity.getMutability() === 'MUTABLE' ? entityKey : null;
-  }
-  return null;
-}
-
-module.exports = getEntityKeyForSelection;
-
-/***/ }),
-/* 143 */
-/***/ (function(module, exports, __webpack_require__) {
-
-"use strict";
-
-
-/**
- * Copyright (c) 2013-present, Facebook, Inc.
- *
- * This source code is licensed under the MIT license found in the
- * LICENSE file in the root directory of this source tree.
- *
- * 
- */
-
-var isTextNode = __webpack_require__(207);
-
-/*eslint-disable no-bitwise */
-
-/**
- * Checks if a given DOM node contains or is another DOM node.
- */
-function containsNode(outerNode, innerNode) {
-  if (!outerNode || !innerNode) {
-    return false;
-  } else if (outerNode === innerNode) {
-    return true;
-  } else if (isTextNode(outerNode)) {
-    return false;
-  } else if (isTextNode(innerNode)) {
-    return containsNode(outerNode, innerNode.parentNode);
-  } else if ('contains' in outerNode) {
-    return outerNode.contains(innerNode);
-  } else if (outerNode.compareDocumentPosition) {
-    return !!(outerNode.compareDocumentPosition(innerNode) & 16);
-  } else {
-    return false;
-  }
-}
-
-module.exports = containsNode;
-
-/***/ }),
-/* 144 */
-/***/ (function(module, exports, __webpack_require__) {
-
-"use strict";
-
-
-/**
- * Copyright (c) 2013-present, Facebook, Inc.
- *
- * This source code is licensed under the MIT license found in the
- * LICENSE file in the root directory of this source tree.
- *
- * @typechecks
- */
-
-var getStyleProperty = __webpack_require__(209);
-
-/**
- * @param {DOMNode} element [description]
- * @param {string} name Overflow style property name.
- * @return {boolean} True if the supplied ndoe is scrollable.
- */
-function _isNodeScrollable(element, name) {
-  var overflow = Style.get(element, name);
-  return overflow === 'auto' || overflow === 'scroll';
-}
-
-/**
- * Utilities for querying and mutating style properties.
- */
-var Style = {
-  /**
-   * Gets the style property for the supplied node. This will return either the
-   * computed style, if available, or the declared style.
-   *
-   * @param {DOMNode} node
-   * @param {string} name Style property name.
-   * @return {?string} Style property value.
-   */
-  get: getStyleProperty,
-
-  /**
-   * Determines the nearest ancestor of a node that is scrollable.
-   *
-   * NOTE: This can be expensive if used repeatedly or on a node nested deeply.
-   *
-   * @param {?DOMNode} node Node from which to start searching.
-   * @return {?DOMWindow|DOMElement} Scroll parent of the supplied node.
-   */
-  getScrollParent: function getScrollParent(node) {
-    if (!node) {
-      return null;
-    }
-    var ownerDocument = node.ownerDocument;
-    while (node && node !== ownerDocument.body) {
-      if (_isNodeScrollable(node, 'overflow') || _isNodeScrollable(node, 'overflowY') || _isNodeScrollable(node, 'overflowX')) {
-        return node;
-      }
-      node = node.parentNode;
-    }
-    return ownerDocument.defaultView || ownerDocument.parentWindow;
-  }
-
-};
-
-module.exports = Style;
-
-/***/ }),
-/* 145 */
-/***/ (function(module, exports, __webpack_require__) {
-
-"use strict";
-/**
- * Copyright (c) 2013-present, Facebook, Inc.
- *
- * This source code is licensed under the MIT license found in the
- * LICENSE file in the root directory of this source tree.
- *
- * @typechecks
- */
-
-
-
-var getDocumentScrollElement = __webpack_require__(214);
-var getUnboundedScrollPosition = __webpack_require__(215);
-
-/**
- * Gets the scroll position of the supplied element or window.
- *
- * The return values are bounded. This means that if the scroll position is
- * negative or exceeds the element boundaries (which is possible using inertial
- * scrolling), you will get zero or the maximum scroll position, respectively.
- *
- * If you need the unbound scroll position, use `getUnboundedScrollPosition`.
- *
- * @param {DOMWindow|DOMElement} scrollable
- * @return {object} Map with `x` and `y` keys.
- */
-function getScrollPosition(scrollable) {
-  var documentScrollElement = getDocumentScrollElement(scrollable.ownerDocument || scrollable.document);
-  if (scrollable.Window && scrollable instanceof scrollable.Window) {
-    scrollable = documentScrollElement;
-  }
-  var scrollPosition = getUnboundedScrollPosition(scrollable);
-
-  var viewport = scrollable === documentScrollElement ? scrollable.ownerDocument.documentElement : scrollable;
-
-  var xMax = scrollable.scrollWidth - viewport.clientWidth;
-  var yMax = scrollable.scrollHeight - viewport.clientHeight;
-
-  scrollPosition.x = Math.max(0, Math.min(scrollPosition.x, xMax));
-  scrollPosition.y = Math.max(0, Math.min(scrollPosition.y, yMax));
-
-  return scrollPosition;
-}
-
-module.exports = getScrollPosition;
-
-/***/ }),
-/* 146 */
-/***/ (function(module, exports, __webpack_require__) {
-
-"use strict";
-/**
- * Copyright (c) 2013-present, Facebook, Inc.
- * All rights reserved.
- *
- * This source code is licensed under the BSD-style license found in the
- * LICENSE file in the root directory of this source tree. An additional grant
- * of patent rights can be found in the PATENTS file in the same directory.
- *
- * @providesModule findAncestorOffsetKey
- * @format
- * 
- */
-
-
-
-var getSelectionOffsetKeyForNode = __webpack_require__(162);
-
-/**
- * Get the key from the node's nearest offset-aware ancestor.
- */
-function findAncestorOffsetKey(node) {
-  var searchNode = node;
-  while (searchNode && searchNode !== document.documentElement) {
-    var key = getSelectionOffsetKeyForNode(searchNode);
-    if (key != null) {
-      return key;
-    }
-    searchNode = searchNode.parentNode;
-  }
-  return null;
-}
-
-module.exports = findAncestorOffsetKey;
-
-/***/ }),
-/* 147 */
-/***/ (function(module, exports, __webpack_require__) {
-
-"use strict";
-/**
- * Copyright (c) 2013-present, Facebook, Inc.
- * All rights reserved.
- *
- * This source code is licensed under the BSD-style license found in the
- * LICENSE file in the root directory of this source tree. An additional grant
- * of patent rights can be found in the PATENTS file in the same directory.
- *
- * @providesModule KeyBindingUtil
- * @format
- * 
- */
-
-
-
-var UserAgent = __webpack_require__(122);
-
-var isOSX = UserAgent.isPlatform('Mac OS X');
-
-var KeyBindingUtil = {
-  /**
-   * Check whether the ctrlKey modifier is *not* being used in conjunction with
-   * the altKey modifier. If they are combined, the result is an `altGraph`
-   * key modifier, which should not be handled by this set of key bindings.
-   */
-  isCtrlKeyCommand: function isCtrlKeyCommand(e) {
-    return !!e.ctrlKey && !e.altKey;
-  },
-
-  isOptionKeyCommand: function isOptionKeyCommand(e) {
-    return isOSX && e.altKey;
-  },
-
-  hasCommandModifier: function hasCommandModifier(e) {
-    return isOSX ? !!e.metaKey && !e.altKey : KeyBindingUtil.isCtrlKeyCommand(e);
-  }
-};
-
-module.exports = KeyBindingUtil;
-
-/***/ }),
-/* 148 */
-/***/ (function(module, exports, __webpack_require__) {
-
-"use strict";
-/**
- * Copyright (c) 2013-present, Facebook, Inc.
- * All rights reserved.
- *
- * This source code is licensed under the BSD-style license found in the
- * LICENSE file in the root directory of this source tree. An additional grant
- * of patent rights can be found in the PATENTS file in the same directory.
- *
- * @providesModule moveSelectionBackward
- * @format
- * 
- */
-
-
-
-/**
- * Given a collapsed selection, move the focus `maxDistance` backward within
- * the selected block. If the selection will go beyond the start of the block,
- * move focus to the end of the previous block, but no further.
- *
- * This function is not Unicode-aware, so surrogate pairs will be treated
- * as having length 2.
- */
-function moveSelectionBackward(editorState, maxDistance) {
-  var selection = editorState.getSelection();
-  var content = editorState.getCurrentContent();
-  var key = selection.getStartKey();
-  var offset = selection.getStartOffset();
-
-  var focusKey = key;
-  var focusOffset = 0;
-
-  if (maxDistance > offset) {
-    var keyBefore = content.getKeyBefore(key);
-    if (keyBefore == null) {
-      focusKey = key;
-    } else {
-      focusKey = keyBefore;
-      var blockBefore = content.getBlockForKey(keyBefore);
-      focusOffset = blockBefore.getText().length;
-    }
-  } else {
-    focusOffset = offset - maxDistance;
-  }
-
-  return selection.merge({
-    focusKey: focusKey,
-    focusOffset: focusOffset,
-    isBackward: true
-  });
-}
-
-module.exports = moveSelectionBackward;
-
-/***/ }),
-/* 149 */
-/***/ (function(module, exports, __webpack_require__) {
-
-"use strict";
-/**
- * Copyright (c) 2013-present, Facebook, Inc.
- * All rights reserved.
- *
- * This source code is licensed under the BSD-style license found in the
- * LICENSE file in the root directory of this source tree. An additional grant
- * of patent rights can be found in the PATENTS file in the same directory.
- *
- * @providesModule randomizeBlockMapKeys
- * @format
- * 
- */
-
-
-
-var ContentBlockNode = __webpack_require__(120);
-var Immutable = __webpack_require__(115);
-
-var generateRandomKey = __webpack_require__(123);
-
-var OrderedMap = Immutable.OrderedMap;
-
-
-var randomizeContentBlockNodeKeys = function randomizeContentBlockNodeKeys(blockMap) {
-  var newKeysRef = {};
-
-  // we keep track of root blocks in order to update subsequent sibling links
-  var lastRootBlock = void 0;
-
-  return OrderedMap(blockMap.withMutations(function (blockMapState) {
-    blockMapState.forEach(function (block, index) {
-      var oldKey = block.getKey();
-      var nextKey = block.getNextSiblingKey();
-      var prevKey = block.getPrevSiblingKey();
-      var childrenKeys = block.getChildKeys();
-      var parentKey = block.getParentKey();
-
-      // new key that we will use to build linking
-      var key = generateRandomKey();
-
-      // we will add it here to re-use it later
-      newKeysRef[oldKey] = key;
-
-      if (nextKey) {
-        var nextBlock = blockMapState.get(nextKey);
-        if (nextBlock) {
-          blockMapState.setIn([nextKey, 'prevSibling'], key);
-        } else {
-          // this can happen when generating random keys for fragments
-          blockMapState.setIn([oldKey, 'nextSibling'], null);
-        }
-      }
-
-      if (prevKey) {
-        var prevBlock = blockMapState.get(prevKey);
-        if (prevBlock) {
-          blockMapState.setIn([prevKey, 'nextSibling'], key);
-        } else {
-          // this can happen when generating random keys for fragments
-          blockMapState.setIn([oldKey, 'prevSibling'], null);
-        }
-      }
-
-      if (parentKey && blockMapState.get(parentKey)) {
-        var parentBlock = blockMapState.get(parentKey);
-        var parentChildrenList = parentBlock.getChildKeys();
-        blockMapState.setIn([parentKey, 'children'], parentChildrenList.set(parentChildrenList.indexOf(block.getKey()), key));
-      } else {
-        // blocks will then be treated as root block nodes
-        blockMapState.setIn([oldKey, 'parent'], null);
-
-        if (lastRootBlock) {
-          blockMapState.setIn([lastRootBlock.getKey(), 'nextSibling'], key);
-          blockMapState.setIn([oldKey, 'prevSibling'], newKeysRef[lastRootBlock.getKey()]);
-        }
-
-        lastRootBlock = blockMapState.get(oldKey);
-      }
-
-      childrenKeys.forEach(function (childKey) {
-        var childBlock = blockMapState.get(childKey);
-        if (childBlock) {
-          blockMapState.setIn([childKey, 'parent'], key);
-        } else {
-          blockMapState.setIn([oldKey, 'children'], block.getChildKeys().filter(function (child) {
-            return child !== childKey;
-          }));
-        }
-      });
-    });
-  }).toArray().map(function (block) {
-    return [newKeysRef[block.getKey()], block.set('key', newKeysRef[block.getKey()])];
-  }));
-};
-
-var randomizeContentBlockKeys = function randomizeContentBlockKeys(blockMap) {
-  return OrderedMap(blockMap.toArray().map(function (block) {
-    var key = generateRandomKey();
-    return [key, block.set('key', key)];
-  }));
-};
-
-var randomizeBlockMapKeys = function randomizeBlockMapKeys(blockMap) {
-  var isTreeBasedBlockMap = blockMap.first() instanceof ContentBlockNode;
-
-  if (!isTreeBasedBlockMap) {
-    return randomizeContentBlockKeys(blockMap);
-  }
-
-  return randomizeContentBlockNodeKeys(blockMap);
-};
-
-module.exports = randomizeBlockMapKeys;
-
-/***/ }),
-/* 150 */
-/***/ (function(module, exports, __webpack_require__) {
-
-"use strict";
-/**
- * Copyright (c) 2013-present, Facebook, Inc.
- * All rights reserved.
- *
- * This source code is licensed under the BSD-style license found in the
- * LICENSE file in the root directory of this source tree. An additional grant
- * of patent rights can be found in the PATENTS file in the same directory.
- *
- * @providesModule removeEntitiesAtEdges
- * @format
- * 
- */
-
-
-
-var CharacterMetadata = __webpack_require__(119);
-
-var findRangesImmutable = __webpack_require__(130);
-var invariant = __webpack_require__(116);
-
-function removeEntitiesAtEdges(contentState, selectionState) {
-  var blockMap = contentState.getBlockMap();
-  var entityMap = contentState.getEntityMap();
-
-  var updatedBlocks = {};
-
-  var startKey = selectionState.getStartKey();
-  var startOffset = selectionState.getStartOffset();
-  var startBlock = blockMap.get(startKey);
-  var updatedStart = removeForBlock(entityMap, startBlock, startOffset);
-
-  if (updatedStart !== startBlock) {
-    updatedBlocks[startKey] = updatedStart;
-  }
-
-  var endKey = selectionState.getEndKey();
-  var endOffset = selectionState.getEndOffset();
-  var endBlock = blockMap.get(endKey);
-  if (startKey === endKey) {
-    endBlock = updatedStart;
-  }
-
-  var updatedEnd = removeForBlock(entityMap, endBlock, endOffset);
-
-  if (updatedEnd !== endBlock) {
-    updatedBlocks[endKey] = updatedEnd;
-  }
-
-  if (!Object.keys(updatedBlocks).length) {
-    return contentState.set('selectionAfter', selectionState);
-  }
-
-  return contentState.merge({
-    blockMap: blockMap.merge(updatedBlocks),
-    selectionAfter: selectionState
-  });
-}
-
-function getRemovalRange(characters, key, offset) {
-  var removalRange;
-  findRangesImmutable(characters, function (a, b) {
-    return a.getEntity() === b.getEntity();
-  }, function (element) {
-    return element.getEntity() === key;
-  }, function (start, end) {
-    if (start <= offset && end >= offset) {
-      removalRange = { start: start, end: end };
-    }
-  });
-  !(typeof removalRange === 'object') ?  true ? invariant(false, 'Removal range must exist within character list.') : invariant(false) : void 0;
-  return removalRange;
-}
-
-function removeForBlock(entityMap, block, offset) {
-  var chars = block.getCharacterList();
-  var charBefore = offset > 0 ? chars.get(offset - 1) : undefined;
-  var charAfter = offset < chars.count() ? chars.get(offset) : undefined;
-  var entityBeforeCursor = charBefore ? charBefore.getEntity() : undefined;
-  var entityAfterCursor = charAfter ? charAfter.getEntity() : undefined;
-
-  if (entityAfterCursor && entityAfterCursor === entityBeforeCursor) {
-    var entity = entityMap.__get(entityAfterCursor);
-    if (entity.getMutability() !== 'MUTABLE') {
-      var _getRemovalRange = getRemovalRange(chars, entityAfterCursor, offset),
-          start = _getRemovalRange.start,
-          end = _getRemovalRange.end;
-
-      var current;
-      while (start < end) {
-        current = chars.get(start);
-        chars = chars.set(start, CharacterMetadata.applyEntity(current, null));
-        start++;
-      }
-      return block.set('characterList', chars);
-    }
-  }
-
-  return block;
-}
-
-module.exports = removeEntitiesAtEdges;
-
-/***/ }),
-/* 151 */
-/***/ (function(module, exports, __webpack_require__) {
-
-"use strict";
-/**
- * Copyright (c) 2013-present, Facebook, Inc.
- * All rights reserved.
- *
- * This source code is licensed under the BSD-style license found in the
- * LICENSE file in the root directory of this source tree. An additional grant
- * of patent rights can be found in the PATENTS file in the same directory.
- *
- * @providesModule insertIntoList
- * @format
- * 
- */
-
-
-
-/**
- * Maintain persistence for target list when appending and prepending.
- */
-function insertIntoList(targetList, toInsert, offset) {
-  if (offset === targetList.count()) {
-    toInsert.forEach(function (c) {
-      targetList = targetList.push(c);
-    });
-  } else if (offset === 0) {
-    toInsert.reverse().forEach(function (c) {
-      targetList = targetList.unshift(c);
-    });
-  } else {
-    var head = targetList.slice(0, offset);
-    var tail = targetList.slice(offset);
-    targetList = head.concat(toInsert, tail).toList();
-  }
-  return targetList;
-}
-
-module.exports = insertIntoList;
-
-/***/ }),
-/* 152 */
-/***/ (function(module, exports, __webpack_require__) {
-
-"use strict";
-
-
-/**
- * Copyright (c) 2013-present, Facebook, Inc.
- * All rights reserved.
- *
- * This source code is licensed under the BSD-style license found in the
- * LICENSE file in the root directory of this source tree. An additional grant
- * of patent rights can be found in the PATENTS file in the same directory.
- *
- * @providesModule getNextDelimiterBlockKey
- * @format
- * 
- *
- * This is unstable and not part of the public API and should not be used by
- * production systems. This file may be update/removed without notice.
- */
-
-var ContentBlockNode = __webpack_require__(120);
-
-var getNextDelimiterBlockKey = function getNextDelimiterBlockKey(block, blockMap) {
-  var isExperimentalTreeBlock = block instanceof ContentBlockNode;
-
-  if (!isExperimentalTreeBlock) {
-    return null;
-  }
-
-  var nextSiblingKey = block.getNextSiblingKey();
-
-  if (nextSiblingKey) {
-    return nextSiblingKey;
-  }
-
-  var parent = block.getParentKey();
-
-  if (!parent) {
-    return null;
-  }
-
-  var nextNonDescendantBlock = blockMap.get(parent);
-  while (nextNonDescendantBlock && !nextNonDescendantBlock.getNextSiblingKey()) {
-    var parentKey = nextNonDescendantBlock.getParentKey();
-    nextNonDescendantBlock = parentKey ? blockMap.get(parentKey) : null;
-  }
-
-  if (!nextNonDescendantBlock) {
-    return null;
-  }
-
-  return nextNonDescendantBlock.getNextSiblingKey();
-};
-
-module.exports = getNextDelimiterBlockKey;
-
-/***/ }),
-/* 153 */
-/***/ (function(module, exports, __webpack_require__) {
-
-"use strict";
-/**
- * Copyright (c) 2013-present, Facebook, Inc.
- * All rights reserved.
- *
- * This source code is licensed under the BSD-style license found in the
- * LICENSE file in the root directory of this source tree. An additional grant
- * of patent rights can be found in the PATENTS file in the same directory.
- *
- * @providesModule BlockTree
- * @format
- * 
- */
-
-
-
-var Immutable = __webpack_require__(115);
-
-var emptyFunction = __webpack_require__(136);
-var findRangesImmutable = __webpack_require__(130);
-
-var List = Immutable.List,
-    Repeat = Immutable.Repeat,
-    Record = Immutable.Record;
-
-
-var returnTrue = emptyFunction.thatReturnsTrue;
-
-var FINGERPRINT_DELIMITER = '-';
-
-var defaultLeafRange = {
-  start: null,
-  end: null
-};
-
-var LeafRange = Record(defaultLeafRange);
-
-var defaultDecoratorRange = {
-  start: null,
-  end: null,
-  decoratorKey: null,
-  leaves: null
-};
-
-var DecoratorRange = Record(defaultDecoratorRange);
-
-var BlockTree = {
-  /**
-   * Generate a block tree for a given ContentBlock/decorator pair.
-   */
-  generate: function generate(contentState, block, decorator) {
-    var textLength = block.getLength();
-    if (!textLength) {
-      return List.of(new DecoratorRange({
-        start: 0,
-        end: 0,
-        decoratorKey: null,
-        leaves: List.of(new LeafRange({ start: 0, end: 0 }))
-      }));
-    }
-
-    var leafSets = [];
-    var decorations = decorator ? decorator.getDecorations(block, contentState) : List(Repeat(null, textLength));
-
-    var chars = block.getCharacterList();
-
-    findRangesImmutable(decorations, areEqual, returnTrue, function (start, end) {
-      leafSets.push(new DecoratorRange({
-        start: start,
-        end: end,
-        decoratorKey: decorations.get(start),
-        leaves: generateLeaves(chars.slice(start, end).toList(), start)
-      }));
-    });
-
-    return List(leafSets);
-  },
-
-  /**
-   * Create a string representation of the given tree map. This allows us
-   * to rapidly determine whether a tree has undergone a significant
-   * structural change.
-   */
-  getFingerprint: function getFingerprint(tree) {
-    return tree.map(function (leafSet) {
-      var decoratorKey = leafSet.get('decoratorKey');
-      var fingerprintString = decoratorKey !== null ? decoratorKey + '.' + (leafSet.get('end') - leafSet.get('start')) : '';
-      return '' + fingerprintString + '.' + leafSet.get('leaves').size;
-    }).join(FINGERPRINT_DELIMITER);
-  }
-};
-
-/**
- * Generate LeafRange records for a given character list.
- */
-function generateLeaves(characters, offset) {
-  var leaves = [];
-  var inlineStyles = characters.map(function (c) {
-    return c.getStyle();
-  }).toList();
-  findRangesImmutable(inlineStyles, areEqual, returnTrue, function (start, end) {
-    leaves.push(new LeafRange({
-      start: start + offset,
-      end: end + offset
-    }));
-  });
-  return List(leaves);
-}
-
-function areEqual(a, b) {
-  return a === b;
-}
-
-module.exports = BlockTree;
-
-/***/ }),
-/* 154 */
-/***/ (function(module, exports, __webpack_require__) {
-
-"use strict";
-/**
- * Copyright (c) 2013-present, Facebook, Inc.
- * All rights reserved.
- *
- * This source code is licensed under the BSD-style license found in the
- * LICENSE file in the root directory of this source tree. An additional grant
- * of patent rights can be found in the PATENTS file in the same directory.
- *
- * @providesModule DraftEntityInstance
- * @legacyServerCallableInstance
- * @format
- * 
- */
-
-
-
-function _classCallCheck(instance, Constructor) { if (!(instance instanceof Constructor)) { throw new TypeError("Cannot call a class as a function"); } }
-
-function _possibleConstructorReturn(self, call) { if (!self) { throw new ReferenceError("this hasn't been initialised - super() hasn't been called"); } return call && (typeof call === "object" || typeof call === "function") ? call : self; }
-
-function _inherits(subClass, superClass) { if (typeof superClass !== "function" && superClass !== null) { throw new TypeError("Super expression must either be null or a function, not " + typeof superClass); } subClass.prototype = Object.create(superClass && superClass.prototype, { constructor: { value: subClass, enumerable: false, writable: true, configurable: true } }); if (superClass) Object.setPrototypeOf ? Object.setPrototypeOf(subClass, superClass) : subClass.__proto__ = superClass; }
-
-var Immutable = __webpack_require__(115);
-
-var Record = Immutable.Record;
-
-
-var DraftEntityInstanceRecord = Record({
-  type: 'TOKEN',
-  mutability: 'IMMUTABLE',
-  data: Object
-});
-
-/**
- * An instance of a document entity, consisting of a `type` and relevant
- * `data`, metadata about the entity.
- *
- * For instance, a "link" entity might provide a URI, and a "mention"
- * entity might provide the mentioned user's ID. These pieces of data
- * may be used when rendering the entity as part of a ContentBlock DOM
- * representation. For a link, the data would be used as an href for
- * the rendered anchor. For a mention, the ID could be used to retrieve
- * a hovercard.
- */
-
-var DraftEntityInstance = function (_DraftEntityInstanceR) {
-  _inherits(DraftEntityInstance, _DraftEntityInstanceR);
-
-  function DraftEntityInstance() {
-    _classCallCheck(this, DraftEntityInstance);
-
-    return _possibleConstructorReturn(this, _DraftEntityInstanceR.apply(this, arguments));
-  }
-
-  DraftEntityInstance.prototype.getType = function getType() {
-    return this.get('type');
-  };
-
-  DraftEntityInstance.prototype.getMutability = function getMutability() {
-    return this.get('mutability');
-  };
-
-  DraftEntityInstance.prototype.getData = function getData() {
-    return this.get('data');
-  };
-
-  return DraftEntityInstance;
-}(DraftEntityInstanceRecord);
-
-module.exports = DraftEntityInstance;
-
-/***/ }),
-/* 155 */
-/***/ (function(module, exports, __webpack_require__) {
-
-"use strict";
-/**
- * Copyright (c) 2013-present, Facebook, Inc.
- *
- * This source code is licensed under the MIT license found in the
- * LICENSE file in the root directory of this source tree.
- *
- * @typechecks
- * 
- */
-
-/**
- * Basic (stateless) API for text direction detection
- *
- * Part of our implementation of Unicode Bidirectional Algorithm (UBA)
- * Unicode Standard Annex #9 (UAX9)
- * http://www.unicode.org/reports/tr9/
- */
-
-
-
-var UnicodeBidiDirection = __webpack_require__(139);
-
-var invariant = __webpack_require__(116);
-
-/**
- * RegExp ranges of characters with a *Strong* Bidi_Class value.
- *
- * Data is based on DerivedBidiClass.txt in UCD version 7.0.0.
- *
- * NOTE: For performance reasons, we only support Unicode's
- *       Basic Multilingual Plane (BMP) for now.
- */
-var RANGE_BY_BIDI_TYPE = {
-
-  L: 'A-Za-z\xAA\xB5\xBA\xC0-\xD6\xD8-\xF6\xF8-\u01BA\u01BB' + '\u01BC-\u01BF\u01C0-\u01C3\u01C4-\u0293\u0294\u0295-\u02AF\u02B0-\u02B8' + '\u02BB-\u02C1\u02D0-\u02D1\u02E0-\u02E4\u02EE\u0370-\u0373\u0376-\u0377' + '\u037A\u037B-\u037D\u037F\u0386\u0388-\u038A\u038C\u038E-\u03A1' + '\u03A3-\u03F5\u03F7-\u0481\u0482\u048A-\u052F\u0531-\u0556\u0559' + '\u055A-\u055F\u0561-\u0587\u0589\u0903\u0904-\u0939\u093B\u093D' + '\u093E-\u0940\u0949-\u094C\u094E-\u094F\u0950\u0958-\u0961\u0964-\u0965' + '\u0966-\u096F\u0970\u0971\u0972-\u0980\u0982-\u0983\u0985-\u098C' + '\u098F-\u0990\u0993-\u09A8\u09AA-\u09B0\u09B2\u09B6-\u09B9\u09BD' + '\u09BE-\u09C0\u09C7-\u09C8\u09CB-\u09CC\u09CE\u09D7\u09DC-\u09DD' + '\u09DF-\u09E1\u09E6-\u09EF\u09F0-\u09F1\u09F4-\u09F9\u09FA\u0A03' + '\u0A05-\u0A0A\u0A0F-\u0A10\u0A13-\u0A28\u0A2A-\u0A30\u0A32-\u0A33' + '\u0A35-\u0A36\u0A38-\u0A39\u0A3E-\u0A40\u0A59-\u0A5C\u0A5E\u0A66-\u0A6F' + '\u0A72-\u0A74\u0A83\u0A85-\u0A8D\u0A8F-\u0A91\u0A93-\u0AA8\u0AAA-\u0AB0' + '\u0AB2-\u0AB3\u0AB5-\u0AB9\u0ABD\u0ABE-\u0AC0\u0AC9\u0ACB-\u0ACC\u0AD0' + '\u0AE0-\u0AE1\u0AE6-\u0AEF\u0AF0\u0B02-\u0B03\u0B05-\u0B0C\u0B0F-\u0B10' + '\u0B13-\u0B28\u0B2A-\u0B30\u0B32-\u0B33\u0B35-\u0B39\u0B3D\u0B3E\u0B40' + '\u0B47-\u0B48\u0B4B-\u0B4C\u0B57\u0B5C-\u0B5D\u0B5F-\u0B61\u0B66-\u0B6F' + '\u0B70\u0B71\u0B72-\u0B77\u0B83\u0B85-\u0B8A\u0B8E-\u0B90\u0B92-\u0B95' + '\u0B99-\u0B9A\u0B9C\u0B9E-\u0B9F\u0BA3-\u0BA4\u0BA8-\u0BAA\u0BAE-\u0BB9' + '\u0BBE-\u0BBF\u0BC1-\u0BC2\u0BC6-\u0BC8\u0BCA-\u0BCC\u0BD0\u0BD7' + '\u0BE6-\u0BEF\u0BF0-\u0BF2\u0C01-\u0C03\u0C05-\u0C0C\u0C0E-\u0C10' + '\u0C12-\u0C28\u0C2A-\u0C39\u0C3D\u0C41-\u0C44\u0C58-\u0C59\u0C60-\u0C61' + '\u0C66-\u0C6F\u0C7F\u0C82-\u0C83\u0C85-\u0C8C\u0C8E-\u0C90\u0C92-\u0CA8' + '\u0CAA-\u0CB3\u0CB5-\u0CB9\u0CBD\u0CBE\u0CBF\u0CC0-\u0CC4\u0CC6' + '\u0CC7-\u0CC8\u0CCA-\u0CCB\u0CD5-\u0CD6\u0CDE\u0CE0-\u0CE1\u0CE6-\u0CEF' + '\u0CF1-\u0CF2\u0D02-\u0D03\u0D05-\u0D0C\u0D0E-\u0D10\u0D12-\u0D3A\u0D3D' + '\u0D3E-\u0D40\u0D46-\u0D48\u0D4A-\u0D4C\u0D4E\u0D57\u0D60-\u0D61' + '\u0D66-\u0D6F\u0D70-\u0D75\u0D79\u0D7A-\u0D7F\u0D82-\u0D83\u0D85-\u0D96' + '\u0D9A-\u0DB1\u0DB3-\u0DBB\u0DBD\u0DC0-\u0DC6\u0DCF-\u0DD1\u0DD8-\u0DDF' + '\u0DE6-\u0DEF\u0DF2-\u0DF3\u0DF4\u0E01-\u0E30\u0E32-\u0E33\u0E40-\u0E45' + '\u0E46\u0E4F\u0E50-\u0E59\u0E5A-\u0E5B\u0E81-\u0E82\u0E84\u0E87-\u0E88' + '\u0E8A\u0E8D\u0E94-\u0E97\u0E99-\u0E9F\u0EA1-\u0EA3\u0EA5\u0EA7' + '\u0EAA-\u0EAB\u0EAD-\u0EB0\u0EB2-\u0EB3\u0EBD\u0EC0-\u0EC4\u0EC6' + '\u0ED0-\u0ED9\u0EDC-\u0EDF\u0F00\u0F01-\u0F03\u0F04-\u0F12\u0F13\u0F14' + '\u0F15-\u0F17\u0F1A-\u0F1F\u0F20-\u0F29\u0F2A-\u0F33\u0F34\u0F36\u0F38' + '\u0F3E-\u0F3F\u0F40-\u0F47\u0F49-\u0F6C\u0F7F\u0F85\u0F88-\u0F8C' + '\u0FBE-\u0FC5\u0FC7-\u0FCC\u0FCE-\u0FCF\u0FD0-\u0FD4\u0FD5-\u0FD8' + '\u0FD9-\u0FDA\u1000-\u102A\u102B-\u102C\u1031\u1038\u103B-\u103C\u103F' + '\u1040-\u1049\u104A-\u104F\u1050-\u1055\u1056-\u1057\u105A-\u105D\u1061' + '\u1062-\u1064\u1065-\u1066\u1067-\u106D\u106E-\u1070\u1075-\u1081' + '\u1083-\u1084\u1087-\u108C\u108E\u108F\u1090-\u1099\u109A-\u109C' + '\u109E-\u109F\u10A0-\u10C5\u10C7\u10CD\u10D0-\u10FA\u10FB\u10FC' + '\u10FD-\u1248\u124A-\u124D\u1250-\u1256\u1258\u125A-\u125D\u1260-\u1288' + '\u128A-\u128D\u1290-\u12B0\u12B2-\u12B5\u12B8-\u12BE\u12C0\u12C2-\u12C5' + '\u12C8-\u12D6\u12D8-\u1310\u1312-\u1315\u1318-\u135A\u1360-\u1368' + '\u1369-\u137C\u1380-\u138F\u13A0-\u13F4\u1401-\u166C\u166D-\u166E' + '\u166F-\u167F\u1681-\u169A\u16A0-\u16EA\u16EB-\u16ED\u16EE-\u16F0' + '\u16F1-\u16F8\u1700-\u170C\u170E-\u1711\u1720-\u1731\u1735-\u1736' + '\u1740-\u1751\u1760-\u176C\u176E-\u1770\u1780-\u17B3\u17B6\u17BE-\u17C5' + '\u17C7-\u17C8\u17D4-\u17D6\u17D7\u17D8-\u17DA\u17DC\u17E0-\u17E9' + '\u1810-\u1819\u1820-\u1842\u1843\u1844-\u1877\u1880-\u18A8\u18AA' + '\u18B0-\u18F5\u1900-\u191E\u1923-\u1926\u1929-\u192B\u1930-\u1931' + '\u1933-\u1938\u1946-\u194F\u1950-\u196D\u1970-\u1974\u1980-\u19AB' + '\u19B0-\u19C0\u19C1-\u19C7\u19C8-\u19C9\u19D0-\u19D9\u19DA\u1A00-\u1A16' + '\u1A19-\u1A1A\u1A1E-\u1A1F\u1A20-\u1A54\u1A55\u1A57\u1A61\u1A63-\u1A64' + '\u1A6D-\u1A72\u1A80-\u1A89\u1A90-\u1A99\u1AA0-\u1AA6\u1AA7\u1AA8-\u1AAD' + '\u1B04\u1B05-\u1B33\u1B35\u1B3B\u1B3D-\u1B41\u1B43-\u1B44\u1B45-\u1B4B' + '\u1B50-\u1B59\u1B5A-\u1B60\u1B61-\u1B6A\u1B74-\u1B7C\u1B82\u1B83-\u1BA0' + '\u1BA1\u1BA6-\u1BA7\u1BAA\u1BAE-\u1BAF\u1BB0-\u1BB9\u1BBA-\u1BE5\u1BE7' + '\u1BEA-\u1BEC\u1BEE\u1BF2-\u1BF3\u1BFC-\u1BFF\u1C00-\u1C23\u1C24-\u1C2B' + '\u1C34-\u1C35\u1C3B-\u1C3F\u1C40-\u1C49\u1C4D-\u1C4F\u1C50-\u1C59' + '\u1C5A-\u1C77\u1C78-\u1C7D\u1C7E-\u1C7F\u1CC0-\u1CC7\u1CD3\u1CE1' + '\u1CE9-\u1CEC\u1CEE-\u1CF1\u1CF2-\u1CF3\u1CF5-\u1CF6\u1D00-\u1D2B' + '\u1D2C-\u1D6A\u1D6B-\u1D77\u1D78\u1D79-\u1D9A\u1D9B-\u1DBF\u1E00-\u1F15' + '\u1F18-\u1F1D\u1F20-\u1F45\u1F48-\u1F4D\u1F50-\u1F57\u1F59\u1F5B\u1F5D' + '\u1F5F-\u1F7D\u1F80-\u1FB4\u1FB6-\u1FBC\u1FBE\u1FC2-\u1FC4\u1FC6-\u1FCC' + '\u1FD0-\u1FD3\u1FD6-\u1FDB\u1FE0-\u1FEC\u1FF2-\u1FF4\u1FF6-\u1FFC\u200E' + '\u2071\u207F\u2090-\u209C\u2102\u2107\u210A-\u2113\u2115\u2119-\u211D' + '\u2124\u2126\u2128\u212A-\u212D\u212F-\u2134\u2135-\u2138\u2139' + '\u213C-\u213F\u2145-\u2149\u214E\u214F\u2160-\u2182\u2183-\u2184' + '\u2185-\u2188\u2336-\u237A\u2395\u249C-\u24E9\u26AC\u2800-\u28FF' + '\u2C00-\u2C2E\u2C30-\u2C5E\u2C60-\u2C7B\u2C7C-\u2C7D\u2C7E-\u2CE4' + '\u2CEB-\u2CEE\u2CF2-\u2CF3\u2D00-\u2D25\u2D27\u2D2D\u2D30-\u2D67\u2D6F' + '\u2D70\u2D80-\u2D96\u2DA0-\u2DA6\u2DA8-\u2DAE\u2DB0-\u2DB6\u2DB8-\u2DBE' + '\u2DC0-\u2DC6\u2DC8-\u2DCE\u2DD0-\u2DD6\u2DD8-\u2DDE\u3005\u3006\u3007' + '\u3021-\u3029\u302E-\u302F\u3031-\u3035\u3038-\u303A\u303B\u303C' + '\u3041-\u3096\u309D-\u309E\u309F\u30A1-\u30FA\u30FC-\u30FE\u30FF' + '\u3105-\u312D\u3131-\u318E\u3190-\u3191\u3192-\u3195\u3196-\u319F' + '\u31A0-\u31BA\u31F0-\u31FF\u3200-\u321C\u3220-\u3229\u322A-\u3247' + '\u3248-\u324F\u3260-\u327B\u327F\u3280-\u3289\u328A-\u32B0\u32C0-\u32CB' + '\u32D0-\u32FE\u3300-\u3376\u337B-\u33DD\u33E0-\u33FE\u3400-\u4DB5' + '\u4E00-\u9FCC\uA000-\uA014\uA015\uA016-\uA48C\uA4D0-\uA4F7\uA4F8-\uA4FD' + '\uA4FE-\uA4FF\uA500-\uA60B\uA60C\uA610-\uA61F\uA620-\uA629\uA62A-\uA62B' + '\uA640-\uA66D\uA66E\uA680-\uA69B\uA69C-\uA69D\uA6A0-\uA6E5\uA6E6-\uA6EF' + '\uA6F2-\uA6F7\uA722-\uA76F\uA770\uA771-\uA787\uA789-\uA78A\uA78B-\uA78E' + '\uA790-\uA7AD\uA7B0-\uA7B1\uA7F7\uA7F8-\uA7F9\uA7FA\uA7FB-\uA801' + '\uA803-\uA805\uA807-\uA80A\uA80C-\uA822\uA823-\uA824\uA827\uA830-\uA835' + '\uA836-\uA837\uA840-\uA873\uA880-\uA881\uA882-\uA8B3\uA8B4-\uA8C3' + '\uA8CE-\uA8CF\uA8D0-\uA8D9\uA8F2-\uA8F7\uA8F8-\uA8FA\uA8FB\uA900-\uA909' + '\uA90A-\uA925\uA92E-\uA92F\uA930-\uA946\uA952-\uA953\uA95F\uA960-\uA97C' + '\uA983\uA984-\uA9B2\uA9B4-\uA9B5\uA9BA-\uA9BB\uA9BD-\uA9C0\uA9C1-\uA9CD' + '\uA9CF\uA9D0-\uA9D9\uA9DE-\uA9DF\uA9E0-\uA9E4\uA9E6\uA9E7-\uA9EF' + '\uA9F0-\uA9F9\uA9FA-\uA9FE\uAA00-\uAA28\uAA2F-\uAA30\uAA33-\uAA34' + '\uAA40-\uAA42\uAA44-\uAA4B\uAA4D\uAA50-\uAA59\uAA5C-\uAA5F\uAA60-\uAA6F' + '\uAA70\uAA71-\uAA76\uAA77-\uAA79\uAA7A\uAA7B\uAA7D\uAA7E-\uAAAF\uAAB1' + '\uAAB5-\uAAB6\uAAB9-\uAABD\uAAC0\uAAC2\uAADB-\uAADC\uAADD\uAADE-\uAADF' + '\uAAE0-\uAAEA\uAAEB\uAAEE-\uAAEF\uAAF0-\uAAF1\uAAF2\uAAF3-\uAAF4\uAAF5' + '\uAB01-\uAB06\uAB09-\uAB0E\uAB11-\uAB16\uAB20-\uAB26\uAB28-\uAB2E' + '\uAB30-\uAB5A\uAB5B\uAB5C-\uAB5F\uAB64-\uAB65\uABC0-\uABE2\uABE3-\uABE4' + '\uABE6-\uABE7\uABE9-\uABEA\uABEB\uABEC\uABF0-\uABF9\uAC00-\uD7A3' + '\uD7B0-\uD7C6\uD7CB-\uD7FB\uE000-\uF8FF\uF900-\uFA6D\uFA70-\uFAD9' + '\uFB00-\uFB06\uFB13-\uFB17\uFF21-\uFF3A\uFF41-\uFF5A\uFF66-\uFF6F\uFF70' + '\uFF71-\uFF9D\uFF9E-\uFF9F\uFFA0-\uFFBE\uFFC2-\uFFC7\uFFCA-\uFFCF' + '\uFFD2-\uFFD7\uFFDA-\uFFDC',
-
-  R: '\u0590\u05BE\u05C0\u05C3\u05C6\u05C8-\u05CF\u05D0-\u05EA\u05EB-\u05EF' + '\u05F0-\u05F2\u05F3-\u05F4\u05F5-\u05FF\u07C0-\u07C9\u07CA-\u07EA' + '\u07F4-\u07F5\u07FA\u07FB-\u07FF\u0800-\u0815\u081A\u0824\u0828' + '\u082E-\u082F\u0830-\u083E\u083F\u0840-\u0858\u085C-\u085D\u085E' + '\u085F-\u089F\u200F\uFB1D\uFB1F-\uFB28\uFB2A-\uFB36\uFB37\uFB38-\uFB3C' + '\uFB3D\uFB3E\uFB3F\uFB40-\uFB41\uFB42\uFB43-\uFB44\uFB45\uFB46-\uFB4F',
-
-  AL: '\u0608\u060B\u060D\u061B\u061C\u061D\u061E-\u061F\u0620-\u063F\u0640' + '\u0641-\u064A\u066D\u066E-\u066F\u0671-\u06D3\u06D4\u06D5\u06E5-\u06E6' + '\u06EE-\u06EF\u06FA-\u06FC\u06FD-\u06FE\u06FF\u0700-\u070D\u070E\u070F' + '\u0710\u0712-\u072F\u074B-\u074C\u074D-\u07A5\u07B1\u07B2-\u07BF' + '\u08A0-\u08B2\u08B3-\u08E3\uFB50-\uFBB1\uFBB2-\uFBC1\uFBC2-\uFBD2' + '\uFBD3-\uFD3D\uFD40-\uFD4F\uFD50-\uFD8F\uFD90-\uFD91\uFD92-\uFDC7' + '\uFDC8-\uFDCF\uFDF0-\uFDFB\uFDFC\uFDFE-\uFDFF\uFE70-\uFE74\uFE75' + '\uFE76-\uFEFC\uFEFD-\uFEFE'
-
-};
-
-var REGEX_STRONG = new RegExp('[' + RANGE_BY_BIDI_TYPE.L + RANGE_BY_BIDI_TYPE.R + RANGE_BY_BIDI_TYPE.AL + ']');
-
-var REGEX_RTL = new RegExp('[' + RANGE_BY_BIDI_TYPE.R + RANGE_BY_BIDI_TYPE.AL + ']');
-
-/**
- * Returns the first strong character (has Bidi_Class value of L, R, or AL).
- *
- * @param str  A text block; e.g. paragraph, table cell, tag
- * @return     A character with strong bidi direction, or null if not found
- */
-function firstStrongChar(str) {
-  var match = REGEX_STRONG.exec(str);
-  return match == null ? null : match[0];
-}
-
-/**
- * Returns the direction of a block of text, based on the direction of its
- * first strong character (has Bidi_Class value of L, R, or AL).
- *
- * @param str  A text block; e.g. paragraph, table cell, tag
- * @return     The resolved direction
- */
-function firstStrongCharDir(str) {
-  var strongChar = firstStrongChar(str);
-  if (strongChar == null) {
-    return UnicodeBidiDirection.NEUTRAL;
-  }
-  return REGEX_RTL.exec(strongChar) ? UnicodeBidiDirection.RTL : UnicodeBidiDirection.LTR;
-}
-
-/**
- * Returns the direction of a block of text, based on the direction of its
- * first strong character (has Bidi_Class value of L, R, or AL), or a fallback
- * direction, if no strong character is found.
- *
- * This function is supposed to be used in respect to Higher-Level Protocol
- * rule HL1. (http://www.unicode.org/reports/tr9/#HL1)
- *
- * @param str       A text block; e.g. paragraph, table cell, tag
- * @param fallback  Fallback direction, used if no strong direction detected
- *                  for the block (default = NEUTRAL)
- * @return          The resolved direction
- */
-function resolveBlockDir(str, fallback) {
-  fallback = fallback || UnicodeBidiDirection.NEUTRAL;
-  if (!str.length) {
-    return fallback;
-  }
-  var blockDir = firstStrongCharDir(str);
-  return blockDir === UnicodeBidiDirection.NEUTRAL ? fallback : blockDir;
-}
-
-/**
- * Returns the direction of a block of text, based on the direction of its
- * first strong character (has Bidi_Class value of L, R, or AL), or a fallback
- * direction, if no strong character is found.
- *
- * NOTE: This function is similar to resolveBlockDir(), but uses the global
- * direction as the fallback, so it *always* returns a Strong direction,
- * making it useful for integration in places that you need to make the final
- * decision, like setting some CSS class.
- *
- * This function is supposed to be used in respect to Higher-Level Protocol
- * rule HL1. (http://www.unicode.org/reports/tr9/#HL1)
- *
- * @param str             A text block; e.g. paragraph, table cell
- * @param strongFallback  Fallback direction, used if no strong direction
- *                        detected for the block (default = global direction)
- * @return                The resolved Strong direction
- */
-function getDirection(str, strongFallback) {
-  if (!strongFallback) {
-    strongFallback = UnicodeBidiDirection.getGlobalDir();
-  }
-  !UnicodeBidiDirection.isStrong(strongFallback) ?  true ? invariant(false, 'Fallback direction must be a strong direction') : invariant(false) : void 0;
-  return resolveBlockDir(str, strongFallback);
-}
-
-/**
- * Returns true if getDirection(arguments...) returns LTR.
- *
- * @param str             A text block; e.g. paragraph, table cell
- * @param strongFallback  Fallback direction, used if no strong direction
- *                        detected for the block (default = global direction)
- * @return                True if the resolved direction is LTR
- */
-function isDirectionLTR(str, strongFallback) {
-  return getDirection(str, strongFallback) === UnicodeBidiDirection.LTR;
-}
-
-/**
- * Returns true if getDirection(arguments...) returns RTL.
- *
- * @param str             A text block; e.g. paragraph, table cell
- * @param strongFallback  Fallback direction, used if no strong direction
- *                        detected for the block (default = global direction)
- * @return                True if the resolved direction is RTL
- */
-function isDirectionRTL(str, strongFallback) {
-  return getDirection(str, strongFallback) === UnicodeBidiDirection.RTL;
-}
-
-var UnicodeBidi = {
-  firstStrongChar: firstStrongChar,
-  firstStrongCharDir: firstStrongCharDir,
-  resolveBlockDir: resolveBlockDir,
-  getDirection: getDirection,
-  isDirectionLTR: isDirectionLTR,
-  isDirectionRTL: isDirectionRTL
-};
-
-module.exports = UnicodeBidi;
-
-/***/ }),
-/* 156 */
-/***/ (function(module, exports, __webpack_require__) {
-
-"use strict";
-/**
- * Copyright (c) 2013-present, Facebook, Inc.
- * All rights reserved.
- *
- * This source code is licensed under the BSD-style license found in the
- * LICENSE file in the root directory of this source tree. An additional grant
- * of patent rights can be found in the PATENTS file in the same directory.
- *
- * @providesModule DefaultDraftInlineStyle
- * @format
- * 
- */
-
-
-
-module.exports = {
-  BOLD: {
-    fontWeight: 'bold'
-  },
-
-  CODE: {
-    fontFamily: 'monospace',
-    wordWrap: 'break-word'
-  },
-
-  ITALIC: {
-    fontStyle: 'italic'
-  },
-
-  STRIKETHROUGH: {
-    textDecoration: 'line-through'
-  },
-
-  UNDERLINE: {
-    textDecoration: 'underline'
-  }
-};
-
-/***/ }),
-/* 157 */
-/***/ (function(module, exports, __webpack_require__) {
-
-"use strict";
-/**
- * Copyright (c) 2013-present, Facebook, Inc.
- * All rights reserved.
- *
- * This source code is licensed under the BSD-style license found in the
- * LICENSE file in the root directory of this source tree. An additional grant
- * of patent rights can be found in the PATENTS file in the same directory.
- *
- * @providesModule isSelectionAtLeafStart
- * @format
- * 
- */
-
-
-
-function isSelectionAtLeafStart(editorState) {
-  var selection = editorState.getSelection();
-  var anchorKey = selection.getAnchorKey();
-  var blockTree = editorState.getBlockTree(anchorKey);
-  var offset = selection.getStartOffset();
-
-  var isAtStart = false;
-
-  blockTree.some(function (leafSet) {
-    if (offset === leafSet.get('start')) {
-      isAtStart = true;
-      return true;
-    }
-
-    if (offset < leafSet.get('end')) {
-      return leafSet.get('leaves').some(function (leaf) {
-        var leafStart = leaf.get('start');
-        if (offset === leafStart) {
-          isAtStart = true;
-          return true;
-        }
-
-        return false;
-      });
-    }
-
-    return false;
-  });
-
-  return isAtStart;
-}
-
-module.exports = isSelectionAtLeafStart;
-
-/***/ }),
-/* 158 */
-/***/ (function(module, exports, __webpack_require__) {
-
-"use strict";
-/**
- * Copyright (c) 2013-present, Facebook, Inc.
- * All rights reserved.
- *
- * This source code is licensed under the BSD-style license found in the
- * LICENSE file in the root directory of this source tree. An additional grant
- * of patent rights can be found in the PATENTS file in the same directory.
- *
- * @providesModule DraftEditorBlock.react
- * @format
- * 
- */
-
-
-
-var _assign = __webpack_require__(12);
-
-var _extends = _assign || function (target) { for (var i = 1; i < arguments.length; i++) { var source = arguments[i]; for (var key in source) { if (Object.prototype.hasOwnProperty.call(source, key)) { target[key] = source[key]; } } } return target; };
-
-function _classCallCheck(instance, Constructor) { if (!(instance instanceof Constructor)) { throw new TypeError("Cannot call a class as a function"); } }
-
-function _possibleConstructorReturn(self, call) { if (!self) { throw new ReferenceError("this hasn't been initialised - super() hasn't been called"); } return call && (typeof call === "object" || typeof call === "function") ? call : self; }
-
-function _inherits(subClass, superClass) { if (typeof superClass !== "function" && superClass !== null) { throw new TypeError("Super expression must either be null or a function, not " + typeof superClass); } subClass.prototype = Object.create(superClass && superClass.prototype, { constructor: { value: subClass, enumerable: false, writable: true, configurable: true } }); if (superClass) Object.setPrototypeOf ? Object.setPrototypeOf(subClass, superClass) : subClass.__proto__ = superClass; }
-
-var DraftEditorLeaf = __webpack_require__(197);
-var DraftOffsetKey = __webpack_require__(135);
-var React = __webpack_require__(0);
-var ReactDOM = __webpack_require__(25);
-var Scroll = __webpack_require__(160);
-var Style = __webpack_require__(144);
-var UnicodeBidi = __webpack_require__(155);
-var UnicodeBidiDirection = __webpack_require__(139);
-
-var cx = __webpack_require__(128);
-var getElementPosition = __webpack_require__(212);
-var getScrollPosition = __webpack_require__(145);
-var getViewportDimensions = __webpack_require__(216);
-var invariant = __webpack_require__(116);
-var nullthrows = __webpack_require__(121);
-
-var SCROLL_BUFFER = 10;
-
-/**
- * Return whether a block overlaps with either edge of the `SelectionState`.
- */
-var isBlockOnSelectionEdge = function isBlockOnSelectionEdge(selection, key) {
-  return selection.getAnchorKey() === key || selection.getFocusKey() === key;
-};
-
-/**
- * The default block renderer for a `DraftEditor` component.
- *
- * A `DraftEditorBlock` is able to render a given `ContentBlock` to its
- * appropriate decorator and inline style components.
- */
-
-var DraftEditorBlock = function (_React$Component) {
-  _inherits(DraftEditorBlock, _React$Component);
-
-  function DraftEditorBlock() {
-    _classCallCheck(this, DraftEditorBlock);
-
-    return _possibleConstructorReturn(this, _React$Component.apply(this, arguments));
-  }
-
-  DraftEditorBlock.prototype.shouldComponentUpdate = function shouldComponentUpdate(nextProps) {
-    return this.props.block !== nextProps.block || this.props.tree !== nextProps.tree || this.props.direction !== nextProps.direction || isBlockOnSelectionEdge(nextProps.selection, nextProps.block.getKey()) && nextProps.forceSelection;
-  };
-
-  /**
-   * When a block is mounted and overlaps the selection state, we need to make
-   * sure that the cursor is visible to match native behavior. This may not
-   * be the case if the user has pressed `RETURN` or pasted some content, since
-   * programatically creating these new blocks and setting the DOM selection
-   * will miss out on the browser natively scrolling to that position.
-   *
-   * To replicate native behavior, if the block overlaps the selection state
-   * on mount, force the scroll position. Check the scroll state of the scroll
-   * parent, and adjust it to align the entire block to the bottom of the
-   * scroll parent.
-   */
-
-
-  DraftEditorBlock.prototype.componentDidMount = function componentDidMount() {
-    var selection = this.props.selection;
-    var endKey = selection.getEndKey();
-    if (!selection.getHasFocus() || endKey !== this.props.block.getKey()) {
-      return;
-    }
-
-    var blockNode = ReactDOM.findDOMNode(this);
-    var scrollParent = Style.getScrollParent(blockNode);
-    var scrollPosition = getScrollPosition(scrollParent);
-    var scrollDelta = void 0;
-
-    if (scrollParent === window) {
-      var nodePosition = getElementPosition(blockNode);
-      var nodeBottom = nodePosition.y + nodePosition.height;
-      var viewportHeight = getViewportDimensions().height;
-      scrollDelta = nodeBottom - viewportHeight;
-      if (scrollDelta > 0) {
-        window.scrollTo(scrollPosition.x, scrollPosition.y + scrollDelta + SCROLL_BUFFER);
-      }
-    } else {
-      !(blockNode instanceof HTMLElement) ?  true ? invariant(false, 'blockNode is not an HTMLElement') : invariant(false) : void 0;
-      var blockBottom = blockNode.offsetHeight + blockNode.offsetTop;
-      var scrollBottom = scrollParent.offsetHeight + scrollPosition.y;
-      scrollDelta = blockBottom - scrollBottom;
-      if (scrollDelta > 0) {
-        Scroll.setTop(scrollParent, Scroll.getTop(scrollParent) + scrollDelta + SCROLL_BUFFER);
-      }
-    }
-  };
-
-  DraftEditorBlock.prototype._renderChildren = function _renderChildren() {
-    var _this2 = this;
-
-    var block = this.props.block;
-    var blockKey = block.getKey();
-    var text = block.getText();
-    var lastLeafSet = this.props.tree.size - 1;
-    var hasSelection = isBlockOnSelectionEdge(this.props.selection, blockKey);
-
-    return this.props.tree.map(function (leafSet, ii) {
-      var leavesForLeafSet = leafSet.get('leaves');
-      var lastLeaf = leavesForLeafSet.size - 1;
-      var leaves = leavesForLeafSet.map(function (leaf, jj) {
-        var offsetKey = DraftOffsetKey.encode(blockKey, ii, jj);
-        var start = leaf.get('start');
-        var end = leaf.get('end');
-        return React.createElement(DraftEditorLeaf, {
-          key: offsetKey,
-          offsetKey: offsetKey,
-          block: block,
-          start: start,
-          selection: hasSelection ? _this2.props.selection : null,
-          forceSelection: _this2.props.forceSelection,
-          text: text.slice(start, end),
-          styleSet: block.getInlineStyleAt(start),
-          customStyleMap: _this2.props.customStyleMap,
-          customStyleFn: _this2.props.customStyleFn,
-          isLast: ii === lastLeafSet && jj === lastLeaf
-        });
-      }).toArray();
-
-      var decoratorKey = leafSet.get('decoratorKey');
-      if (decoratorKey == null) {
-        return leaves;
-      }
-
-      if (!_this2.props.decorator) {
-        return leaves;
-      }
-
-      var decorator = nullthrows(_this2.props.decorator);
-
-      var DecoratorComponent = decorator.getComponentForKey(decoratorKey);
-      if (!DecoratorComponent) {
-        return leaves;
-      }
-
-      var decoratorProps = decorator.getPropsForKey(decoratorKey);
-      var decoratorOffsetKey = DraftOffsetKey.encode(blockKey, ii, 0);
-      var decoratedText = text.slice(leavesForLeafSet.first().get('start'), leavesForLeafSet.last().get('end'));
-
-      // Resetting dir to the same value on a child node makes Chrome/Firefox
-      // confused on cursor movement. See http://jsfiddle.net/d157kLck/3/
-      var dir = UnicodeBidiDirection.getHTMLDirIfDifferent(UnicodeBidi.getDirection(decoratedText), _this2.props.direction);
-
-      return React.createElement(
-        DecoratorComponent,
-        _extends({}, decoratorProps, {
-          contentState: _this2.props.contentState,
-          decoratedText: decoratedText,
-          dir: dir,
-          key: decoratorOffsetKey,
-          entityKey: block.getEntityAt(leafSet.get('start')),
-          offsetKey: decoratorOffsetKey }),
-        leaves
-      );
-    }).toArray();
-  };
-
-  DraftEditorBlock.prototype.render = function render() {
-    var _props = this.props,
-        direction = _props.direction,
-        offsetKey = _props.offsetKey;
-
-    var className = cx({
-      'public/DraftStyleDefault/block': true,
-      'public/DraftStyleDefault/ltr': direction === 'LTR',
-      'public/DraftStyleDefault/rtl': direction === 'RTL'
-    });
-
-    return React.createElement(
-      'div',
-      { 'data-offset-key': offsetKey, className: className },
-      this._renderChildren()
-    );
-  };
-
-  return DraftEditorBlock;
-}(React.Component);
-
-module.exports = DraftEditorBlock;
-
-/***/ }),
-/* 159 */
-/***/ (function(module, exports, __webpack_require__) {
-
-"use strict";
-
-
-/**
- * Copyright (c) 2013-present, Facebook, Inc.
- *
- * This source code is licensed under the MIT license found in the
- * LICENSE file in the root directory of this source tree.
- *
- * @typechecks
- */
-
-/* eslint-disable fb-www/typeof-undefined */
-
-/**
- * Same as document.activeElement but wraps in a try-catch block. In IE it is
- * not safe to call document.activeElement if there is nothing focused.
- *
- * The activeElement will be null only if the document or document body is not
- * yet defined.
- *
- * @param {?DOMDocument} doc Defaults to current document.
- * @return {?DOMElement}
- */
-function getActiveElement(doc) /*?DOMElement*/{
-  doc = doc || (typeof document !== 'undefined' ? document : undefined);
-  if (typeof doc === 'undefined') {
-    return null;
-  }
-  try {
-    return doc.activeElement || doc.body;
-  } catch (e) {
-    return doc.body;
-  }
-}
-
-module.exports = getActiveElement;
-
-/***/ }),
-/* 160 */
-/***/ (function(module, exports, __webpack_require__) {
-
-"use strict";
-
-
-/**
- * Copyright (c) 2013-present, Facebook, Inc.
- *
- * This source code is licensed under the MIT license found in the
- * LICENSE file in the root directory of this source tree.
- *
- */
-
-/**
- * @param {DOMElement} element
- * @param {DOMDocument} doc
- * @return {boolean}
- */
-function _isViewportScrollElement(element, doc) {
-  return !!doc && (element === doc.documentElement || element === doc.body);
-}
-
-/**
- * Scroll Module. This class contains 4 simple static functions
- * to be used to access Element.scrollTop/scrollLeft properties.
- * To solve the inconsistencies between browsers when either
- * document.body or document.documentElement is supplied,
- * below logic will be used to alleviate the issue:
- *
- * 1. If 'element' is either 'document.body' or 'document.documentElement,
- *    get whichever element's 'scroll{Top,Left}' is larger.
- * 2. If 'element' is either 'document.body' or 'document.documentElement',
- *    set the 'scroll{Top,Left}' on both elements.
- */
-
-var Scroll = {
-  /**
-   * @param {DOMElement} element
-   * @return {number}
-   */
-  getTop: function getTop(element) {
-    var doc = element.ownerDocument;
-    return _isViewportScrollElement(element, doc) ?
-    // In practice, they will either both have the same value,
-    // or one will be zero and the other will be the scroll position
-    // of the viewport. So we can use `X || Y` instead of `Math.max(X, Y)`
-    doc.body.scrollTop || doc.documentElement.scrollTop : element.scrollTop;
-  },
-
-  /**
-   * @param {DOMElement} element
-   * @param {number} newTop
-   */
-  setTop: function setTop(element, newTop) {
-    var doc = element.ownerDocument;
-    if (_isViewportScrollElement(element, doc)) {
-      doc.body.scrollTop = doc.documentElement.scrollTop = newTop;
-    } else {
-      element.scrollTop = newTop;
-    }
-  },
-
-  /**
-   * @param {DOMElement} element
-   * @return {number}
-   */
-  getLeft: function getLeft(element) {
-    var doc = element.ownerDocument;
-    return _isViewportScrollElement(element, doc) ? doc.body.scrollLeft || doc.documentElement.scrollLeft : element.scrollLeft;
-  },
-
-  /**
-   * @param {DOMElement} element
-   * @param {number} newLeft
-   */
-  setLeft: function setLeft(element, newLeft) {
-    var doc = element.ownerDocument;
-    if (_isViewportScrollElement(element, doc)) {
-      doc.body.scrollLeft = doc.documentElement.scrollLeft = newLeft;
-    } else {
-      element.scrollLeft = newLeft;
-    }
-  }
-};
-
-module.exports = Scroll;
-
-/***/ }),
-/* 161 */
-/***/ (function(module, exports, __webpack_require__) {
-
-"use strict";
-
-
-function _classCallCheck(instance, Constructor) { if (!(instance instanceof Constructor)) { throw new TypeError("Cannot call a class as a function"); } }
-
-/**
- * Copyright (c) 2013-present, Facebook, Inc.
- *
- * This source code is licensed under the MIT license found in the
- * LICENSE file in the root directory of this source tree.
- *
- * @typechecks
- */
-
-var PhotosMimeType = __webpack_require__(219);
-
-var createArrayFromMixed = __webpack_require__(220);
-var emptyFunction = __webpack_require__(136);
-
-var CR_LF_REGEX = new RegExp('\r\n', 'g');
-var LF_ONLY = '\n';
-
-var RICH_TEXT_TYPES = {
-  'text/rtf': 1,
-  'text/html': 1
-};
-
-/**
- * If DataTransferItem is a file then return the Blob of data.
- *
- * @param {object} item
- * @return {?blob}
- */
-function getFileFromDataTransfer(item) {
-  if (item.kind == 'file') {
-    return item.getAsFile();
-  }
-}
-
-var DataTransfer = function () {
-  /**
-   * @param {object} data
-   */
-  function DataTransfer(data) {
-    _classCallCheck(this, DataTransfer);
-
-    this.data = data;
-
-    // Types could be DOMStringList or array
-    this.types = data.types ? createArrayFromMixed(data.types) : [];
-  }
-
-  /**
-   * Is this likely to be a rich text data transfer?
-   *
-   * @return {boolean}
-   */
-
-
-  DataTransfer.prototype.isRichText = function isRichText() {
-    // If HTML is available, treat this data as rich text. This way, we avoid
-    // using a pasted image if it is packaged with HTML -- this may occur with
-    // pastes from MS Word, for example.  However this is only rich text if
-    // there's accompanying text.
-    if (this.getHTML() && this.getText()) {
-      return true;
-    }
-
-    // When an image is copied from a preview window, you end up with two
-    // DataTransferItems one of which is a file's metadata as text.  Skip those.
-    if (this.isImage()) {
-      return false;
-    }
-
-    return this.types.some(function (type) {
-      return RICH_TEXT_TYPES[type];
-    });
-  };
-
-  /**
-   * Get raw text.
-   *
-   * @return {?string}
-   */
-
-
-  DataTransfer.prototype.getText = function getText() {
-    var text;
-    if (this.data.getData) {
-      if (!this.types.length) {
-        text = this.data.getData('Text');
-      } else if (this.types.indexOf('text/plain') != -1) {
-        text = this.data.getData('text/plain');
-      }
-    }
-    return text ? text.replace(CR_LF_REGEX, LF_ONLY) : null;
-  };
-
-  /**
-   * Get HTML paste data
-   *
-   * @return {?string}
-   */
-
-
-  DataTransfer.prototype.getHTML = function getHTML() {
-    if (this.data.getData) {
-      if (!this.types.length) {
-        return this.data.getData('Text');
-      } else if (this.types.indexOf('text/html') != -1) {
-        return this.data.getData('text/html');
-      }
-    }
-  };
-
-  /**
-   * Is this a link data transfer?
-   *
-   * @return {boolean}
-   */
-
-
-  DataTransfer.prototype.isLink = function isLink() {
-    return this.types.some(function (type) {
-      return type.indexOf('Url') != -1 || type.indexOf('text/uri-list') != -1 || type.indexOf('text/x-moz-url');
-    });
-  };
-
-  /**
-   * Get a link url.
-   *
-   * @return {?string}
-   */
-
-
-  DataTransfer.prototype.getLink = function getLink() {
-    if (this.data.getData) {
-      if (this.types.indexOf('text/x-moz-url') != -1) {
-        var url = this.data.getData('text/x-moz-url').split('\n');
-        return url[0];
-      }
-      return this.types.indexOf('text/uri-list') != -1 ? this.data.getData('text/uri-list') : this.data.getData('url');
-    }
-
-    return null;
-  };
-
-  /**
-   * Is this an image data transfer?
-   *
-   * @return {boolean}
-   */
-
-
-  DataTransfer.prototype.isImage = function isImage() {
-    var isImage = this.types.some(function (type) {
-      // Firefox will have a type of application/x-moz-file for images during
-      // dragging
-      return type.indexOf('application/x-moz-file') != -1;
-    });
-
-    if (isImage) {
-      return true;
-    }
-
-    var items = this.getFiles();
-    for (var i = 0; i < items.length; i++) {
-      var type = items[i].type;
-      if (!PhotosMimeType.isImage(type)) {
-        return false;
-      }
-    }
-
-    return true;
-  };
-
-  DataTransfer.prototype.getCount = function getCount() {
-    if (this.data.hasOwnProperty('items')) {
-      return this.data.items.length;
-    } else if (this.data.hasOwnProperty('mozItemCount')) {
-      return this.data.mozItemCount;
-    } else if (this.data.files) {
-      return this.data.files.length;
-    }
-    return null;
-  };
-
-  /**
-   * Get files.
-   *
-   * @return {array}
-   */
-
-
-  DataTransfer.prototype.getFiles = function getFiles() {
-    if (this.data.items) {
-      // createArrayFromMixed doesn't properly handle DataTransferItemLists.
-      return Array.prototype.slice.call(this.data.items).map(getFileFromDataTransfer).filter(emptyFunction.thatReturnsArgument);
-    } else if (this.data.files) {
-      return Array.prototype.slice.call(this.data.files);
-    } else {
-      return [];
-    }
-  };
-
-  /**
-   * Are there any files to fetch?
-   *
-   * @return {boolean}
-   */
-
-
-  DataTransfer.prototype.hasFiles = function hasFiles() {
-    return this.getFiles().length > 0;
-  };
-
-  return DataTransfer;
-}();
-
-module.exports = DataTransfer;
-
-/***/ }),
-/* 162 */
-/***/ (function(module, exports, __webpack_require__) {
-
-"use strict";
-/**
- * Copyright (c) 2013-present, Facebook, Inc.
- * All rights reserved.
- *
- * This source code is licensed under the BSD-style license found in the
- * LICENSE file in the root directory of this source tree. An additional grant
- * of patent rights can be found in the PATENTS file in the same directory.
- *
- * @providesModule getSelectionOffsetKeyForNode
- * @format
- * 
- */
-
-
-
-/**
- * Get offset key from a node or it's child nodes. Return the first offset key
- * found on the DOM tree of given node.
- */
-
-function getSelectionOffsetKeyForNode(node) {
-  if (node instanceof Element) {
-    var offsetKey = node.getAttribute('data-offset-key');
-    if (offsetKey) {
-      return offsetKey;
-    }
-    for (var ii = 0; ii < node.childNodes.length; ii++) {
-      var childOffsetKey = getSelectionOffsetKeyForNode(node.childNodes[ii]);
-      if (childOffsetKey) {
-        return childOffsetKey;
-      }
-    }
-  }
-  return null;
-}
-
-module.exports = getSelectionOffsetKeyForNode;
-
-/***/ }),
-/* 163 */
-/***/ (function(module, exports, __webpack_require__) {
-
-"use strict";
-/* WEBPACK VAR INJECTION */(function(global) {/**
- * Copyright (c) 2013-present, Facebook, Inc.
- * All rights reserved.
- *
- * This source code is licensed under the BSD-style license found in the
- * LICENSE file in the root directory of this source tree. An additional grant
- * of patent rights can be found in the PATENTS file in the same directory.
- *
- * @providesModule getTextContentFromFiles
- * @format
- * 
- */
-
-
-
-var invariant = __webpack_require__(116);
-
-var TEXT_CLIPPING_REGEX = /\.textClipping$/;
-
-var TEXT_TYPES = {
-  'text/plain': true,
-  'text/html': true,
-  'text/rtf': true
-};
-
-// Somewhat arbitrary upper bound on text size. Let's not lock up the browser.
-var TEXT_SIZE_UPPER_BOUND = 5000;
-
-/**
- * Extract the text content from a file list.
- */
-function getTextContentFromFiles(files, callback) {
-  var readCount = 0;
-  var results = [];
-  files.forEach(function ( /*blob*/file) {
-    readFile(file, function ( /*string*/text) {
-      readCount++;
-      text && results.push(text.slice(0, TEXT_SIZE_UPPER_BOUND));
-      if (readCount == files.length) {
-        callback(results.join('\r'));
-      }
-    });
-  });
-}
-
-/**
- * todo isaac: Do work to turn html/rtf into a content fragment.
- */
-function readFile(file, callback) {
-  if (!global.FileReader || file.type && !(file.type in TEXT_TYPES)) {
-    callback('');
-    return;
-  }
-
-  if (file.type === '') {
-    var contents = '';
-    // Special-case text clippings, which have an empty type but include
-    // `.textClipping` in the file name. `readAsText` results in an empty
-    // string for text clippings, so we force the file name to serve
-    // as the text value for the file.
-    if (TEXT_CLIPPING_REGEX.test(file.name)) {
-      contents = file.name.replace(TEXT_CLIPPING_REGEX, '');
-    }
-    callback(contents);
-    return;
-  }
-
-  var reader = new FileReader();
-  reader.onload = function () {
-    var result = reader.result;
-    !(typeof result === 'string') ?  true ? invariant(false, 'We should be calling "FileReader.readAsText" which returns a string') : invariant(false) : void 0;
-    callback(result);
-  };
-  reader.onerror = function () {
-    callback('');
-  };
-  reader.readAsText(file);
-}
-
-module.exports = getTextContentFromFiles;
-/* WEBPACK VAR INJECTION */}.call(exports, __webpack_require__(7)))
-
-/***/ }),
-/* 164 */
-/***/ (function(module, exports, __webpack_require__) {
-
-"use strict";
-/**
- * Copyright (c) 2013-present, Facebook, Inc.
- * All rights reserved.
- *
- * This source code is licensed under the BSD-style license found in the
- * LICENSE file in the root directory of this source tree. An additional grant
- * of patent rights can be found in the PATENTS file in the same directory.
- *
- * @providesModule getUpdatedSelectionState
- * @format
- * 
- */
-
-
-
-var DraftOffsetKey = __webpack_require__(135);
-
-var nullthrows = __webpack_require__(121);
-
-function getUpdatedSelectionState(editorState, anchorKey, anchorOffset, focusKey, focusOffset) {
-  var selection = nullthrows(editorState.getSelection());
-  if (true) {
-    if (!anchorKey || !focusKey) {
-      /*eslint-disable no-console */
-      console.warn('Invalid selection state.', arguments, editorState.toJS());
-      /*eslint-enable no-console */
-      return selection;
-    }
-  }
-
-  var anchorPath = DraftOffsetKey.decode(anchorKey);
-  var anchorBlockKey = anchorPath.blockKey;
-  var anchorLeaf = editorState.getBlockTree(anchorBlockKey).getIn([anchorPath.decoratorKey, 'leaves', anchorPath.leafKey]);
-
-  var focusPath = DraftOffsetKey.decode(focusKey);
-  var focusBlockKey = focusPath.blockKey;
-  var focusLeaf = editorState.getBlockTree(focusBlockKey).getIn([focusPath.decoratorKey, 'leaves', focusPath.leafKey]);
-
-  var anchorLeafStart = anchorLeaf.get('start');
-  var focusLeafStart = focusLeaf.get('start');
-
-  var anchorBlockOffset = anchorLeaf ? anchorLeafStart + anchorOffset : null;
-  var focusBlockOffset = focusLeaf ? focusLeafStart + focusOffset : null;
-
-  var areEqual = selection.getAnchorKey() === anchorBlockKey && selection.getAnchorOffset() === anchorBlockOffset && selection.getFocusKey() === focusBlockKey && selection.getFocusOffset() === focusBlockOffset;
-
-  if (areEqual) {
-    return selection;
-  }
-
-  var isBackward = false;
-  if (anchorBlockKey === focusBlockKey) {
-    var anchorLeafEnd = anchorLeaf.get('end');
-    var focusLeafEnd = focusLeaf.get('end');
-    if (focusLeafStart === anchorLeafStart && focusLeafEnd === anchorLeafEnd) {
-      isBackward = focusOffset < anchorOffset;
-    } else {
-      isBackward = focusLeafStart < anchorLeafStart;
-    }
-  } else {
-    var startKey = editorState.getCurrentContent().getBlockMap().keySeq().skipUntil(function (v) {
-      return v === anchorBlockKey || v === focusBlockKey;
-    }).first();
-    isBackward = startKey === focusBlockKey;
-  }
-
-  return selection.merge({
-    anchorKey: anchorBlockKey,
-    anchorOffset: anchorBlockOffset,
-    focusKey: focusBlockKey,
-    focusOffset: focusBlockOffset,
-    isBackward: isBackward
-  });
-}
-
-module.exports = getUpdatedSelectionState;
-
-/***/ }),
-/* 165 */
-/***/ (function(module, exports, __webpack_require__) {
-
-"use strict";
-/**
- * Copyright (c) 2013-present, Facebook, Inc.
- * All rights reserved.
- *
- * This source code is licensed under the BSD-style license found in the
- * LICENSE file in the root directory of this source tree. An additional grant
- * of patent rights can be found in the PATENTS file in the same directory.
- *
- * @providesModule getFragmentFromSelection
- * @format
- * 
- */
-
-
-
-var getContentStateFragment = __webpack_require__(133);
-
-function getFragmentFromSelection(editorState) {
-  var selectionState = editorState.getSelection();
-
-  if (selectionState.isCollapsed()) {
-    return null;
-  }
-
-  return getContentStateFragment(editorState.getCurrentContent(), selectionState);
-}
-
-module.exports = getFragmentFromSelection;
-
-/***/ }),
-/* 166 */
-/***/ (function(module, exports, __webpack_require__) {
-
-"use strict";
-/**
- * Copyright (c) 2013-present, Facebook, Inc.
- * All rights reserved.
- *
- * This source code is licensed under the BSD-style license found in the
- * LICENSE file in the root directory of this source tree. An additional grant
- * of patent rights can be found in the PATENTS file in the same directory.
- *
- * @providesModule getRangeClientRects
- * @format
- * 
- */
-
-
-
-var UserAgent = __webpack_require__(122);
-
-var invariant = __webpack_require__(116);
-
-var isChrome = UserAgent.isBrowser('Chrome');
-
-// In Chrome, the client rects will include the entire bounds of all nodes that
-// begin (have a start tag) within the selection, even if the selection does
-// not overlap the entire node. To resolve this, we split the range at each
-// start tag and join the client rects together.
-// https://code.google.com/p/chromium/issues/detail?id=324437
-/* eslint-disable consistent-return */
-function getRangeClientRectsChrome(range) {
-  var tempRange = range.cloneRange();
-  var clientRects = [];
-
-  for (var ancestor = range.endContainer; ancestor != null; ancestor = ancestor.parentNode) {
-    // If we've climbed up to the common ancestor, we can now use the
-    // original start point and stop climbing the tree.
-    var atCommonAncestor = ancestor === range.commonAncestorContainer;
-    if (atCommonAncestor) {
-      tempRange.setStart(range.startContainer, range.startOffset);
-    } else {
-      tempRange.setStart(tempRange.endContainer, 0);
-    }
-    var rects = Array.from(tempRange.getClientRects());
-    clientRects.push(rects);
-    if (atCommonAncestor) {
-      var _ref;
-
-      clientRects.reverse();
-      return (_ref = []).concat.apply(_ref, clientRects);
-    }
-    tempRange.setEndBefore(ancestor);
-  }
-
-   true ?  true ? invariant(false, 'Found an unexpected detached subtree when getting range client rects.') : invariant(false) : void 0;
-}
-/* eslint-enable consistent-return */
-
-/**
- * Like range.getClientRects() but normalizes for browser bugs.
- */
-var getRangeClientRects = isChrome ? getRangeClientRectsChrome : function (range) {
-  return Array.from(range.getClientRects());
-};
-
-module.exports = getRangeClientRects;
-
-/***/ }),
-/* 167 */
-/***/ (function(module, exports, __webpack_require__) {
-
-"use strict";
-/**
- * Copyright (c) 2013-present, Facebook, Inc.
- * All rights reserved.
- *
- * This source code is licensed under the BSD-style license found in the
- * LICENSE file in the root directory of this source tree. An additional grant
- * of patent rights can be found in the PATENTS file in the same directory.
- *
- * @providesModule getDraftEditorSelectionWithNodes
- * @format
- * 
- */
-
-
-
-var findAncestorOffsetKey = __webpack_require__(146);
-var getSelectionOffsetKeyForNode = __webpack_require__(162);
-var getUpdatedSelectionState = __webpack_require__(164);
-var invariant = __webpack_require__(116);
-var nullthrows = __webpack_require__(121);
-
-/**
- * Convert the current selection range to an anchor/focus pair of offset keys
- * and values that can be interpreted by components.
- */
-function getDraftEditorSelectionWithNodes(editorState, root, anchorNode, anchorOffset, focusNode, focusOffset) {
-  var anchorIsTextNode = anchorNode.nodeType === Node.TEXT_NODE;
-  var focusIsTextNode = focusNode.nodeType === Node.TEXT_NODE;
-
-  // If the selection range lies only on text nodes, the task is simple.
-  // Find the nearest offset-aware elements and use the
-  // offset values supplied by the selection range.
-  if (anchorIsTextNode && focusIsTextNode) {
-    return {
-      selectionState: getUpdatedSelectionState(editorState, nullthrows(findAncestorOffsetKey(anchorNode)), anchorOffset, nullthrows(findAncestorOffsetKey(focusNode)), focusOffset),
-      needsRecovery: false
-    };
-  }
-
-  var anchorPoint = null;
-  var focusPoint = null;
-  var needsRecovery = true;
-
-  // An element is selected. Convert this selection range into leaf offset
-  // keys and offset values for consumption at the component level. This
-  // is common in Firefox, where select-all and triple click behavior leads
-  // to entire elements being selected.
-  //
-  // Note that we use the `needsRecovery` parameter in the callback here. This
-  // is because when certain elements are selected, the behavior for subsequent
-  // cursor movement (e.g. via arrow keys) is uncertain and may not match
-  // expectations at the component level. For example, if an entire <div> is
-  // selected and the user presses the right arrow, Firefox keeps the selection
-  // on the <div>. If we allow subsequent keypresses to insert characters
-  // natively, they will be inserted into a browser-created text node to the
-  // right of that <div>. This is obviously undesirable.
-  //
-  // With the `needsRecovery` flag, we inform the caller that it is responsible
-  // for manually setting the selection state on the rendered document to
-  // ensure proper selection state maintenance.
-
-  if (anchorIsTextNode) {
-    anchorPoint = {
-      key: nullthrows(findAncestorOffsetKey(anchorNode)),
-      offset: anchorOffset
-    };
-    focusPoint = getPointForNonTextNode(root, focusNode, focusOffset);
-  } else if (focusIsTextNode) {
-    focusPoint = {
-      key: nullthrows(findAncestorOffsetKey(focusNode)),
-      offset: focusOffset
-    };
-    anchorPoint = getPointForNonTextNode(root, anchorNode, anchorOffset);
-  } else {
-    anchorPoint = getPointForNonTextNode(root, anchorNode, anchorOffset);
-    focusPoint = getPointForNonTextNode(root, focusNode, focusOffset);
-
-    // If the selection is collapsed on an empty block, don't force recovery.
-    // This way, on arrow key selection changes, the browser can move the
-    // cursor from a non-zero offset on one block, through empty blocks,
-    // to a matching non-zero offset on other text blocks.
-    if (anchorNode === focusNode && anchorOffset === focusOffset) {
-      needsRecovery = !!anchorNode.firstChild && anchorNode.firstChild.nodeName !== 'BR';
-    }
-  }
-
-  return {
-    selectionState: getUpdatedSelectionState(editorState, anchorPoint.key, anchorPoint.offset, focusPoint.key, focusPoint.offset),
-    needsRecovery: needsRecovery
-  };
-}
-
-/**
- * Identify the first leaf descendant for the given node.
- */
-function getFirstLeaf(node) {
-  while (node.firstChild && (
-  // data-blocks has no offset
-  node.firstChild instanceof Element && node.firstChild.getAttribute('data-blocks') === 'true' || getSelectionOffsetKeyForNode(node.firstChild))) {
-    node = node.firstChild;
-  }
-  return node;
-}
-
-/**
- * Identify the last leaf descendant for the given node.
- */
-function getLastLeaf(node) {
-  while (node.lastChild && (
-  // data-blocks has no offset
-  node.lastChild instanceof Element && node.lastChild.getAttribute('data-blocks') === 'true' || getSelectionOffsetKeyForNode(node.lastChild))) {
-    node = node.lastChild;
-  }
-  return node;
-}
-
-function getPointForNonTextNode(editorRoot, startNode, childOffset) {
-  var node = startNode;
-  var offsetKey = findAncestorOffsetKey(node);
-
-  !(offsetKey != null || editorRoot && (editorRoot === node || editorRoot.firstChild === node)) ?  true ? invariant(false, 'Unknown node in selection range.') : invariant(false) : void 0;
-
-  // If the editorRoot is the selection, step downward into the content
-  // wrapper.
-  if (editorRoot === node) {
-    node = node.firstChild;
-    !(node instanceof Element && node.getAttribute('data-contents') === 'true') ?  true ? invariant(false, 'Invalid DraftEditorContents structure.') : invariant(false) : void 0;
-    if (childOffset > 0) {
-      childOffset = node.childNodes.length;
-    }
-  }
-
-  // If the child offset is zero and we have an offset key, we're done.
-  // If there's no offset key because the entire editor is selected,
-  // find the leftmost ("first") leaf in the tree and use that as the offset
-  // key.
-  if (childOffset === 0) {
-    var key = null;
-    if (offsetKey != null) {
-      key = offsetKey;
-    } else {
-      var firstLeaf = getFirstLeaf(node);
-      key = nullthrows(getSelectionOffsetKeyForNode(firstLeaf));
-    }
-    return { key: key, offset: 0 };
-  }
-
-  var nodeBeforeCursor = node.childNodes[childOffset - 1];
-  var leafKey = null;
-  var textLength = null;
-
-  if (!getSelectionOffsetKeyForNode(nodeBeforeCursor)) {
-    // Our target node may be a leaf or a text node, in which case we're
-    // already where we want to be and can just use the child's length as
-    // our offset.
-    leafKey = nullthrows(offsetKey);
-    textLength = getTextContentLength(nodeBeforeCursor);
-  } else {
-    // Otherwise, we'll look at the child to the left of the cursor and find
-    // the last leaf node in its subtree.
-    var lastLeaf = getLastLeaf(nodeBeforeCursor);
-    leafKey = nullthrows(getSelectionOffsetKeyForNode(lastLeaf));
-    textLength = getTextContentLength(lastLeaf);
-  }
-
-  return {
-    key: leafKey,
-    offset: textLength
-  };
-}
-
-/**
- * Return the length of a node's textContent, regarding single newline
- * characters as zero-length. This allows us to avoid problems with identifying
- * the correct selection offset for empty blocks in IE, in which we
- * render newlines instead of break tags.
- */
-function getTextContentLength(node) {
-  var textContent = node.textContent;
-  return textContent === '\n' ? 0 : textContent.length;
-}
-
-module.exports = getDraftEditorSelectionWithNodes;
-
-/***/ }),
-/* 168 */
-/***/ (function(module, exports, __webpack_require__) {
-
-"use strict";
-/**
- * Copyright (c) 2013-present, Facebook, Inc.
- * All rights reserved.
- *
- * This source code is licensed under the BSD-style license found in the
- * LICENSE file in the root directory of this source tree. An additional grant
- * of patent rights can be found in the PATENTS file in the same directory.
- *
- * @providesModule DraftRemovableWord
- * @format
- * 
- */
-
-
-
-var TokenizeUtil = __webpack_require__(238);
-
-var punctuation = TokenizeUtil.getPunctuation();
-
-// The apostrophe and curly single quotes behave in a curious way: when
-// surrounded on both sides by word characters, they behave as word chars; when
-// either neighbor is punctuation or an end of the string, they behave as
-// punctuation.
-var CHAMELEON_CHARS = '[\'\u2018\u2019]';
-
-// Remove the underscore, which should count as part of the removable word. The
-// "chameleon chars" also count as punctuation in this regex.
-var WHITESPACE_AND_PUNCTUATION = '\\s|(?![_])' + punctuation;
-
-var DELETE_STRING = '^' + '(?:' + WHITESPACE_AND_PUNCTUATION + ')*' + '(?:' + CHAMELEON_CHARS + '|(?!' + WHITESPACE_AND_PUNCTUATION + ').)*' + '(?:(?!' + WHITESPACE_AND_PUNCTUATION + ').)';
-var DELETE_REGEX = new RegExp(DELETE_STRING);
-
-var BACKSPACE_STRING = '(?:(?!' + WHITESPACE_AND_PUNCTUATION + ').)' + '(?:' + CHAMELEON_CHARS + '|(?!' + WHITESPACE_AND_PUNCTUATION + ').)*' + '(?:' + WHITESPACE_AND_PUNCTUATION + ')*' + '$';
-var BACKSPACE_REGEX = new RegExp(BACKSPACE_STRING);
-
-function getRemovableWord(text, isBackward) {
-  var matches = isBackward ? BACKSPACE_REGEX.exec(text) : DELETE_REGEX.exec(text);
-  return matches ? matches[0] : text;
-}
-
-var DraftRemovableWord = {
-  getBackward: function getBackward(text) {
-    return getRemovableWord(text, true);
-  },
-
-  getForward: function getForward(text) {
-    return getRemovableWord(text, false);
-  }
-};
-
-module.exports = DraftRemovableWord;
-
-/***/ }),
-/* 169 */
-/***/ (function(module, exports, __webpack_require__) {
-
-"use strict";
-/**
- * Copyright (c) 2013-present, Facebook, Inc.
- * All rights reserved.
- *
- * This source code is licensed under the BSD-style license found in the
- * LICENSE file in the root directory of this source tree. An additional grant
- * of patent rights can be found in the PATENTS file in the same directory.
- *
- * @providesModule moveSelectionForward
- * @format
- * 
- */
-
-
-
-/**
- * Given a collapsed selection, move the focus `maxDistance` forward within
- * the selected block. If the selection will go beyond the end of the block,
- * move focus to the start of the next block, but no further.
- *
- * This function is not Unicode-aware, so surrogate pairs will be treated
- * as having length 2.
- */
-function moveSelectionForward(editorState, maxDistance) {
-  var selection = editorState.getSelection();
-  var key = selection.getStartKey();
-  var offset = selection.getStartOffset();
-  var content = editorState.getCurrentContent();
-
-  var focusKey = key;
-  var focusOffset;
-
-  var block = content.getBlockForKey(key);
-
-  if (maxDistance > block.getText().length - offset) {
-    focusKey = content.getKeyAfter(key);
-    focusOffset = 0;
-  } else {
-    focusOffset = offset + maxDistance;
-  }
-
-  return selection.merge({ focusKey: focusKey, focusOffset: focusOffset });
-}
-
-module.exports = moveSelectionForward;
-
-/***/ }),
-/* 170 */
-/***/ (function(module, exports, __webpack_require__) {
-
-"use strict";
-/**
- * Copyright (c) 2013-present, Facebook, Inc.
- * All rights reserved.
- *
- * This source code is licensed under the BSD-style license found in the
- * LICENSE file in the root directory of this source tree. An additional grant
- * of patent rights can be found in the PATENTS file in the same directory.
- *
- * @providesModule convertFromHTMLToContentBlocks
- * @format
- * 
- */
-
-
-
-var _extends = _assign || function (target) { for (var i = 1; i < arguments.length; i++) { var source = arguments[i]; for (var key in source) { if (Object.prototype.hasOwnProperty.call(source, key)) { target[key] = source[key]; } } } return target; };
-
-var _knownListItemDepthCl,
-    _assign = __webpack_require__(12);
-
-function _defineProperty(obj, key, value) { if (key in obj) { Object.defineProperty(obj, key, { value: value, enumerable: true, configurable: true, writable: true }); } else { obj[key] = value; } return obj; }
-
-var CharacterMetadata = __webpack_require__(119);
-var ContentBlock = __webpack_require__(125);
-var ContentBlockNode = __webpack_require__(120);
-var DefaultDraftBlockRenderMap = __webpack_require__(140);
-var DraftEntity = __webpack_require__(134);
-var DraftFeatureFlags = __webpack_require__(124);
-var Immutable = __webpack_require__(115);
-
-var _require = __webpack_require__(115),
-    Set = _require.Set;
-
-var URI = __webpack_require__(249);
-
-var cx = __webpack_require__(128);
-var generateRandomKey = __webpack_require__(123);
-var getSafeBodyFromHTML = __webpack_require__(171);
-var invariant = __webpack_require__(116);
-var sanitizeDraftText = __webpack_require__(138);
-
-var experimentalTreeDataSupport = DraftFeatureFlags.draft_tree_data_support;
-
-var List = Immutable.List,
-    OrderedSet = Immutable.OrderedSet;
-
-
-var NBSP = '&nbsp;';
-var SPACE = ' ';
-
-// Arbitrary max indent
-var MAX_DEPTH = 4;
-
-// used for replacing characters in HTML
-var REGEX_CR = new RegExp('\r', 'g');
-var REGEX_LF = new RegExp('\n', 'g');
-var REGEX_NBSP = new RegExp(NBSP, 'g');
-var REGEX_CARRIAGE = new RegExp('&#13;?', 'g');
-var REGEX_ZWS = new RegExp('&#8203;?', 'g');
-
-// https://developer.mozilla.org/en-US/docs/Web/CSS/font-weight
-var boldValues = ['bold', 'bolder', '500', '600', '700', '800', '900'];
-var notBoldValues = ['light', 'lighter', '100', '200', '300', '400'];
-
-// Block tag flow is different because LIs do not have
-// a deterministic style ;_;
-var inlineTags = {
-  b: 'BOLD',
-  code: 'CODE',
-  del: 'STRIKETHROUGH',
-  em: 'ITALIC',
-  i: 'ITALIC',
-  s: 'STRIKETHROUGH',
-  strike: 'STRIKETHROUGH',
-  strong: 'BOLD',
-  u: 'UNDERLINE'
-};
-
-var knownListItemDepthClasses = (_knownListItemDepthCl = {}, _defineProperty(_knownListItemDepthCl, cx('public/DraftStyleDefault/depth0'), 0), _defineProperty(_knownListItemDepthCl, cx('public/DraftStyleDefault/depth1'), 1), _defineProperty(_knownListItemDepthCl, cx('public/DraftStyleDefault/depth2'), 2), _defineProperty(_knownListItemDepthCl, cx('public/DraftStyleDefault/depth3'), 3), _defineProperty(_knownListItemDepthCl, cx('public/DraftStyleDefault/depth4'), 4), _knownListItemDepthCl);
-
-var anchorAttr = ['className', 'href', 'rel', 'target', 'title'];
-
-var imgAttr = ['alt', 'className', 'height', 'src', 'width'];
-
-var lastBlock = void 0;
-
-var EMPTY_CHUNK = {
-  text: '',
-  inlines: [],
-  entities: [],
-  blocks: []
-};
-
-var EMPTY_BLOCK = {
-  children: List(),
-  depth: 0,
-  key: '',
-  type: ''
-};
-
-var getListBlockType = function getListBlockType(tag, lastList) {
-  if (tag === 'li') {
-    return lastList === 'ol' ? 'ordered-list-item' : 'unordered-list-item';
-  }
-  return null;
-};
-
-var getBlockMapSupportedTags = function getBlockMapSupportedTags(blockRenderMap) {
-  var unstyledElement = blockRenderMap.get('unstyled').element;
-  var tags = Set([]);
-
-  blockRenderMap.forEach(function (draftBlock) {
-    if (draftBlock.aliasedElements) {
-      draftBlock.aliasedElements.forEach(function (tag) {
-        tags = tags.add(tag);
-      });
-    }
-
-    tags = tags.add(draftBlock.element);
-  });
-
-  return tags.filter(function (tag) {
-    return tag && tag !== unstyledElement;
-  }).toArray().sort();
-};
-
-// custom element conversions
-var getMultiMatchedType = function getMultiMatchedType(tag, lastList, multiMatchExtractor) {
-  for (var ii = 0; ii < multiMatchExtractor.length; ii++) {
-    var matchType = multiMatchExtractor[ii](tag, lastList);
-    if (matchType) {
-      return matchType;
-    }
-  }
-  return null;
-};
-
-var getBlockTypeForTag = function getBlockTypeForTag(tag, lastList, blockRenderMap) {
-  var matchedTypes = blockRenderMap.filter(function (draftBlock) {
-    return draftBlock.element === tag || draftBlock.wrapper === tag || draftBlock.aliasedElements && draftBlock.aliasedElements.some(function (alias) {
-      return alias === tag;
-    });
-  }).keySeq().toSet().toArray().sort();
-
-  // if we dont have any matched type, return unstyled
-  // if we have one matched type return it
-  // if we have multi matched types use the multi-match function to gather type
-  switch (matchedTypes.length) {
-    case 0:
-      return 'unstyled';
-    case 1:
-      return matchedTypes[0];
-    default:
-      return getMultiMatchedType(tag, lastList, [getListBlockType]) || 'unstyled';
-  }
-};
-
-var processInlineTag = function processInlineTag(tag, node, currentStyle) {
-  var styleToCheck = inlineTags[tag];
-  if (styleToCheck) {
-    currentStyle = currentStyle.add(styleToCheck).toOrderedSet();
-  } else if (node instanceof HTMLElement) {
-    var htmlElement = node;
-    currentStyle = currentStyle.withMutations(function (style) {
-      var fontWeight = htmlElement.style.fontWeight;
-      var fontStyle = htmlElement.style.fontStyle;
-      var textDecoration = htmlElement.style.textDecoration;
-
-      if (boldValues.indexOf(fontWeight) >= 0) {
-        style.add('BOLD');
-      } else if (notBoldValues.indexOf(fontWeight) >= 0) {
-        style.remove('BOLD');
-      }
-
-      if (fontStyle === 'italic') {
-        style.add('ITALIC');
-      } else if (fontStyle === 'normal') {
-        style.remove('ITALIC');
-      }
-
-      if (textDecoration === 'underline') {
-        style.add('UNDERLINE');
-      }
-      if (textDecoration === 'line-through') {
-        style.add('STRIKETHROUGH');
-      }
-      if (textDecoration === 'none') {
-        style.remove('UNDERLINE');
-        style.remove('STRIKETHROUGH');
-      }
-    }).toOrderedSet();
-  }
-  return currentStyle;
-};
-
-var joinChunks = function joinChunks(A, B, experimentalHasNestedBlocks) {
-  // Sometimes two blocks will touch in the DOM and we need to strip the
-  // extra delimiter to preserve niceness.
-  var lastInA = A.text.slice(-1);
-  var firstInB = B.text.slice(0, 1);
-
-  if (lastInA === '\r' && firstInB === '\r' && !experimentalHasNestedBlocks) {
-    A.text = A.text.slice(0, -1);
-    A.inlines.pop();
-    A.entities.pop();
-    A.blocks.pop();
-  }
-
-  // Kill whitespace after blocks
-  if (lastInA === '\r') {
-    if (B.text === SPACE || B.text === '\n') {
-      return A;
-    } else if (firstInB === SPACE || firstInB === '\n') {
-      B.text = B.text.slice(1);
-      B.inlines.shift();
-      B.entities.shift();
-    }
-  }
-
-  return {
-    text: A.text + B.text,
-    inlines: A.inlines.concat(B.inlines),
-    entities: A.entities.concat(B.entities),
-    blocks: A.blocks.concat(B.blocks)
-  };
-};
-
-/**
- * Check to see if we have anything like <p> <blockquote> <h1>... to create
- * block tags from. If we do, we can use those and ignore <div> tags. If we
- * don't, we can treat <div> tags as meaningful (unstyled) blocks.
- */
-var containsSemanticBlockMarkup = function containsSemanticBlockMarkup(html, blockTags) {
-  return blockTags.some(function (tag) {
-    return html.indexOf('<' + tag) !== -1;
-  });
-};
-
-var hasValidLinkText = function hasValidLinkText(link) {
-  !(link instanceof HTMLAnchorElement) ?  true ? invariant(false, 'Link must be an HTMLAnchorElement.') : invariant(false) : void 0;
-  var protocol = link.protocol;
-  return protocol === 'http:' || protocol === 'https:' || protocol === 'mailto:';
-};
-
-var getWhitespaceChunk = function getWhitespaceChunk(inEntity) {
-  var entities = new Array(1);
-  if (inEntity) {
-    entities[0] = inEntity;
-  }
-  return _extends({}, EMPTY_CHUNK, {
-    text: SPACE,
-    inlines: [OrderedSet()],
-    entities: entities
-  });
-};
-
-var getSoftNewlineChunk = function getSoftNewlineChunk() {
-  return _extends({}, EMPTY_CHUNK, {
-    text: '\n',
-    inlines: [OrderedSet()],
-    entities: new Array(1)
-  });
-};
-
-var getChunkedBlock = function getChunkedBlock() {
-  var props = arguments.length > 0 && arguments[0] !== undefined ? arguments[0] : {};
-
-  return _extends({}, EMPTY_BLOCK, props);
-};
-
-var getBlockDividerChunk = function getBlockDividerChunk(block, depth) {
-  var parentKey = arguments.length > 2 && arguments[2] !== undefined ? arguments[2] : null;
-
-  return {
-    text: '\r',
-    inlines: [OrderedSet()],
-    entities: new Array(1),
-    blocks: [getChunkedBlock({
-      parent: parentKey,
-      key: generateRandomKey(),
-      type: block,
-      depth: Math.max(0, Math.min(MAX_DEPTH, depth))
-    })]
-  };
-};
-
-/**
- *  If we're pasting from one DraftEditor to another we can check to see if
- *  existing list item depth classes are being used and preserve this style
- */
-var getListItemDepth = function getListItemDepth(node) {
-  var depth = arguments.length > 1 && arguments[1] !== undefined ? arguments[1] : 0;
-
-  Object.keys(knownListItemDepthClasses).some(function (depthClass) {
-    if (node.classList.contains(depthClass)) {
-      depth = knownListItemDepthClasses[depthClass];
-    }
-  });
-  return depth;
-};
-
-var genFragment = function genFragment(entityMap, node, inlineStyle, lastList, inBlock, blockTags, depth, blockRenderMap, inEntity, parentKey) {
-  var lastLastBlock = lastBlock;
-  var nodeName = node.nodeName.toLowerCase();
-  var newEntityMap = entityMap;
-  var nextBlockType = 'unstyled';
-  var newBlock = false;
-  var inBlockType = inBlock && getBlockTypeForTag(inBlock, lastList, blockRenderMap);
-  var chunk = _extends({}, EMPTY_CHUNK);
-  var newChunk = null;
-  var blockKey = void 0;
-
-  // Base Case
-  if (nodeName === '#text') {
-    var _text = node.textContent;
-    var nodeTextContent = _text.trim();
-
-    // We should not create blocks for leading spaces that are
-    // existing around ol/ul and their children list items
-    if (lastList && nodeTextContent === '' && node.parentElement) {
-      var parentNodeName = node.parentElement.nodeName.toLowerCase();
-      if (parentNodeName === 'ol' || parentNodeName === 'ul') {
-        return { chunk: _extends({}, EMPTY_CHUNK), entityMap: entityMap };
-      }
-    }
-
-    if (nodeTextContent === '' && inBlock !== 'pre') {
-      return { chunk: getWhitespaceChunk(inEntity), entityMap: entityMap };
-    }
-    if (inBlock !== 'pre') {
-      // Can't use empty string because MSWord
-      _text = _text.replace(REGEX_LF, SPACE);
-    }
-
-    // save the last block so we can use it later
-    lastBlock = nodeName;
-
-    return {
-      chunk: {
-        text: _text,
-        inlines: Array(_text.length).fill(inlineStyle),
-        entities: Array(_text.length).fill(inEntity),
-        blocks: []
-      },
-      entityMap: entityMap
-    };
-  }
-
-  // save the last block so we can use it later
-  lastBlock = nodeName;
-
-  // BR tags
-  if (nodeName === 'br') {
-    if (lastLastBlock === 'br' && (!inBlock || inBlockType === 'unstyled')) {
-      return {
-        chunk: getBlockDividerChunk('unstyled', depth, parentKey),
-        entityMap: entityMap
-      };
-    }
-    return { chunk: getSoftNewlineChunk(), entityMap: entityMap };
-  }
-
-  // IMG tags
-  if (nodeName === 'img' && node instanceof HTMLImageElement && node.attributes.getNamedItem('src') && node.attributes.getNamedItem('src').value) {
-    var image = node;
-    var entityConfig = {};
-
-    imgAttr.forEach(function (attr) {
-      var imageAttribute = image.getAttribute(attr);
-      if (imageAttribute) {
-        entityConfig[attr] = imageAttribute;
-      }
-    });
-    // Forcing this node to have children because otherwise no entity will be
-    // created for this node.
-    // The child text node cannot just have a space or return as content -
-    // we strip those out.
-    // See https://github.com/facebook/draft-js/issues/231 for some context.
-    node.textContent = '\uD83D\uDCF7';
-
-    // TODO: update this when we remove DraftEntity entirely
-    inEntity = DraftEntity.__create('IMAGE', 'MUTABLE', entityConfig || {});
-  }
-
-  // Inline tags
-  inlineStyle = processInlineTag(nodeName, node, inlineStyle);
-
-  // Handle lists
-  if (nodeName === 'ul' || nodeName === 'ol') {
-    if (lastList) {
-      depth += 1;
-    }
-    lastList = nodeName;
-  }
-
-  if (!experimentalTreeDataSupport && nodeName === 'li' && node instanceof HTMLElement) {
-    depth = getListItemDepth(node, depth);
-  }
-
-  var blockType = getBlockTypeForTag(nodeName, lastList, blockRenderMap);
-  var inListBlock = lastList && inBlock === 'li' && nodeName === 'li';
-  var inBlockOrHasNestedBlocks = (!inBlock || experimentalTreeDataSupport) && blockTags.indexOf(nodeName) !== -1;
-
-  // Block Tags
-  if (inListBlock || inBlockOrHasNestedBlocks) {
-    chunk = getBlockDividerChunk(blockType, depth, parentKey);
-    blockKey = chunk.blocks[0].key;
-    inBlock = nodeName;
-    newBlock = !experimentalTreeDataSupport;
-  }
-
-  // this is required so that we can handle 'ul' and 'ol'
-  if (inListBlock) {
-    nextBlockType = lastList === 'ul' ? 'unordered-list-item' : 'ordered-list-item';
-  }
-
-  // Recurse through children
-  var child = node.firstChild;
-  if (child != null) {
-    nodeName = child.nodeName.toLowerCase();
-  }
-
-  var entityId = null;
-
-  while (child) {
-    if (child instanceof HTMLAnchorElement && child.href && hasValidLinkText(child)) {
-      (function () {
-        var anchor = child;
-        var entityConfig = {};
-
-        anchorAttr.forEach(function (attr) {
-          var anchorAttribute = anchor.getAttribute(attr);
-          if (anchorAttribute) {
-            entityConfig[attr] = anchorAttribute;
-          }
-        });
-
-        entityConfig.url = new URI(anchor.href).toString();
-        // TODO: update this when we remove DraftEntity completely
-        entityId = DraftEntity.__create('LINK', 'MUTABLE', entityConfig || {});
-      })();
-    } else {
-      entityId = undefined;
-    }
-
-    var _genFragment = genFragment(newEntityMap, child, inlineStyle, lastList, inBlock, blockTags, depth, blockRenderMap, entityId || inEntity, experimentalTreeDataSupport ? blockKey : null),
-        generatedChunk = _genFragment.chunk,
-        maybeUpdatedEntityMap = _genFragment.entityMap;
-
-    newChunk = generatedChunk;
-    newEntityMap = maybeUpdatedEntityMap;
-
-    chunk = joinChunks(chunk, newChunk, experimentalTreeDataSupport);
-    var sibling = child.nextSibling;
-
-    // Put in a newline to break up blocks inside blocks
-    if (!parentKey && sibling && blockTags.indexOf(nodeName) >= 0 && inBlock) {
-      chunk = joinChunks(chunk, getSoftNewlineChunk());
-    }
-    if (sibling) {
-      nodeName = sibling.nodeName.toLowerCase();
-    }
-    child = sibling;
-  }
-
-  if (newBlock) {
-    chunk = joinChunks(chunk, getBlockDividerChunk(nextBlockType, depth, parentKey));
-  }
-
-  return { chunk: chunk, entityMap: newEntityMap };
-};
-
-var getChunkForHTML = function getChunkForHTML(html, DOMBuilder, blockRenderMap, entityMap) {
-  html = html.trim().replace(REGEX_CR, '').replace(REGEX_NBSP, SPACE).replace(REGEX_CARRIAGE, '').replace(REGEX_ZWS, '');
-
-  var supportedBlockTags = getBlockMapSupportedTags(blockRenderMap);
-
-  var safeBody = DOMBuilder(html);
-  if (!safeBody) {
-    return null;
-  }
-  lastBlock = null;
-
-  // Sometimes we aren't dealing with content that contains nice semantic
-  // tags. In this case, use divs to separate everything out into paragraphs
-  // and hope for the best.
-  var workingBlocks = containsSemanticBlockMarkup(html, supportedBlockTags) ? supportedBlockTags : ['div'];
-
-  // Start with -1 block depth to offset the fact that we are passing in a fake
-  // UL block to start with.
-  var fragment = genFragment(entityMap, safeBody, OrderedSet(), 'ul', null, workingBlocks, -1, blockRenderMap);
-
-  var chunk = fragment.chunk;
-  var newEntityMap = fragment.entityMap;
-
-  // join with previous block to prevent weirdness on paste
-  if (chunk.text.indexOf('\r') === 0) {
-    chunk = {
-      text: chunk.text.slice(1),
-      inlines: chunk.inlines.slice(1),
-      entities: chunk.entities.slice(1),
-      blocks: chunk.blocks
-    };
-  }
-
-  // Kill block delimiter at the end
-  if (chunk.text.slice(-1) === '\r') {
-    chunk.text = chunk.text.slice(0, -1);
-    chunk.inlines = chunk.inlines.slice(0, -1);
-    chunk.entities = chunk.entities.slice(0, -1);
-    chunk.blocks.pop();
-  }
-
-  // If we saw no block tags, put an unstyled one in
-  if (chunk.blocks.length === 0) {
-    chunk.blocks.push(_extends({}, EMPTY_CHUNK, {
-      type: 'unstyled',
-      depth: 0
-    }));
-  }
-
-  // Sometimes we start with text that isn't in a block, which is then
-  // followed by blocks. Need to fix up the blocks to add in
-  // an unstyled block for this content
-  if (chunk.text.split('\r').length === chunk.blocks.length + 1) {
-    chunk.blocks.unshift({ type: 'unstyled', depth: 0 });
-  }
-
-  return { chunk: chunk, entityMap: newEntityMap };
-};
-
-var convertChunkToContentBlocks = function convertChunkToContentBlocks(chunk) {
-  if (!chunk || !chunk.text || !Array.isArray(chunk.blocks)) {
-    return null;
-  }
-
-  var initialState = {
-    cacheRef: {},
-    contentBlocks: []
-  };
-
-  var start = 0;
-
-  var rawBlocks = chunk.blocks,
-      rawInlines = chunk.inlines,
-      rawEntities = chunk.entities;
-
-
-  var BlockNodeRecord = experimentalTreeDataSupport ? ContentBlockNode : ContentBlock;
-
-  return chunk.text.split('\r').reduce(function (acc, textBlock, index) {
-    // Make absolutely certain that our text is acceptable.
-    textBlock = sanitizeDraftText(textBlock);
-
-    var block = rawBlocks[index];
-    var end = start + textBlock.length;
-    var inlines = rawInlines.slice(start, end);
-    var entities = rawEntities.slice(start, end);
-    var characterList = List(inlines.map(function (style, index) {
-      var data = { style: style, entity: null };
-      if (entities[index]) {
-        data.entity = entities[index];
-      }
-      return CharacterMetadata.create(data);
-    }));
-    start = end + 1;
-
-    var depth = block.depth,
-        type = block.type,
-        parent = block.parent;
-
-
-    var key = block.key || generateRandomKey();
-    var parentTextNodeKey = null; // will be used to store container text nodes
-
-    // childrens add themselves to their parents since we are iterating in order
-    if (parent) {
-      var parentIndex = acc.cacheRef[parent];
-      var parentRecord = acc.contentBlocks[parentIndex];
-
-      // if parent has text we need to split it into a separate unstyled element
-      if (parentRecord.getChildKeys().isEmpty() && parentRecord.getText()) {
-        var parentCharacterList = parentRecord.getCharacterList();
-        var parentText = parentRecord.getText();
-        parentTextNodeKey = generateRandomKey();
-
-        var textNode = new ContentBlockNode({
-          key: parentTextNodeKey,
-          text: parentText,
-          characterList: parentCharacterList,
-          parent: parent,
-          nextSibling: key
-        });
-
-        acc.contentBlocks.push(textNode);
-
-        parentRecord = parentRecord.withMutations(function (block) {
-          block.set('characterList', List()).set('text', '').set('children', parentRecord.children.push(textNode.getKey()));
-        });
-      }
-
-      acc.contentBlocks[parentIndex] = parentRecord.set('children', parentRecord.children.push(key));
-    }
-
-    var blockNode = new BlockNodeRecord({
-      key: key,
-      parent: parent,
-      type: type,
-      depth: depth,
-      text: textBlock,
-      characterList: characterList,
-      prevSibling: parentTextNodeKey || (index === 0 || rawBlocks[index - 1].parent !== parent ? null : rawBlocks[index - 1].key),
-      nextSibling: index === rawBlocks.length - 1 || rawBlocks[index + 1].parent !== parent ? null : rawBlocks[index + 1].key
-    });
-
-    // insert node
-    acc.contentBlocks.push(blockNode);
-
-    // cache ref for building links
-    acc.cacheRef[blockNode.key] = index;
-
-    return acc;
-  }, initialState).contentBlocks;
-};
-
-var convertFromHTMLtoContentBlocks = function convertFromHTMLtoContentBlocks(html) {
-  var DOMBuilder = arguments.length > 1 && arguments[1] !== undefined ? arguments[1] : getSafeBodyFromHTML;
-  var blockRenderMap = arguments.length > 2 && arguments[2] !== undefined ? arguments[2] : DefaultDraftBlockRenderMap;
-
-  // Be ABSOLUTELY SURE that the dom builder you pass here won't execute
-  // arbitrary code in whatever environment you're running this in. For an
-  // example of how we try to do this in-browser, see getSafeBodyFromHTML.
-
-  // TODO: replace DraftEntity with an OrderedMap here
-  var chunkData = getChunkForHTML(html, DOMBuilder, blockRenderMap, DraftEntity);
-
-  if (chunkData == null) {
-    return null;
-  }
-
-  var chunk = chunkData.chunk,
-      entityMap = chunkData.entityMap;
-
-  var contentBlocks = convertChunkToContentBlocks(chunk);
-
-  return {
-    contentBlocks: contentBlocks,
-    entityMap: entityMap
-  };
-};
-
-module.exports = convertFromHTMLtoContentBlocks;
-
-/***/ }),
-/* 171 */
-/***/ (function(module, exports, __webpack_require__) {
-
-"use strict";
-/**
- * Copyright (c) 2013-present, Facebook, Inc.
- * All rights reserved.
- *
- * This source code is licensed under the BSD-style license found in the
- * LICENSE file in the root directory of this source tree. An additional grant
- * of patent rights can be found in the PATENTS file in the same directory.
- *
- * @providesModule getSafeBodyFromHTML
- * @format
- * 
- */
-
-
-
-var UserAgent = __webpack_require__(122);
-
-var invariant = __webpack_require__(116);
-
-var isOldIE = UserAgent.isBrowser('IE <= 9');
-
-// Provides a dom node that will not execute scripts
-// https://developer.mozilla.org/en-US/docs/Web/API/DOMImplementation.createHTMLDocument
-// https://developer.mozilla.org/en-US/Add-ons/Code_snippets/HTML_to_DOM
-
-function getSafeBodyFromHTML(html) {
-  var doc;
-  var root = null;
-  // Provides a safe context
-  if (!isOldIE && document.implementation && document.implementation.createHTMLDocument) {
-    doc = document.implementation.createHTMLDocument('foo');
-    !doc.documentElement ?  true ? invariant(false, 'Missing doc.documentElement') : invariant(false) : void 0;
-    doc.documentElement.innerHTML = html;
-    root = doc.getElementsByTagName('body')[0];
-  }
-  return root;
-}
-
-module.exports = getSafeBodyFromHTML;
-
-/***/ }),
 /* 172 */
-/***/ (function(module, exports, __webpack_require__) {
-
-"use strict";
-/**
- * Copyright (c) 2013-present, Facebook, Inc.
- * All rights reserved.
- *
- * This source code is licensed under the BSD-style license found in the
- * LICENSE file in the root directory of this source tree. An additional grant
- * of patent rights can be found in the PATENTS file in the same directory.
- *
- * @providesModule RichTextEditorUtil
- * @format
- * 
- */
-
-
-
-var DraftModifier = __webpack_require__(118);
-var EditorState = __webpack_require__(117);
-var SelectionState = __webpack_require__(127);
-
-var adjustBlockDepthForContentState = __webpack_require__(250);
-var nullthrows = __webpack_require__(121);
-
-var RichTextEditorUtil = {
-  currentBlockContainsLink: function currentBlockContainsLink(editorState) {
-    var selection = editorState.getSelection();
-    var contentState = editorState.getCurrentContent();
-    var entityMap = contentState.getEntityMap();
-    return contentState.getBlockForKey(selection.getAnchorKey()).getCharacterList().slice(selection.getStartOffset(), selection.getEndOffset()).some(function (v) {
-      var entity = v.getEntity();
-      return !!entity && entityMap.__get(entity).getType() === 'LINK';
-    });
-  },
-
-  getCurrentBlockType: function getCurrentBlockType(editorState) {
-    var selection = editorState.getSelection();
-    return editorState.getCurrentContent().getBlockForKey(selection.getStartKey()).getType();
-  },
-
-  getDataObjectForLinkURL: function getDataObjectForLinkURL(uri) {
-    return { url: uri.toString() };
-  },
-
-  handleKeyCommand: function handleKeyCommand(editorState, command) {
-    switch (command) {
-      case 'bold':
-        return RichTextEditorUtil.toggleInlineStyle(editorState, 'BOLD');
-      case 'italic':
-        return RichTextEditorUtil.toggleInlineStyle(editorState, 'ITALIC');
-      case 'underline':
-        return RichTextEditorUtil.toggleInlineStyle(editorState, 'UNDERLINE');
-      case 'code':
-        return RichTextEditorUtil.toggleCode(editorState);
-      case 'backspace':
-      case 'backspace-word':
-      case 'backspace-to-start-of-line':
-        return RichTextEditorUtil.onBackspace(editorState);
-      case 'delete':
-      case 'delete-word':
-      case 'delete-to-end-of-block':
-        return RichTextEditorUtil.onDelete(editorState);
-      default:
-        // they may have custom editor commands; ignore those
-        return null;
-    }
-  },
-
-  insertSoftNewline: function insertSoftNewline(editorState) {
-    var contentState = DraftModifier.insertText(editorState.getCurrentContent(), editorState.getSelection(), '\n', editorState.getCurrentInlineStyle(), null);
-
-    var newEditorState = EditorState.push(editorState, contentState, 'insert-characters');
-
-    return EditorState.forceSelection(newEditorState, contentState.getSelectionAfter());
-  },
-
-  /**
-   * For collapsed selections at the start of styled blocks, backspace should
-   * just remove the existing style.
-   */
-  onBackspace: function onBackspace(editorState) {
-    var selection = editorState.getSelection();
-    if (!selection.isCollapsed() || selection.getAnchorOffset() || selection.getFocusOffset()) {
-      return null;
-    }
-
-    // First, try to remove a preceding atomic block.
-    var content = editorState.getCurrentContent();
-    var startKey = selection.getStartKey();
-    var blockBefore = content.getBlockBefore(startKey);
-
-    if (blockBefore && blockBefore.getType() === 'atomic') {
-      var blockMap = content.getBlockMap()['delete'](blockBefore.getKey());
-      var withoutAtomicBlock = content.merge({
-        blockMap: blockMap,
-        selectionAfter: selection
-      });
-      if (withoutAtomicBlock !== content) {
-        return EditorState.push(editorState, withoutAtomicBlock, 'remove-range');
-      }
-    }
-
-    // If that doesn't succeed, try to remove the current block style.
-    var withoutBlockStyle = RichTextEditorUtil.tryToRemoveBlockStyle(editorState);
-
-    if (withoutBlockStyle) {
-      return EditorState.push(editorState, withoutBlockStyle, 'change-block-type');
-    }
-
-    return null;
-  },
-
-  onDelete: function onDelete(editorState) {
-    var selection = editorState.getSelection();
-    if (!selection.isCollapsed()) {
-      return null;
-    }
-
-    var content = editorState.getCurrentContent();
-    var startKey = selection.getStartKey();
-    var block = content.getBlockForKey(startKey);
-    var length = block.getLength();
-
-    // The cursor is somewhere within the text. Behave normally.
-    if (selection.getStartOffset() < length) {
-      return null;
-    }
-
-    var blockAfter = content.getBlockAfter(startKey);
-
-    if (!blockAfter || blockAfter.getType() !== 'atomic') {
-      return null;
-    }
-
-    var atomicBlockTarget = selection.merge({
-      focusKey: blockAfter.getKey(),
-      focusOffset: blockAfter.getLength()
-    });
-
-    var withoutAtomicBlock = DraftModifier.removeRange(content, atomicBlockTarget, 'forward');
-
-    if (withoutAtomicBlock !== content) {
-      return EditorState.push(editorState, withoutAtomicBlock, 'remove-range');
-    }
-
-    return null;
-  },
-
-  onTab: function onTab(event, editorState, maxDepth) {
-    var selection = editorState.getSelection();
-    var key = selection.getAnchorKey();
-    if (key !== selection.getFocusKey()) {
-      return editorState;
-    }
-
-    var content = editorState.getCurrentContent();
-    var block = content.getBlockForKey(key);
-    var type = block.getType();
-    if (type !== 'unordered-list-item' && type !== 'ordered-list-item') {
-      return editorState;
-    }
-
-    event.preventDefault();
-
-    // Only allow indenting one level beyond the block above, and only if
-    // the block above is a list item as well.
-    var blockAbove = content.getBlockBefore(key);
-    if (!blockAbove) {
-      return editorState;
-    }
-
-    var typeAbove = blockAbove.getType();
-    if (typeAbove !== 'unordered-list-item' && typeAbove !== 'ordered-list-item') {
-      return editorState;
-    }
-
-    var depth = block.getDepth();
-    if (!event.shiftKey && depth === maxDepth) {
-      return editorState;
-    }
-
-    maxDepth = Math.min(blockAbove.getDepth() + 1, maxDepth);
-
-    var withAdjustment = adjustBlockDepthForContentState(content, selection, event.shiftKey ? -1 : 1, maxDepth);
-
-    return EditorState.push(editorState, withAdjustment, 'adjust-depth');
-  },
-
-  toggleBlockType: function toggleBlockType(editorState, blockType) {
-    var selection = editorState.getSelection();
-    var startKey = selection.getStartKey();
-    var endKey = selection.getEndKey();
-    var content = editorState.getCurrentContent();
-    var target = selection;
-
-    // Triple-click can lead to a selection that includes offset 0 of the
-    // following block. The `SelectionState` for this case is accurate, but
-    // we should avoid toggling block type for the trailing block because it
-    // is a confusing interaction.
-    if (startKey !== endKey && selection.getEndOffset() === 0) {
-      var blockBefore = nullthrows(content.getBlockBefore(endKey));
-      endKey = blockBefore.getKey();
-      target = target.merge({
-        anchorKey: startKey,
-        anchorOffset: selection.getStartOffset(),
-        focusKey: endKey,
-        focusOffset: blockBefore.getLength(),
-        isBackward: false
-      });
-    }
-
-    var hasAtomicBlock = content.getBlockMap().skipWhile(function (_, k) {
-      return k !== startKey;
-    }).reverse().skipWhile(function (_, k) {
-      return k !== endKey;
-    }).some(function (v) {
-      return v.getType() === 'atomic';
-    });
-
-    if (hasAtomicBlock) {
-      return editorState;
-    }
-
-    var typeToSet = content.getBlockForKey(startKey).getType() === blockType ? 'unstyled' : blockType;
-
-    return EditorState.push(editorState, DraftModifier.setBlockType(content, target, typeToSet), 'change-block-type');
-  },
-
-  toggleCode: function toggleCode(editorState) {
-    var selection = editorState.getSelection();
-    var anchorKey = selection.getAnchorKey();
-    var focusKey = selection.getFocusKey();
-
-    if (selection.isCollapsed() || anchorKey !== focusKey) {
-      return RichTextEditorUtil.toggleBlockType(editorState, 'code-block');
-    }
-
-    return RichTextEditorUtil.toggleInlineStyle(editorState, 'CODE');
-  },
-
-  /**
-   * Toggle the specified inline style for the selection. If the
-   * user's selection is collapsed, apply or remove the style for the
-   * internal state. If it is not collapsed, apply the change directly
-   * to the document state.
-   */
-  toggleInlineStyle: function toggleInlineStyle(editorState, inlineStyle) {
-    var selection = editorState.getSelection();
-    var currentStyle = editorState.getCurrentInlineStyle();
-
-    // If the selection is collapsed, toggle the specified style on or off and
-    // set the result as the new inline style override. This will then be
-    // used as the inline style for the next character to be inserted.
-    if (selection.isCollapsed()) {
-      return EditorState.setInlineStyleOverride(editorState, currentStyle.has(inlineStyle) ? currentStyle.remove(inlineStyle) : currentStyle.add(inlineStyle));
-    }
-
-    // If characters are selected, immediately apply or remove the
-    // inline style on the document state itself.
-    var content = editorState.getCurrentContent();
-    var newContent;
-
-    // If the style is already present for the selection range, remove it.
-    // Otherwise, apply it.
-    if (currentStyle.has(inlineStyle)) {
-      newContent = DraftModifier.removeInlineStyle(content, selection, inlineStyle);
-    } else {
-      newContent = DraftModifier.applyInlineStyle(content, selection, inlineStyle);
-    }
-
-    return EditorState.push(editorState, newContent, 'change-inline-style');
-  },
-
-  toggleLink: function toggleLink(editorState, targetSelection, entityKey) {
-    var withoutLink = DraftModifier.applyEntity(editorState.getCurrentContent(), targetSelection, entityKey);
-
-    return EditorState.push(editorState, withoutLink, 'apply-entity');
-  },
-
-  /**
-   * When a collapsed cursor is at the start of the first styled block, or
-   * an empty styled block, changes block to 'unstyled'. Returns null if
-   * block or selection does not meet that criteria.
-   */
-  tryToRemoveBlockStyle: function tryToRemoveBlockStyle(editorState) {
-    var selection = editorState.getSelection();
-    var offset = selection.getAnchorOffset();
-    if (selection.isCollapsed() && offset === 0) {
-      var key = selection.getAnchorKey();
-      var content = editorState.getCurrentContent();
-      var block = content.getBlockForKey(key);
-
-      var firstBlock = content.getFirstBlock();
-      if (block.getLength() > 0 && block !== firstBlock) {
-        return null;
-      }
-
-      var type = block.getType();
-      var blockBefore = content.getBlockBefore(key);
-      if (type === 'code-block' && blockBefore && blockBefore.getType() === 'code-block' && blockBefore.getLength() !== 0) {
-        return null;
-      }
-
-      if (type !== 'unstyled') {
-        return DraftModifier.setBlockType(content, selection, 'unstyled');
-      }
-    }
-    return null;
-  }
-};
-
-module.exports = RichTextEditorUtil;
-
-/***/ }),
-/* 173 */
-/***/ (function(module, exports, __webpack_require__) {
-
-"use strict";
-/**
- * Copyright (c) 2013-present, Facebook, Inc.
- * All rights reserved.
- *
- * This source code is licensed under the BSD-style license found in the
- * LICENSE file in the root directory of this source tree. An additional grant
- * of patent rights can be found in the PATENTS file in the same directory.
- *
- * @providesModule getDefaultKeyBinding
- * @format
- * 
- */
-
-
-
-var KeyBindingUtil = __webpack_require__(147);
-var Keys = __webpack_require__(141);
-var UserAgent = __webpack_require__(122);
-
-var isOSX = UserAgent.isPlatform('Mac OS X');
-var isWindows = UserAgent.isPlatform('Windows');
-
-// Firefox on OSX had a bug resulting in navigation instead of cursor movement.
-// This bug was fixed in Firefox 29. Feature detection is virtually impossible
-// so we just check the version number. See #342765.
-var shouldFixFirefoxMovement = isOSX && UserAgent.isBrowser('Firefox < 29');
-
-var hasCommandModifier = KeyBindingUtil.hasCommandModifier,
-    isCtrlKeyCommand = KeyBindingUtil.isCtrlKeyCommand;
-
-
-function shouldRemoveWord(e) {
-  return isOSX && e.altKey || isCtrlKeyCommand(e);
-}
-
-/**
- * Get the appropriate undo/redo command for a Z key command.
- */
-function getZCommand(e) {
-  if (!hasCommandModifier(e)) {
-    return null;
-  }
-  return e.shiftKey ? 'redo' : 'undo';
-}
-
-function getDeleteCommand(e) {
-  // Allow default "cut" behavior for Windows on Shift + Delete.
-  if (isWindows && e.shiftKey) {
-    return null;
-  }
-  return shouldRemoveWord(e) ? 'delete-word' : 'delete';
-}
-
-function getBackspaceCommand(e) {
-  if (hasCommandModifier(e) && isOSX) {
-    return 'backspace-to-start-of-line';
-  }
-  return shouldRemoveWord(e) ? 'backspace-word' : 'backspace';
-}
-
-/**
- * Retrieve a bound key command for the given event.
- */
-function getDefaultKeyBinding(e) {
-  switch (e.keyCode) {
-    case 66:
-      // B
-      return hasCommandModifier(e) ? 'bold' : null;
-    case 68:
-      // D
-      return isCtrlKeyCommand(e) ? 'delete' : null;
-    case 72:
-      // H
-      return isCtrlKeyCommand(e) ? 'backspace' : null;
-    case 73:
-      // I
-      return hasCommandModifier(e) ? 'italic' : null;
-    case 74:
-      // J
-      return hasCommandModifier(e) ? 'code' : null;
-    case 75:
-      // K
-      return !isWindows && isCtrlKeyCommand(e) ? 'secondary-cut' : null;
-    case 77:
-      // M
-      return isCtrlKeyCommand(e) ? 'split-block' : null;
-    case 79:
-      // O
-      return isCtrlKeyCommand(e) ? 'split-block' : null;
-    case 84:
-      // T
-      return isOSX && isCtrlKeyCommand(e) ? 'transpose-characters' : null;
-    case 85:
-      // U
-      return hasCommandModifier(e) ? 'underline' : null;
-    case 87:
-      // W
-      return isOSX && isCtrlKeyCommand(e) ? 'backspace-word' : null;
-    case 89:
-      // Y
-      if (isCtrlKeyCommand(e)) {
-        return isWindows ? 'redo' : 'secondary-paste';
-      }
-      return null;
-    case 90:
-      // Z
-      return getZCommand(e) || null;
-    case Keys.RETURN:
-      return 'split-block';
-    case Keys.DELETE:
-      return getDeleteCommand(e);
-    case Keys.BACKSPACE:
-      return getBackspaceCommand(e);
-    // LEFT/RIGHT handlers serve as a workaround for a Firefox bug.
-    case Keys.LEFT:
-      return shouldFixFirefoxMovement && hasCommandModifier(e) ? 'move-selection-to-start-of-block' : null;
-    case Keys.RIGHT:
-      return shouldFixFirefoxMovement && hasCommandModifier(e) ? 'move-selection-to-end-of-block' : null;
-    default:
-      return null;
-  }
-}
-
-module.exports = getDefaultKeyBinding;
-
-/***/ }),
-/* 174 */
-/***/ (function(module, exports, __webpack_require__) {
-
-"use strict";
-/**
- * Copyright (c) 2013-present, Facebook, Inc.
- * All rights reserved.
- *
- * This source code is licensed under the BSD-style license found in the
- * LICENSE file in the root directory of this source tree. An additional grant
- * of patent rights can be found in the PATENTS file in the same directory.
- *
- * @providesModule DraftStringKey
- * @format
- * 
- */
-
-
-
-var DraftStringKey = {
-  stringify: function stringify(key) {
-    return '_' + String(key);
-  },
-
-  unstringify: function unstringify(key) {
-    return key.slice(1);
-  }
-};
-
-module.exports = DraftStringKey;
-
-/***/ }),
-/* 175 */
 /***/ (function(module, exports, __webpack_require__) {
 
 "use strict";
@@ -69491,30 +69413,30 @@ module.exports = DraftStringKey;
 
 
 
-var AtomicBlockUtils = __webpack_require__(176);
-var BlockMapBuilder = __webpack_require__(129);
-var CharacterMetadata = __webpack_require__(119);
-var CompositeDraftDecorator = __webpack_require__(192);
-var ContentBlock = __webpack_require__(125);
-var ContentState = __webpack_require__(137);
-var DefaultDraftBlockRenderMap = __webpack_require__(140);
-var DefaultDraftInlineStyle = __webpack_require__(156);
-var DraftEditor = __webpack_require__(193);
-var DraftEditorBlock = __webpack_require__(158);
-var DraftEntity = __webpack_require__(134);
-var DraftModifier = __webpack_require__(118);
-var DraftEntityInstance = __webpack_require__(154);
-var EditorState = __webpack_require__(117);
-var KeyBindingUtil = __webpack_require__(147);
-var RichTextEditorUtil = __webpack_require__(172);
-var SelectionState = __webpack_require__(127);
+var AtomicBlockUtils = __webpack_require__(173);
+var BlockMapBuilder = __webpack_require__(24);
+var CharacterMetadata = __webpack_require__(8);
+var CompositeDraftDecorator = __webpack_require__(189);
+var ContentBlock = __webpack_require__(18);
+var ContentState = __webpack_require__(44);
+var DefaultDraftBlockRenderMap = __webpack_require__(47);
+var DefaultDraftInlineStyle = __webpack_require__(76);
+var DraftEditor = __webpack_require__(190);
+var DraftEditorBlock = __webpack_require__(78);
+var DraftEntity = __webpack_require__(32);
+var DraftModifier = __webpack_require__(6);
+var DraftEntityInstance = __webpack_require__(74);
+var EditorState = __webpack_require__(3);
+var KeyBindingUtil = __webpack_require__(54);
+var RichTextEditorUtil = __webpack_require__(92);
+var SelectionState = __webpack_require__(21);
 
-var convertFromDraftStateToRaw = __webpack_require__(255);
-var convertFromHTMLToContentBlocks = __webpack_require__(170);
-var convertFromRawToDraftState = __webpack_require__(258);
-var generateRandomKey = __webpack_require__(123);
-var getDefaultKeyBinding = __webpack_require__(173);
-var getVisibleSelectionRect = __webpack_require__(263);
+var convertFromDraftStateToRaw = __webpack_require__(252);
+var convertFromHTMLToContentBlocks = __webpack_require__(90);
+var convertFromRawToDraftState = __webpack_require__(255);
+var generateRandomKey = __webpack_require__(14);
+var getDefaultKeyBinding = __webpack_require__(93);
+var getVisibleSelectionRect = __webpack_require__(260);
 
 var DraftPublic = {
   Editor: DraftEditor,
@@ -69550,7 +69472,7 @@ var DraftPublic = {
 module.exports = DraftPublic;
 
 /***/ }),
-/* 176 */
+/* 173 */
 /***/ (function(module, exports, __webpack_require__) {
 
 "use strict";
@@ -69569,22 +69491,22 @@ module.exports = DraftPublic;
 
 
 
-var _assign = __webpack_require__(12);
+var _assign = __webpack_require__(5);
 
 var _extends = _assign || function (target) { for (var i = 1; i < arguments.length; i++) { var source = arguments[i]; for (var key in source) { if (Object.prototype.hasOwnProperty.call(source, key)) { target[key] = source[key]; } } } return target; };
 
-var BlockMapBuilder = __webpack_require__(129);
-var CharacterMetadata = __webpack_require__(119);
-var ContentBlock = __webpack_require__(125);
-var ContentBlockNode = __webpack_require__(120);
-var DraftFeatureFlags = __webpack_require__(124);
-var DraftModifier = __webpack_require__(118);
-var EditorState = __webpack_require__(117);
-var Immutable = __webpack_require__(115);
-var SelectionState = __webpack_require__(127);
+var BlockMapBuilder = __webpack_require__(24);
+var CharacterMetadata = __webpack_require__(8);
+var ContentBlock = __webpack_require__(18);
+var ContentBlockNode = __webpack_require__(10);
+var DraftFeatureFlags = __webpack_require__(16);
+var DraftModifier = __webpack_require__(6);
+var EditorState = __webpack_require__(3);
+var Immutable = __webpack_require__(1);
+var SelectionState = __webpack_require__(21);
 
-var generateRandomKey = __webpack_require__(123);
-var moveBlockInContentState = __webpack_require__(191);
+var generateRandomKey = __webpack_require__(14);
+var moveBlockInContentState = __webpack_require__(188);
 
 var experimentalTreeDataSupport = DraftFeatureFlags.draft_tree_data_support;
 var ContentBlockRecord = experimentalTreeDataSupport ? ContentBlockNode : ContentBlock;
@@ -69685,7 +69607,7 @@ var AtomicBlockUtils = {
 module.exports = AtomicBlockUtils;
 
 /***/ }),
-/* 177 */
+/* 174 */
 /***/ (function(module, exports, __webpack_require__) {
 
 "use strict";
@@ -69714,7 +69636,7 @@ var DraftFeatureFlags = {
 module.exports = DraftFeatureFlags;
 
 /***/ }),
-/* 178 */
+/* 175 */
 /***/ (function(module, exports, __webpack_require__) {
 
 "use strict";
@@ -69733,9 +69655,9 @@ module.exports = DraftFeatureFlags;
 
 
 
-var CharacterMetadata = __webpack_require__(119);
+var CharacterMetadata = __webpack_require__(8);
 
-var _require = __webpack_require__(115),
+var _require = __webpack_require__(1),
     Map = _require.Map;
 
 var ContentStateInlineStyle = {
@@ -69792,7 +69714,7 @@ function modifyInlineStyle(contentState, selectionState, inlineStyle, addOrRemov
 module.exports = ContentStateInlineStyle;
 
 /***/ }),
-/* 179 */
+/* 176 */
 /***/ (function(module, exports, __webpack_require__) {
 
 "use strict";
@@ -69811,9 +69733,9 @@ module.exports = ContentStateInlineStyle;
 
 
 
-var Immutable = __webpack_require__(115);
+var Immutable = __webpack_require__(1);
 
-var applyEntityToContentBlock = __webpack_require__(180);
+var applyEntityToContentBlock = __webpack_require__(177);
 
 function applyEntityToContentState(contentState, selectionState, entityKey) {
   var blockMap = contentState.getBlockMap();
@@ -69842,7 +69764,7 @@ function applyEntityToContentState(contentState, selectionState, entityKey) {
 module.exports = applyEntityToContentState;
 
 /***/ }),
-/* 180 */
+/* 177 */
 /***/ (function(module, exports, __webpack_require__) {
 
 "use strict";
@@ -69861,7 +69783,7 @@ module.exports = applyEntityToContentState;
 
 
 
-var CharacterMetadata = __webpack_require__(119);
+var CharacterMetadata = __webpack_require__(8);
 
 function applyEntityToContentBlock(contentBlock, start, end, entityKey) {
   var characterList = contentBlock.getCharacterList();
@@ -69875,7 +69797,7 @@ function applyEntityToContentBlock(contentBlock, start, end, entityKey) {
 module.exports = applyEntityToContentBlock;
 
 /***/ }),
-/* 181 */
+/* 178 */
 /***/ (function(module, exports, __webpack_require__) {
 
 "use strict";
@@ -69894,10 +69816,10 @@ module.exports = applyEntityToContentBlock;
 
 
 
-var DraftEntitySegments = __webpack_require__(182);
+var DraftEntitySegments = __webpack_require__(179);
 
-var getRangesForDraftEntity = __webpack_require__(183);
-var invariant = __webpack_require__(116);
+var getRangesForDraftEntity = __webpack_require__(180);
+var invariant = __webpack_require__(2);
 
 /**
  * Given a SelectionState and a removal direction, determine the entire range
@@ -69996,7 +69918,7 @@ function getEntityRemovalRange(entityMap, block, selectionState, direction, enti
 module.exports = getCharacterRemovalRange;
 
 /***/ }),
-/* 182 */
+/* 179 */
 /***/ (function(module, exports, __webpack_require__) {
 
 "use strict";
@@ -70101,7 +70023,7 @@ var DraftEntitySegments = {
 module.exports = DraftEntitySegments;
 
 /***/ }),
-/* 183 */
+/* 180 */
 /***/ (function(module, exports, __webpack_require__) {
 
 "use strict";
@@ -70120,7 +70042,7 @@ module.exports = DraftEntitySegments;
 
 
 
-var invariant = __webpack_require__(116);
+var invariant = __webpack_require__(2);
 
 /**
  * Obtain the start and end positions of the range that has the
@@ -70146,7 +70068,7 @@ function getRangesForDraftEntity(block, key) {
 module.exports = getRangesForDraftEntity;
 
 /***/ }),
-/* 184 */
+/* 181 */
 /***/ (function(module, exports, __webpack_require__) {
 
 "use strict";
@@ -70165,13 +70087,13 @@ module.exports = getRangesForDraftEntity;
 
 
 
-var BlockMapBuilder = __webpack_require__(129);
-var ContentBlockNode = __webpack_require__(120);
-var Immutable = __webpack_require__(115);
+var BlockMapBuilder = __webpack_require__(24);
+var ContentBlockNode = __webpack_require__(10);
+var Immutable = __webpack_require__(1);
 
-var insertIntoList = __webpack_require__(151);
-var invariant = __webpack_require__(116);
-var randomizeBlockMapKeys = __webpack_require__(149);
+var insertIntoList = __webpack_require__(71);
+var invariant = __webpack_require__(2);
+var randomizeBlockMapKeys = __webpack_require__(69);
 
 var List = Immutable.List;
 
@@ -70403,7 +70325,7 @@ var insertFragmentIntoContentState = function insertFragmentIntoContentState(con
 module.exports = insertFragmentIntoContentState;
 
 /***/ }),
-/* 185 */
+/* 182 */
 /***/ (function(module, exports, __webpack_require__) {
 
 "use strict";
@@ -70422,10 +70344,10 @@ module.exports = insertFragmentIntoContentState;
 
 
 
-var Immutable = __webpack_require__(115);
+var Immutable = __webpack_require__(1);
 
-var insertIntoList = __webpack_require__(151);
-var invariant = __webpack_require__(116);
+var insertIntoList = __webpack_require__(71);
+var invariant = __webpack_require__(2);
 
 var Repeat = Immutable.Repeat;
 
@@ -70463,7 +70385,7 @@ function insertTextIntoContentState(contentState, selectionState, text, characte
 module.exports = insertTextIntoContentState;
 
 /***/ }),
-/* 186 */
+/* 183 */
 /***/ (function(module, exports, __webpack_require__) {
 
 "use strict";
@@ -70482,7 +70404,7 @@ module.exports = insertTextIntoContentState;
 
 
 
-var Immutable = __webpack_require__(115);
+var Immutable = __webpack_require__(1);
 
 var Map = Immutable.Map;
 
@@ -70507,7 +70429,7 @@ function modifyBlockForContentState(contentState, selectionState, operation) {
 module.exports = modifyBlockForContentState;
 
 /***/ }),
-/* 187 */
+/* 184 */
 /***/ (function(module, exports, __webpack_require__) {
 
 "use strict";
@@ -70526,10 +70448,10 @@ module.exports = modifyBlockForContentState;
 
 
 
-var ContentBlockNode = __webpack_require__(120);
-var Immutable = __webpack_require__(115);
+var ContentBlockNode = __webpack_require__(10);
+var Immutable = __webpack_require__(1);
 
-var getNextDelimiterBlockKey = __webpack_require__(152);
+var getNextDelimiterBlockKey = __webpack_require__(72);
 
 var List = Immutable.List,
     Map = Immutable.Map;
@@ -70819,7 +70741,7 @@ var removeFromList = function removeFromList(targetList, startOffset, endOffset)
 module.exports = removeRangeFromContentState;
 
 /***/ }),
-/* 188 */
+/* 185 */
 /***/ (function(module, exports, __webpack_require__) {
 
 "use strict";
@@ -70838,11 +70760,11 @@ module.exports = removeRangeFromContentState;
 
 
 
-var ContentBlockNode = __webpack_require__(120);
-var Immutable = __webpack_require__(115);
+var ContentBlockNode = __webpack_require__(10);
+var Immutable = __webpack_require__(1);
 
-var generateRandomKey = __webpack_require__(123);
-var invariant = __webpack_require__(116);
+var generateRandomKey = __webpack_require__(14);
+var invariant = __webpack_require__(2);
 
 var List = Immutable.List,
     Map = Immutable.Map;
@@ -70956,7 +70878,7 @@ var splitBlockInContentState = function splitBlockInContentState(contentState, s
 module.exports = splitBlockInContentState;
 
 /***/ }),
-/* 189 */
+/* 186 */
 /***/ (function(module, exports, __webpack_require__) {
 
 "use strict";
@@ -70975,10 +70897,10 @@ module.exports = splitBlockInContentState;
 
 
 
-var Immutable = __webpack_require__(115);
-var UnicodeBidiService = __webpack_require__(190);
+var Immutable = __webpack_require__(1);
+var UnicodeBidiService = __webpack_require__(187);
 
-var nullthrows = __webpack_require__(121);
+var nullthrows = __webpack_require__(11);
 
 var OrderedMap = Immutable.OrderedMap;
 
@@ -71010,7 +70932,7 @@ var EditorBidiService = {
 module.exports = EditorBidiService;
 
 /***/ }),
-/* 190 */
+/* 187 */
 /***/ (function(module, exports, __webpack_require__) {
 
 "use strict";
@@ -71058,10 +70980,10 @@ module.exports = EditorBidiService;
 
 function _classCallCheck(instance, Constructor) { if (!(instance instanceof Constructor)) { throw new TypeError("Cannot call a class as a function"); } }
 
-var UnicodeBidi = __webpack_require__(155);
-var UnicodeBidiDirection = __webpack_require__(139);
+var UnicodeBidi = __webpack_require__(75);
+var UnicodeBidiDirection = __webpack_require__(46);
 
-var invariant = __webpack_require__(116);
+var invariant = __webpack_require__(2);
 
 var UnicodeBidiService = function () {
 
@@ -71114,7 +71036,7 @@ var UnicodeBidiService = function () {
 module.exports = UnicodeBidiService;
 
 /***/ }),
-/* 191 */
+/* 188 */
 /***/ (function(module, exports, __webpack_require__) {
 
 "use strict";
@@ -71133,11 +71055,11 @@ module.exports = UnicodeBidiService;
 
 
 
-var ContentBlockNode = __webpack_require__(120);
-var Immutable = __webpack_require__(115);
+var ContentBlockNode = __webpack_require__(10);
+var Immutable = __webpack_require__(1);
 
-var getNextDelimiterBlockKey = __webpack_require__(152);
-var invariant = __webpack_require__(116);
+var getNextDelimiterBlockKey = __webpack_require__(72);
+var invariant = __webpack_require__(2);
 
 var OrderedMap = Immutable.OrderedMap,
     List = Immutable.List;
@@ -71313,7 +71235,7 @@ var moveBlockInContentState = function moveBlockInContentState(contentState, blo
 module.exports = moveBlockInContentState;
 
 /***/ }),
-/* 192 */
+/* 189 */
 /***/ (function(module, exports, __webpack_require__) {
 
 "use strict";
@@ -71334,7 +71256,7 @@ module.exports = moveBlockInContentState;
 
 function _classCallCheck(instance, Constructor) { if (!(instance instanceof Constructor)) { throw new TypeError("Cannot call a class as a function"); } }
 
-var Immutable = __webpack_require__(115);
+var Immutable = __webpack_require__(1);
 
 var List = Immutable.List;
 
@@ -71433,7 +71355,7 @@ function occupySlice(targetArr, start, end, componentKey) {
 module.exports = CompositeDraftDecorator;
 
 /***/ }),
-/* 193 */
+/* 190 */
 /***/ (function(module, exports, __webpack_require__) {
 
 "use strict";
@@ -71453,7 +71375,7 @@ module.exports = CompositeDraftDecorator;
 
 
 
-var _assign = __webpack_require__(12);
+var _assign = __webpack_require__(5);
 
 var _extends = _assign || function (target) { for (var i = 1; i < arguments.length; i++) { var source = arguments[i]; for (var key in source) { if (Object.prototype.hasOwnProperty.call(source, key)) { target[key] = source[key]; } } } return target; };
 
@@ -71463,27 +71385,27 @@ function _possibleConstructorReturn(self, call) { if (!self) { throw new Referen
 
 function _inherits(subClass, superClass) { if (typeof superClass !== "function" && superClass !== null) { throw new TypeError("Super expression must either be null or a function, not " + typeof superClass); } subClass.prototype = Object.create(superClass && superClass.prototype, { constructor: { value: subClass, enumerable: false, writable: true, configurable: true } }); if (superClass) Object.setPrototypeOf ? Object.setPrototypeOf(subClass, superClass) : subClass.__proto__ = superClass; }
 
-var DefaultDraftBlockRenderMap = __webpack_require__(140);
-var DefaultDraftInlineStyle = __webpack_require__(156);
-var DraftEditorCompositionHandler = __webpack_require__(194);
-var DraftEditorContents = __webpack_require__(195);
-var DraftEditorDragHandler = __webpack_require__(218);
-var DraftEditorEditHandler = __webpack_require__(221);
-var DraftEditorPlaceholder = __webpack_require__(254);
-var EditorState = __webpack_require__(117);
+var DefaultDraftBlockRenderMap = __webpack_require__(47);
+var DefaultDraftInlineStyle = __webpack_require__(76);
+var DraftEditorCompositionHandler = __webpack_require__(191);
+var DraftEditorContents = __webpack_require__(192);
+var DraftEditorDragHandler = __webpack_require__(215);
+var DraftEditorEditHandler = __webpack_require__(218);
+var DraftEditorPlaceholder = __webpack_require__(251);
+var EditorState = __webpack_require__(3);
 var React = __webpack_require__(0);
-var ReactDOM = __webpack_require__(25);
-var Scroll = __webpack_require__(160);
-var Style = __webpack_require__(144);
-var UserAgent = __webpack_require__(122);
+var ReactDOM = __webpack_require__(17);
+var Scroll = __webpack_require__(80);
+var Style = __webpack_require__(51);
+var UserAgent = __webpack_require__(12);
 
-var cx = __webpack_require__(128);
-var emptyFunction = __webpack_require__(136);
-var generateRandomKey = __webpack_require__(123);
-var getDefaultKeyBinding = __webpack_require__(173);
-var getScrollPosition = __webpack_require__(145);
-var invariant = __webpack_require__(116);
-var nullthrows = __webpack_require__(121);
+var cx = __webpack_require__(22);
+var emptyFunction = __webpack_require__(43);
+var generateRandomKey = __webpack_require__(14);
+var getDefaultKeyBinding = __webpack_require__(93);
+var getScrollPosition = __webpack_require__(52);
+var invariant = __webpack_require__(2);
+var nullthrows = __webpack_require__(11);
 
 var isIE = UserAgent.isBrowser('IE');
 
@@ -71911,7 +71833,7 @@ DraftEditor.defaultProps = {
 module.exports = DraftEditor;
 
 /***/ }),
-/* 194 */
+/* 191 */
 /***/ (function(module, exports, __webpack_require__) {
 
 "use strict";
@@ -71930,14 +71852,14 @@ module.exports = DraftEditor;
 
 
 
-var DraftFeatureFlags = __webpack_require__(124);
-var DraftModifier = __webpack_require__(118);
-var EditorState = __webpack_require__(117);
-var Keys = __webpack_require__(141);
+var DraftFeatureFlags = __webpack_require__(16);
+var DraftModifier = __webpack_require__(6);
+var EditorState = __webpack_require__(3);
+var Keys = __webpack_require__(48);
 
-var getEntityKeyForSelection = __webpack_require__(142);
-var isEventHandled = __webpack_require__(131);
-var isSelectionAtLeafStart = __webpack_require__(157);
+var getEntityKeyForSelection = __webpack_require__(49);
+var isEventHandled = __webpack_require__(26);
+var isSelectionAtLeafStart = __webpack_require__(77);
 
 /**
  * Millisecond delay to allow `compositionstart` to fire again upon
@@ -72092,7 +72014,7 @@ var DraftEditorCompositionHandler = {
 module.exports = DraftEditorCompositionHandler;
 
 /***/ }),
-/* 195 */
+/* 192 */
 /***/ (function(module, exports, __webpack_require__) {
 
 "use strict";
@@ -72111,12 +72033,12 @@ module.exports = DraftEditorCompositionHandler;
 
 
 
-var DraftEditorContents = __webpack_require__(196);
+var DraftEditorContents = __webpack_require__(193);
 
 module.exports = DraftEditorContents;
 
 /***/ }),
-/* 196 */
+/* 193 */
 /***/ (function(module, exports, __webpack_require__) {
 
 "use strict";
@@ -72135,7 +72057,7 @@ module.exports = DraftEditorContents;
 
 
 
-var _assign = __webpack_require__(12);
+var _assign = __webpack_require__(5);
 
 var _extends = _assign || function (target) { for (var i = 1; i < arguments.length; i++) { var source = arguments[i]; for (var key in source) { if (Object.prototype.hasOwnProperty.call(source, key)) { target[key] = source[key]; } } } return target; };
 
@@ -72145,14 +72067,14 @@ function _possibleConstructorReturn(self, call) { if (!self) { throw new Referen
 
 function _inherits(subClass, superClass) { if (typeof superClass !== "function" && superClass !== null) { throw new TypeError("Super expression must either be null or a function, not " + typeof superClass); } subClass.prototype = Object.create(superClass && superClass.prototype, { constructor: { value: subClass, enumerable: false, writable: true, configurable: true } }); if (superClass) Object.setPrototypeOf ? Object.setPrototypeOf(subClass, superClass) : subClass.__proto__ = superClass; }
 
-var DraftEditorBlock = __webpack_require__(158);
-var DraftOffsetKey = __webpack_require__(135);
-var EditorState = __webpack_require__(117);
+var DraftEditorBlock = __webpack_require__(78);
+var DraftOffsetKey = __webpack_require__(33);
+var EditorState = __webpack_require__(3);
 var React = __webpack_require__(0);
 
-var cx = __webpack_require__(128);
-var joinClasses = __webpack_require__(217);
-var nullthrows = __webpack_require__(121);
+var cx = __webpack_require__(22);
+var joinClasses = __webpack_require__(214);
+var nullthrows = __webpack_require__(11);
 
 /**
  * Provide default styling for list items. This way, lists will be styled with
@@ -72372,7 +72294,7 @@ var DraftEditorContents = function (_React$Component) {
 module.exports = DraftEditorContents;
 
 /***/ }),
-/* 197 */
+/* 194 */
 /***/ (function(module, exports, __webpack_require__) {
 
 "use strict";
@@ -72391,7 +72313,7 @@ module.exports = DraftEditorContents;
 
 
 
-var _assign = __webpack_require__(12);
+var _assign = __webpack_require__(5);
 
 function _classCallCheck(instance, Constructor) { if (!(instance instanceof Constructor)) { throw new TypeError("Cannot call a class as a function"); } }
 
@@ -72399,12 +72321,12 @@ function _possibleConstructorReturn(self, call) { if (!self) { throw new Referen
 
 function _inherits(subClass, superClass) { if (typeof superClass !== "function" && superClass !== null) { throw new TypeError("Super expression must either be null or a function, not " + typeof superClass); } subClass.prototype = Object.create(superClass && superClass.prototype, { constructor: { value: subClass, enumerable: false, writable: true, configurable: true } }); if (superClass) Object.setPrototypeOf ? Object.setPrototypeOf(subClass, superClass) : subClass.__proto__ = superClass; }
 
-var DraftEditorTextNode = __webpack_require__(198);
+var DraftEditorTextNode = __webpack_require__(195);
 var React = __webpack_require__(0);
-var ReactDOM = __webpack_require__(25);
+var ReactDOM = __webpack_require__(17);
 
-var invariant = __webpack_require__(116);
-var setDraftEditorSelection = __webpack_require__(205);
+var invariant = __webpack_require__(2);
+var setDraftEditorSelection = __webpack_require__(202);
 
 /**
  * All leaf nodes in the editor are spans with single text nodes. Leaf
@@ -72548,7 +72470,7 @@ var DraftEditorLeaf = function (_React$Component) {
 module.exports = DraftEditorLeaf;
 
 /***/ }),
-/* 198 */
+/* 195 */
 /***/ (function(module, exports, __webpack_require__) {
 
 "use strict";
@@ -72574,10 +72496,10 @@ function _possibleConstructorReturn(self, call) { if (!self) { throw new Referen
 function _inherits(subClass, superClass) { if (typeof superClass !== "function" && superClass !== null) { throw new TypeError("Super expression must either be null or a function, not " + typeof superClass); } subClass.prototype = Object.create(superClass && superClass.prototype, { constructor: { value: subClass, enumerable: false, writable: true, configurable: true } }); if (superClass) Object.setPrototypeOf ? Object.setPrototypeOf(subClass, superClass) : subClass.__proto__ = superClass; }
 
 var React = __webpack_require__(0);
-var ReactDOM = __webpack_require__(25);
-var UserAgent = __webpack_require__(122);
+var ReactDOM = __webpack_require__(17);
+var UserAgent = __webpack_require__(12);
 
-var invariant = __webpack_require__(116);
+var invariant = __webpack_require__(2);
 
 // In IE, spans with <br> tags render as two newlines. By rendering a span
 // with only a newline character, we can be sure to render a single line.
@@ -72669,7 +72591,7 @@ var DraftEditorTextNode = function (_React$Component) {
 module.exports = DraftEditorTextNode;
 
 /***/ }),
-/* 199 */
+/* 196 */
 /***/ (function(module, exports, __webpack_require__) {
 
 "use strict";
@@ -72694,7 +72616,7 @@ module.exports = DraftEditorTextNode;
 
 
 
-var UAParser = __webpack_require__(200);
+var UAParser = __webpack_require__(197);
 
 var UNKNOWN = 'Unknown';
 
@@ -72755,7 +72677,7 @@ var uaData = {
 module.exports = uaData;
 
 /***/ }),
-/* 200 */
+/* 197 */
 /***/ (function(module, exports, __webpack_require__) {
 
 var __WEBPACK_AMD_DEFINE_RESULT__;/*!
@@ -73834,7 +73756,7 @@ var __WEBPACK_AMD_DEFINE_RESULT__;/*!
         exports.UAParser = UAParser;
     } else {
         // requirejs env (optional)
-        if ("function" === FUNC_TYPE && __webpack_require__(201)) {
+        if ("function" === FUNC_TYPE && __webpack_require__(198)) {
             !(__WEBPACK_AMD_DEFINE_RESULT__ = (function () {
                 return UAParser;
             }).call(exports, __webpack_require__, exports, module),
@@ -73870,7 +73792,7 @@ var __WEBPACK_AMD_DEFINE_RESULT__;/*!
 
 
 /***/ }),
-/* 201 */
+/* 198 */
 /***/ (function(module, exports) {
 
 /* WEBPACK VAR INJECTION */(function(__webpack_amd_options__) {/* globals __webpack_amd_options__ */
@@ -73879,7 +73801,7 @@ module.exports = __webpack_amd_options__;
 /* WEBPACK VAR INJECTION */}.call(exports, {}))
 
 /***/ }),
-/* 202 */
+/* 199 */
 /***/ (function(module, exports, __webpack_require__) {
 
 "use strict";
@@ -73893,7 +73815,7 @@ module.exports = __webpack_amd_options__;
 
 
 
-var invariant = __webpack_require__(116);
+var invariant = __webpack_require__(2);
 
 var componentRegex = /\./;
 var orRegex = /\|\|/;
@@ -74265,7 +74187,7 @@ var VersionRange = {
 module.exports = VersionRange;
 
 /***/ }),
-/* 203 */
+/* 200 */
 /***/ (function(module, exports, __webpack_require__) {
 
 "use strict";
@@ -74319,7 +74241,7 @@ function mapObject(object, callback, context) {
 module.exports = mapObject;
 
 /***/ }),
-/* 204 */
+/* 201 */
 /***/ (function(module, exports, __webpack_require__) {
 
 "use strict";
@@ -74352,7 +74274,7 @@ function memoizeStringOnly(callback) {
 module.exports = memoizeStringOnly;
 
 /***/ }),
-/* 205 */
+/* 202 */
 /***/ (function(module, exports, __webpack_require__) {
 
 "use strict";
@@ -74371,11 +74293,11 @@ module.exports = memoizeStringOnly;
 
 
 
-var DraftJsDebugLogging = __webpack_require__(206);
+var DraftJsDebugLogging = __webpack_require__(203);
 
-var containsNode = __webpack_require__(143);
-var getActiveElement = __webpack_require__(159);
-var invariant = __webpack_require__(116);
+var containsNode = __webpack_require__(50);
+var getActiveElement = __webpack_require__(79);
+var invariant = __webpack_require__(2);
 
 function getAnonymizedDOM(node, getNodeLabels) {
   if (!node) {
@@ -74604,7 +74526,7 @@ module.exports = setDraftEditorSelection;
 /* WEBPACK VAR INJECTION */}.call(exports, __webpack_require__(7)))
 
 /***/ }),
-/* 206 */
+/* 203 */
 /***/ (function(module, exports, __webpack_require__) {
 
 "use strict";
@@ -74628,7 +74550,7 @@ module.exports = {
 };
 
 /***/ }),
-/* 207 */
+/* 204 */
 /***/ (function(module, exports, __webpack_require__) {
 
 "use strict";
@@ -74643,7 +74565,7 @@ module.exports = {
  * @typechecks
  */
 
-var isNode = __webpack_require__(208);
+var isNode = __webpack_require__(205);
 
 /**
  * @param {*} object The object to check.
@@ -74656,7 +74578,7 @@ function isTextNode(object) {
 module.exports = isTextNode;
 
 /***/ }),
-/* 208 */
+/* 205 */
 /***/ (function(module, exports, __webpack_require__) {
 
 "use strict";
@@ -74684,7 +74606,7 @@ function isNode(object) {
 module.exports = isNode;
 
 /***/ }),
-/* 209 */
+/* 206 */
 /***/ (function(module, exports, __webpack_require__) {
 
 "use strict";
@@ -74699,8 +74621,8 @@ module.exports = isNode;
  * @typechecks
  */
 
-var camelize = __webpack_require__(210);
-var hyphenate = __webpack_require__(211);
+var camelize = __webpack_require__(207);
+var hyphenate = __webpack_require__(208);
 
 function asString(value) /*?string*/{
   return value == null ? value : String(value);
@@ -74741,7 +74663,7 @@ function getStyleProperty( /*DOMNode*/node, /*string*/name) /*?string*/{
 module.exports = getStyleProperty;
 
 /***/ }),
-/* 210 */
+/* 207 */
 /***/ (function(module, exports, __webpack_require__) {
 
 "use strict";
@@ -74776,7 +74698,7 @@ function camelize(string) {
 module.exports = camelize;
 
 /***/ }),
-/* 211 */
+/* 208 */
 /***/ (function(module, exports, __webpack_require__) {
 
 "use strict";
@@ -74812,7 +74734,7 @@ function hyphenate(string) {
 module.exports = hyphenate;
 
 /***/ }),
-/* 212 */
+/* 209 */
 /***/ (function(module, exports, __webpack_require__) {
 
 "use strict";
@@ -74827,7 +74749,7 @@ module.exports = hyphenate;
  * @typechecks
  */
 
-var getElementRect = __webpack_require__(213);
+var getElementRect = __webpack_require__(210);
 
 /**
  * Gets an element's position in pixels relative to the viewport. The returned
@@ -74849,7 +74771,7 @@ function getElementPosition(element) {
 module.exports = getElementPosition;
 
 /***/ }),
-/* 213 */
+/* 210 */
 /***/ (function(module, exports, __webpack_require__) {
 
 "use strict";
@@ -74864,7 +74786,7 @@ module.exports = getElementPosition;
  * @typechecks
  */
 
-var containsNode = __webpack_require__(143);
+var containsNode = __webpack_require__(50);
 
 /**
  * Gets an element's bounding rect in pixels relative to the viewport.
@@ -74903,7 +74825,7 @@ function getElementRect(elem) {
 module.exports = getElementRect;
 
 /***/ }),
-/* 214 */
+/* 211 */
 /***/ (function(module, exports, __webpack_require__) {
 
 "use strict";
@@ -74940,7 +74862,7 @@ function getDocumentScrollElement(doc) {
 module.exports = getDocumentScrollElement;
 
 /***/ }),
-/* 215 */
+/* 212 */
 /***/ (function(module, exports, __webpack_require__) {
 
 "use strict";
@@ -74982,7 +74904,7 @@ function getUnboundedScrollPosition(scrollable) {
 module.exports = getUnboundedScrollPosition;
 
 /***/ }),
-/* 216 */
+/* 213 */
 /***/ (function(module, exports, __webpack_require__) {
 
 "use strict";
@@ -75045,7 +74967,7 @@ getViewportDimensions.withoutScrollbars = function () {
 module.exports = getViewportDimensions;
 
 /***/ }),
-/* 217 */
+/* 214 */
 /***/ (function(module, exports, __webpack_require__) {
 
 "use strict";
@@ -75088,7 +75010,7 @@ function joinClasses(className /*, ... */) {
 module.exports = joinClasses;
 
 /***/ }),
-/* 218 */
+/* 215 */
 /***/ (function(module, exports, __webpack_require__) {
 
 "use strict";
@@ -75107,15 +75029,15 @@ module.exports = joinClasses;
 
 
 
-var DataTransfer = __webpack_require__(161);
-var DraftModifier = __webpack_require__(118);
-var EditorState = __webpack_require__(117);
+var DataTransfer = __webpack_require__(81);
+var DraftModifier = __webpack_require__(6);
+var EditorState = __webpack_require__(3);
 
-var findAncestorOffsetKey = __webpack_require__(146);
-var getTextContentFromFiles = __webpack_require__(163);
-var getUpdatedSelectionState = __webpack_require__(164);
-var isEventHandled = __webpack_require__(131);
-var nullthrows = __webpack_require__(121);
+var findAncestorOffsetKey = __webpack_require__(53);
+var getTextContentFromFiles = __webpack_require__(83);
+var getUpdatedSelectionState = __webpack_require__(84);
+var isEventHandled = __webpack_require__(26);
+var nullthrows = __webpack_require__(11);
 
 /**
  * Get a SelectionState for the supplied mouse event.
@@ -75208,7 +75130,7 @@ function insertTextAtSelection(editorState, selection, text) {
 module.exports = DraftEditorDragHandler;
 
 /***/ }),
-/* 219 */
+/* 216 */
 /***/ (function(module, exports, __webpack_require__) {
 
 "use strict";
@@ -75240,7 +75162,7 @@ function getParts(mimeString) {
 module.exports = PhotosMimeType;
 
 /***/ }),
-/* 220 */
+/* 217 */
 /***/ (function(module, exports, __webpack_require__) {
 
 "use strict";
@@ -75255,7 +75177,7 @@ module.exports = PhotosMimeType;
  * @typechecks
  */
 
-var invariant = __webpack_require__(116);
+var invariant = __webpack_require__(2);
 
 /**
  * Convert array-like objects to arrays.
@@ -75370,7 +75292,7 @@ function createArrayFromMixed(obj) {
 module.exports = createArrayFromMixed;
 
 /***/ }),
-/* 221 */
+/* 218 */
 /***/ (function(module, exports, __webpack_require__) {
 
 "use strict";
@@ -75389,18 +75311,18 @@ module.exports = createArrayFromMixed;
 
 
 
-var onBeforeInput = __webpack_require__(222);
-var onBlur = __webpack_require__(225);
-var onCompositionStart = __webpack_require__(226);
-var onCopy = __webpack_require__(227);
-var onCut = __webpack_require__(228);
-var onDragOver = __webpack_require__(229);
-var onDragStart = __webpack_require__(230);
-var onFocus = __webpack_require__(231);
-var onInput = __webpack_require__(232);
-var onKeyDown = __webpack_require__(233);
-var onPaste = __webpack_require__(247);
-var onSelect = __webpack_require__(252);
+var onBeforeInput = __webpack_require__(219);
+var onBlur = __webpack_require__(222);
+var onCompositionStart = __webpack_require__(223);
+var onCopy = __webpack_require__(224);
+var onCut = __webpack_require__(225);
+var onDragOver = __webpack_require__(226);
+var onDragStart = __webpack_require__(227);
+var onFocus = __webpack_require__(228);
+var onInput = __webpack_require__(229);
+var onKeyDown = __webpack_require__(230);
+var onPaste = __webpack_require__(244);
+var onSelect = __webpack_require__(249);
 
 var DraftEditorEditHandler = {
   onBeforeInput: onBeforeInput,
@@ -75420,7 +75342,7 @@ var DraftEditorEditHandler = {
 module.exports = DraftEditorEditHandler;
 
 /***/ }),
-/* 222 */
+/* 219 */
 /***/ (function(module, exports, __webpack_require__) {
 
 "use strict";
@@ -75439,16 +75361,16 @@ module.exports = DraftEditorEditHandler;
 
 
 
-var BlockTree = __webpack_require__(153);
-var DraftModifier = __webpack_require__(118);
-var EditorState = __webpack_require__(117);
-var UserAgent = __webpack_require__(122);
+var BlockTree = __webpack_require__(73);
+var DraftModifier = __webpack_require__(6);
+var EditorState = __webpack_require__(3);
+var UserAgent = __webpack_require__(12);
 
-var getEntityKeyForSelection = __webpack_require__(142);
-var isEventHandled = __webpack_require__(131);
-var isSelectionAtLeafStart = __webpack_require__(157);
-var nullthrows = __webpack_require__(121);
-var setImmediate = __webpack_require__(223);
+var getEntityKeyForSelection = __webpack_require__(49);
+var isEventHandled = __webpack_require__(26);
+var isSelectionAtLeafStart = __webpack_require__(77);
+var nullthrows = __webpack_require__(11);
+var setImmediate = __webpack_require__(220);
 
 // When nothing is focused, Firefox regards two characters, `'` and `/`, as
 // commands that should open and focus the "quickfind" search bar. This should
@@ -75597,7 +75519,7 @@ module.exports = editOnBeforeInput;
 /* WEBPACK VAR INJECTION */}.call(exports, __webpack_require__(7)))
 
 /***/ }),
-/* 223 */
+/* 220 */
 /***/ (function(module, exports, __webpack_require__) {
 
 "use strict";
@@ -75614,12 +75536,12 @@ module.exports = editOnBeforeInput;
 // setimmediate adds setImmediate to the global. We want to make sure we export
 // the actual function.
 
-__webpack_require__(224);
+__webpack_require__(221);
 module.exports = global.setImmediate;
 /* WEBPACK VAR INJECTION */}.call(exports, __webpack_require__(7)))
 
 /***/ }),
-/* 224 */
+/* 221 */
 /***/ (function(module, exports, __webpack_require__) {
 
 /* WEBPACK VAR INJECTION */(function(global, process) {(function (global, undefined) {
@@ -75809,10 +75731,10 @@ module.exports = global.setImmediate;
     attachTo.clearImmediate = clearImmediate;
 }(typeof self === "undefined" ? typeof global === "undefined" ? this : global : self));
 
-/* WEBPACK VAR INJECTION */}.call(exports, __webpack_require__(7), __webpack_require__(43)))
+/* WEBPACK VAR INJECTION */}.call(exports, __webpack_require__(7), __webpack_require__(57)))
 
 /***/ }),
-/* 225 */
+/* 222 */
 /***/ (function(module, exports, __webpack_require__) {
 
 "use strict";
@@ -75831,10 +75753,10 @@ module.exports = global.setImmediate;
 
 
 
-var EditorState = __webpack_require__(117);
+var EditorState = __webpack_require__(3);
 
-var containsNode = __webpack_require__(143);
-var getActiveElement = __webpack_require__(159);
+var containsNode = __webpack_require__(50);
+var getActiveElement = __webpack_require__(79);
 
 function editOnBlur(editor, e) {
   // In a contentEditable element, when you select a range and then click
@@ -75868,7 +75790,7 @@ module.exports = editOnBlur;
 /* WEBPACK VAR INJECTION */}.call(exports, __webpack_require__(7)))
 
 /***/ }),
-/* 226 */
+/* 223 */
 /***/ (function(module, exports, __webpack_require__) {
 
 "use strict";
@@ -75887,7 +75809,7 @@ module.exports = editOnBlur;
 
 
 
-var EditorState = __webpack_require__(117);
+var EditorState = __webpack_require__(3);
 
 /**
  * The user has begun using an IME input system. Switching to `composite` mode
@@ -75903,7 +75825,7 @@ function editOnCompositionStart(editor, e) {
 module.exports = editOnCompositionStart;
 
 /***/ }),
-/* 227 */
+/* 224 */
 /***/ (function(module, exports, __webpack_require__) {
 
 "use strict";
@@ -75922,7 +75844,7 @@ module.exports = editOnCompositionStart;
 
 
 
-var getFragmentFromSelection = __webpack_require__(165);
+var getFragmentFromSelection = __webpack_require__(85);
 
 /**
  * If we have a selection, create a ContentState fragment and store
@@ -75945,7 +75867,7 @@ function editOnCopy(editor, e) {
 module.exports = editOnCopy;
 
 /***/ }),
-/* 228 */
+/* 225 */
 /***/ (function(module, exports, __webpack_require__) {
 
 "use strict";
@@ -75964,12 +75886,12 @@ module.exports = editOnCopy;
 
 
 
-var DraftModifier = __webpack_require__(118);
-var EditorState = __webpack_require__(117);
-var Style = __webpack_require__(144);
+var DraftModifier = __webpack_require__(6);
+var EditorState = __webpack_require__(3);
+var Style = __webpack_require__(51);
 
-var getFragmentFromSelection = __webpack_require__(165);
-var getScrollPosition = __webpack_require__(145);
+var getFragmentFromSelection = __webpack_require__(85);
+var getScrollPosition = __webpack_require__(52);
 
 /**
  * On `cut` events, native behavior is allowed to occur so that the system
@@ -76020,7 +75942,7 @@ function removeFragment(editorState) {
 module.exports = editOnCut;
 
 /***/ }),
-/* 229 */
+/* 226 */
 /***/ (function(module, exports, __webpack_require__) {
 
 "use strict";
@@ -76051,7 +75973,7 @@ function editOnDragOver(editor, e) {
 module.exports = editOnDragOver;
 
 /***/ }),
-/* 230 */
+/* 227 */
 /***/ (function(module, exports, __webpack_require__) {
 
 "use strict";
@@ -76081,7 +76003,7 @@ function editOnDragStart(editor) {
 module.exports = editOnDragStart;
 
 /***/ }),
-/* 231 */
+/* 228 */
 /***/ (function(module, exports, __webpack_require__) {
 
 "use strict";
@@ -76100,8 +76022,8 @@ module.exports = editOnDragStart;
 
 
 
-var EditorState = __webpack_require__(117);
-var UserAgent = __webpack_require__(122);
+var EditorState = __webpack_require__(3);
+var UserAgent = __webpack_require__(12);
 
 function editOnFocus(editor, e) {
   var editorState = editor._latestEditorState;
@@ -76133,7 +76055,7 @@ function editOnFocus(editor, e) {
 module.exports = editOnFocus;
 
 /***/ }),
-/* 232 */
+/* 229 */
 /***/ (function(module, exports, __webpack_require__) {
 
 "use strict";
@@ -76152,14 +76074,14 @@ module.exports = editOnFocus;
 
 
 
-var DraftFeatureFlags = __webpack_require__(124);
-var DraftModifier = __webpack_require__(118);
-var DraftOffsetKey = __webpack_require__(135);
-var EditorState = __webpack_require__(117);
-var UserAgent = __webpack_require__(122);
+var DraftFeatureFlags = __webpack_require__(16);
+var DraftModifier = __webpack_require__(6);
+var DraftOffsetKey = __webpack_require__(33);
+var EditorState = __webpack_require__(3);
+var UserAgent = __webpack_require__(12);
 
-var findAncestorOffsetKey = __webpack_require__(146);
-var nullthrows = __webpack_require__(121);
+var findAncestorOffsetKey = __webpack_require__(53);
+var nullthrows = __webpack_require__(11);
 
 var isGecko = UserAgent.isEngine('Gecko');
 
@@ -76312,7 +76234,7 @@ module.exports = editOnInput;
 /* WEBPACK VAR INJECTION */}.call(exports, __webpack_require__(7)))
 
 /***/ }),
-/* 233 */
+/* 230 */
 /***/ (function(module, exports, __webpack_require__) {
 
 "use strict";
@@ -76331,24 +76253,24 @@ module.exports = editOnInput;
 
 
 
-var DraftModifier = __webpack_require__(118);
-var EditorState = __webpack_require__(117);
-var KeyBindingUtil = __webpack_require__(147);
-var Keys = __webpack_require__(141);
-var SecondaryClipboard = __webpack_require__(234);
-var UserAgent = __webpack_require__(122);
+var DraftModifier = __webpack_require__(6);
+var EditorState = __webpack_require__(3);
+var KeyBindingUtil = __webpack_require__(54);
+var Keys = __webpack_require__(48);
+var SecondaryClipboard = __webpack_require__(231);
+var UserAgent = __webpack_require__(12);
 
-var isEventHandled = __webpack_require__(131);
-var keyCommandBackspaceToStartOfLine = __webpack_require__(235);
-var keyCommandBackspaceWord = __webpack_require__(237);
-var keyCommandDeleteWord = __webpack_require__(239);
-var keyCommandInsertNewline = __webpack_require__(240);
-var keyCommandMoveSelectionToEndOfBlock = __webpack_require__(241);
-var keyCommandMoveSelectionToStartOfBlock = __webpack_require__(242);
-var keyCommandPlainBackspace = __webpack_require__(243);
-var keyCommandPlainDelete = __webpack_require__(244);
-var keyCommandTransposeCharacters = __webpack_require__(245);
-var keyCommandUndo = __webpack_require__(246);
+var isEventHandled = __webpack_require__(26);
+var keyCommandBackspaceToStartOfLine = __webpack_require__(232);
+var keyCommandBackspaceWord = __webpack_require__(234);
+var keyCommandDeleteWord = __webpack_require__(236);
+var keyCommandInsertNewline = __webpack_require__(237);
+var keyCommandMoveSelectionToEndOfBlock = __webpack_require__(238);
+var keyCommandMoveSelectionToStartOfBlock = __webpack_require__(239);
+var keyCommandPlainBackspace = __webpack_require__(240);
+var keyCommandPlainDelete = __webpack_require__(241);
+var keyCommandTransposeCharacters = __webpack_require__(242);
+var keyCommandUndo = __webpack_require__(243);
 
 var isOptionKeyCommand = KeyBindingUtil.isOptionKeyCommand;
 
@@ -76472,7 +76394,7 @@ function editOnKeyDown(editor, e) {
 module.exports = editOnKeyDown;
 
 /***/ }),
-/* 234 */
+/* 231 */
 /***/ (function(module, exports, __webpack_require__) {
 
 "use strict";
@@ -76491,11 +76413,11 @@ module.exports = editOnKeyDown;
 
 
 
-var DraftModifier = __webpack_require__(118);
-var EditorState = __webpack_require__(117);
+var DraftModifier = __webpack_require__(6);
+var EditorState = __webpack_require__(3);
 
-var getContentStateFragment = __webpack_require__(133);
-var nullthrows = __webpack_require__(121);
+var getContentStateFragment = __webpack_require__(31);
+var nullthrows = __webpack_require__(11);
 
 var clipboard = null;
 
@@ -76548,7 +76470,7 @@ var SecondaryClipboard = {
 module.exports = SecondaryClipboard;
 
 /***/ }),
-/* 235 */
+/* 232 */
 /***/ (function(module, exports, __webpack_require__) {
 
 "use strict";
@@ -76567,12 +76489,12 @@ module.exports = SecondaryClipboard;
 
 
 
-var EditorState = __webpack_require__(117);
+var EditorState = __webpack_require__(3);
 
-var expandRangeToStartOfLine = __webpack_require__(236);
-var getDraftEditorSelectionWithNodes = __webpack_require__(167);
-var moveSelectionBackward = __webpack_require__(148);
-var removeTextWithStrategy = __webpack_require__(132);
+var expandRangeToStartOfLine = __webpack_require__(233);
+var getDraftEditorSelectionWithNodes = __webpack_require__(87);
+var moveSelectionBackward = __webpack_require__(55);
+var removeTextWithStrategy = __webpack_require__(27);
 
 function keyCommandBackspaceToStartOfLine(editorState) {
   var afterRemoval = removeTextWithStrategy(editorState, function (strategyState) {
@@ -76599,7 +76521,7 @@ module.exports = keyCommandBackspaceToStartOfLine;
 /* WEBPACK VAR INJECTION */}.call(exports, __webpack_require__(7)))
 
 /***/ }),
-/* 236 */
+/* 233 */
 /***/ (function(module, exports, __webpack_require__) {
 
 "use strict";
@@ -76618,10 +76540,10 @@ module.exports = keyCommandBackspaceToStartOfLine;
  * 
  */
 
-var UnicodeUtils = __webpack_require__(126);
+var UnicodeUtils = __webpack_require__(19);
 
-var getRangeClientRects = __webpack_require__(166);
-var invariant = __webpack_require__(116);
+var getRangeClientRects = __webpack_require__(86);
+var invariant = __webpack_require__(2);
 
 /**
  * Return the computed line height, in pixels, for the provided element.
@@ -76797,7 +76719,7 @@ function expandRangeToStartOfLine(range) {
 module.exports = expandRangeToStartOfLine;
 
 /***/ }),
-/* 237 */
+/* 234 */
 /***/ (function(module, exports, __webpack_require__) {
 
 "use strict";
@@ -76816,11 +76738,11 @@ module.exports = expandRangeToStartOfLine;
 
 
 
-var DraftRemovableWord = __webpack_require__(168);
-var EditorState = __webpack_require__(117);
+var DraftRemovableWord = __webpack_require__(88);
+var EditorState = __webpack_require__(3);
 
-var moveSelectionBackward = __webpack_require__(148);
-var removeTextWithStrategy = __webpack_require__(132);
+var moveSelectionBackward = __webpack_require__(55);
+var removeTextWithStrategy = __webpack_require__(27);
 
 /**
  * Delete the word that is left of the cursor, as well as any spaces or
@@ -76851,7 +76773,7 @@ function keyCommandBackspaceWord(editorState) {
 module.exports = keyCommandBackspaceWord;
 
 /***/ }),
-/* 238 */
+/* 235 */
 /***/ (function(module, exports, __webpack_require__) {
 
 "use strict";
@@ -76892,7 +76814,7 @@ module.exports = {
 };
 
 /***/ }),
-/* 239 */
+/* 236 */
 /***/ (function(module, exports, __webpack_require__) {
 
 "use strict";
@@ -76911,11 +76833,11 @@ module.exports = {
 
 
 
-var DraftRemovableWord = __webpack_require__(168);
-var EditorState = __webpack_require__(117);
+var DraftRemovableWord = __webpack_require__(88);
+var EditorState = __webpack_require__(3);
 
-var moveSelectionForward = __webpack_require__(169);
-var removeTextWithStrategy = __webpack_require__(132);
+var moveSelectionForward = __webpack_require__(89);
+var removeTextWithStrategy = __webpack_require__(27);
 
 /**
  * Delete the word that is right of the cursor, as well as any spaces or
@@ -76944,7 +76866,7 @@ function keyCommandDeleteWord(editorState) {
 module.exports = keyCommandDeleteWord;
 
 /***/ }),
-/* 240 */
+/* 237 */
 /***/ (function(module, exports, __webpack_require__) {
 
 "use strict";
@@ -76963,8 +76885,8 @@ module.exports = keyCommandDeleteWord;
 
 
 
-var DraftModifier = __webpack_require__(118);
-var EditorState = __webpack_require__(117);
+var DraftModifier = __webpack_require__(6);
+var EditorState = __webpack_require__(3);
 
 function keyCommandInsertNewline(editorState) {
   var contentState = DraftModifier.splitBlock(editorState.getCurrentContent(), editorState.getSelection());
@@ -76974,7 +76896,7 @@ function keyCommandInsertNewline(editorState) {
 module.exports = keyCommandInsertNewline;
 
 /***/ }),
-/* 241 */
+/* 238 */
 /***/ (function(module, exports, __webpack_require__) {
 
 "use strict";
@@ -76993,7 +76915,7 @@ module.exports = keyCommandInsertNewline;
 
 
 
-var EditorState = __webpack_require__(117);
+var EditorState = __webpack_require__(3);
 
 /**
  * See comment for `moveSelectionToStartOfBlock`.
@@ -77018,7 +76940,7 @@ function keyCommandMoveSelectionToEndOfBlock(editorState) {
 module.exports = keyCommandMoveSelectionToEndOfBlock;
 
 /***/ }),
-/* 242 */
+/* 239 */
 /***/ (function(module, exports, __webpack_require__) {
 
 "use strict";
@@ -77037,7 +76959,7 @@ module.exports = keyCommandMoveSelectionToEndOfBlock;
 
 
 
-var EditorState = __webpack_require__(117);
+var EditorState = __webpack_require__(3);
 
 /**
  * Collapse selection at the start of the first selected block. This is used
@@ -77062,7 +76984,7 @@ function keyCommandMoveSelectionToStartOfBlock(editorState) {
 module.exports = keyCommandMoveSelectionToStartOfBlock;
 
 /***/ }),
-/* 243 */
+/* 240 */
 /***/ (function(module, exports, __webpack_require__) {
 
 "use strict";
@@ -77081,11 +77003,11 @@ module.exports = keyCommandMoveSelectionToStartOfBlock;
 
 
 
-var EditorState = __webpack_require__(117);
-var UnicodeUtils = __webpack_require__(126);
+var EditorState = __webpack_require__(3);
+var UnicodeUtils = __webpack_require__(19);
 
-var moveSelectionBackward = __webpack_require__(148);
-var removeTextWithStrategy = __webpack_require__(132);
+var moveSelectionBackward = __webpack_require__(55);
+var removeTextWithStrategy = __webpack_require__(27);
 
 /**
  * Remove the selected range. If the cursor is collapsed, remove the preceding
@@ -77113,7 +77035,7 @@ function keyCommandPlainBackspace(editorState) {
 module.exports = keyCommandPlainBackspace;
 
 /***/ }),
-/* 244 */
+/* 241 */
 /***/ (function(module, exports, __webpack_require__) {
 
 "use strict";
@@ -77132,11 +77054,11 @@ module.exports = keyCommandPlainBackspace;
 
 
 
-var EditorState = __webpack_require__(117);
-var UnicodeUtils = __webpack_require__(126);
+var EditorState = __webpack_require__(3);
+var UnicodeUtils = __webpack_require__(19);
 
-var moveSelectionForward = __webpack_require__(169);
-var removeTextWithStrategy = __webpack_require__(132);
+var moveSelectionForward = __webpack_require__(89);
+var removeTextWithStrategy = __webpack_require__(27);
 
 /**
  * Remove the selected range. If the cursor is collapsed, remove the following
@@ -77165,7 +77087,7 @@ function keyCommandPlainDelete(editorState) {
 module.exports = keyCommandPlainDelete;
 
 /***/ }),
-/* 245 */
+/* 242 */
 /***/ (function(module, exports, __webpack_require__) {
 
 "use strict";
@@ -77184,10 +77106,10 @@ module.exports = keyCommandPlainDelete;
 
 
 
-var DraftModifier = __webpack_require__(118);
-var EditorState = __webpack_require__(117);
+var DraftModifier = __webpack_require__(6);
+var EditorState = __webpack_require__(3);
 
-var getContentStateFragment = __webpack_require__(133);
+var getContentStateFragment = __webpack_require__(31);
 
 /**
  * Transpose the characters on either side of a collapsed cursor, or
@@ -77250,7 +77172,7 @@ function keyCommandTransposeCharacters(editorState) {
 module.exports = keyCommandTransposeCharacters;
 
 /***/ }),
-/* 246 */
+/* 243 */
 /***/ (function(module, exports, __webpack_require__) {
 
 "use strict";
@@ -77269,7 +77191,7 @@ module.exports = keyCommandTransposeCharacters;
 
 
 
-var EditorState = __webpack_require__(117);
+var EditorState = __webpack_require__(3);
 
 function keyCommandUndo(e, editorState, updateFn) {
   var undoneState = EditorState.undo(editorState);
@@ -77305,7 +77227,7 @@ function keyCommandUndo(e, editorState, updateFn) {
 module.exports = keyCommandUndo;
 
 /***/ }),
-/* 247 */
+/* 244 */
 /***/ (function(module, exports, __webpack_require__) {
 
 "use strict";
@@ -77324,18 +77246,18 @@ module.exports = keyCommandUndo;
 
 
 
-var BlockMapBuilder = __webpack_require__(129);
-var CharacterMetadata = __webpack_require__(119);
-var DataTransfer = __webpack_require__(161);
-var DraftModifier = __webpack_require__(118);
-var DraftPasteProcessor = __webpack_require__(248);
-var EditorState = __webpack_require__(117);
-var RichTextEditorUtil = __webpack_require__(172);
+var BlockMapBuilder = __webpack_require__(24);
+var CharacterMetadata = __webpack_require__(8);
+var DataTransfer = __webpack_require__(81);
+var DraftModifier = __webpack_require__(6);
+var DraftPasteProcessor = __webpack_require__(245);
+var EditorState = __webpack_require__(3);
+var RichTextEditorUtil = __webpack_require__(92);
 
-var getEntityKeyForSelection = __webpack_require__(142);
-var getTextContentFromFiles = __webpack_require__(163);
-var isEventHandled = __webpack_require__(131);
-var splitTextIntoTextBlocks = __webpack_require__(251);
+var getEntityKeyForSelection = __webpack_require__(49);
+var getTextContentFromFiles = __webpack_require__(83);
+var isEventHandled = __webpack_require__(26);
+var splitTextIntoTextBlocks = __webpack_require__(248);
 
 /**
  * Paste content.
@@ -77476,7 +77398,7 @@ function areTextBlocksAndClipboardEqual(textBlocks, blockMap) {
 module.exports = editOnPaste;
 
 /***/ }),
-/* 248 */
+/* 245 */
 /***/ (function(module, exports, __webpack_require__) {
 
 "use strict";
@@ -77495,20 +77417,20 @@ module.exports = editOnPaste;
 
 
 
-var _assign = __webpack_require__(12);
+var _assign = __webpack_require__(5);
 
 var _extends = _assign || function (target) { for (var i = 1; i < arguments.length; i++) { var source = arguments[i]; for (var key in source) { if (Object.prototype.hasOwnProperty.call(source, key)) { target[key] = source[key]; } } } return target; };
 
-var CharacterMetadata = __webpack_require__(119);
-var ContentBlock = __webpack_require__(125);
-var ContentBlockNode = __webpack_require__(120);
-var DraftFeatureFlags = __webpack_require__(124);
-var Immutable = __webpack_require__(115);
+var CharacterMetadata = __webpack_require__(8);
+var ContentBlock = __webpack_require__(18);
+var ContentBlockNode = __webpack_require__(10);
+var DraftFeatureFlags = __webpack_require__(16);
+var Immutable = __webpack_require__(1);
 
-var convertFromHTMLtoContentBlocks = __webpack_require__(170);
-var generateRandomKey = __webpack_require__(123);
-var getSafeBodyFromHTML = __webpack_require__(171);
-var sanitizeDraftText = __webpack_require__(138);
+var convertFromHTMLtoContentBlocks = __webpack_require__(90);
+var generateRandomKey = __webpack_require__(14);
+var getSafeBodyFromHTML = __webpack_require__(91);
+var sanitizeDraftText = __webpack_require__(45);
 
 var List = Immutable.List,
     Repeat = Immutable.Repeat;
@@ -77555,7 +77477,7 @@ var DraftPasteProcessor = {
 module.exports = DraftPasteProcessor;
 
 /***/ }),
-/* 249 */
+/* 246 */
 /***/ (function(module, exports, __webpack_require__) {
 
 "use strict";
@@ -77589,7 +77511,7 @@ var URI = function () {
 module.exports = URI;
 
 /***/ }),
-/* 250 */
+/* 247 */
 /***/ (function(module, exports, __webpack_require__) {
 
 "use strict";
@@ -77634,7 +77556,7 @@ function adjustBlockDepthForContentState(contentState, selectionState, adjustmen
 module.exports = adjustBlockDepthForContentState;
 
 /***/ }),
-/* 251 */
+/* 248 */
 /***/ (function(module, exports, __webpack_require__) {
 
 "use strict";
@@ -77662,7 +77584,7 @@ function splitTextIntoTextBlocks(text) {
 module.exports = splitTextIntoTextBlocks;
 
 /***/ }),
-/* 252 */
+/* 249 */
 /***/ (function(module, exports, __webpack_require__) {
 
 "use strict";
@@ -77681,11 +77603,11 @@ module.exports = splitTextIntoTextBlocks;
 
 
 
-var EditorState = __webpack_require__(117);
-var ReactDOM = __webpack_require__(25);
+var EditorState = __webpack_require__(3);
+var ReactDOM = __webpack_require__(17);
 
-var getDraftEditorSelection = __webpack_require__(253);
-var invariant = __webpack_require__(116);
+var getDraftEditorSelection = __webpack_require__(250);
+var invariant = __webpack_require__(2);
 
 function editOnSelect(editor) {
   if (editor._blockSelectEvents || editor._latestEditorState !== editor.props.editorState) {
@@ -77712,7 +77634,7 @@ function editOnSelect(editor) {
 module.exports = editOnSelect;
 
 /***/ }),
-/* 253 */
+/* 250 */
 /***/ (function(module, exports, __webpack_require__) {
 
 "use strict";
@@ -77731,7 +77653,7 @@ module.exports = editOnSelect;
 
 
 
-var getDraftEditorSelectionWithNodes = __webpack_require__(167);
+var getDraftEditorSelectionWithNodes = __webpack_require__(87);
 
 /**
  * Convert the current selection range to an anchor/focus pair of offset keys
@@ -77755,7 +77677,7 @@ module.exports = getDraftEditorSelection;
 /* WEBPACK VAR INJECTION */}.call(exports, __webpack_require__(7)))
 
 /***/ }),
-/* 254 */
+/* 251 */
 /***/ (function(module, exports, __webpack_require__) {
 
 "use strict";
@@ -77782,7 +77704,7 @@ function _inherits(subClass, superClass) { if (typeof superClass !== "function" 
 
 var React = __webpack_require__(0);
 
-var cx = __webpack_require__(128);
+var cx = __webpack_require__(22);
 
 /**
  * This component is responsible for rendering placeholder text for the
@@ -77835,7 +77757,7 @@ var DraftEditorPlaceholder = function (_React$Component) {
 module.exports = DraftEditorPlaceholder;
 
 /***/ }),
-/* 255 */
+/* 252 */
 /***/ (function(module, exports, __webpack_require__) {
 
 "use strict";
@@ -77854,17 +77776,17 @@ module.exports = DraftEditorPlaceholder;
 
 
 
-var _assign = __webpack_require__(12);
+var _assign = __webpack_require__(5);
 
 var _extends = _assign || function (target) { for (var i = 1; i < arguments.length; i++) { var source = arguments[i]; for (var key in source) { if (Object.prototype.hasOwnProperty.call(source, key)) { target[key] = source[key]; } } } return target; };
 
-var ContentBlock = __webpack_require__(125);
-var ContentBlockNode = __webpack_require__(120);
-var DraftStringKey = __webpack_require__(174);
+var ContentBlock = __webpack_require__(18);
+var ContentBlockNode = __webpack_require__(10);
+var DraftStringKey = __webpack_require__(94);
 
-var encodeEntityRanges = __webpack_require__(256);
-var encodeInlineStyleRanges = __webpack_require__(257);
-var invariant = __webpack_require__(116);
+var encodeEntityRanges = __webpack_require__(253);
+var encodeInlineStyleRanges = __webpack_require__(254);
+var invariant = __webpack_require__(2);
 
 var createRawBlock = function createRawBlock(block, entityStorageMap) {
   return {
@@ -77981,7 +77903,7 @@ var convertFromDraftStateToRaw = function convertFromDraftStateToRaw(contentStat
 module.exports = convertFromDraftStateToRaw;
 
 /***/ }),
-/* 256 */
+/* 253 */
 /***/ (function(module, exports, __webpack_require__) {
 
 "use strict";
@@ -78000,8 +77922,8 @@ module.exports = convertFromDraftStateToRaw;
 
 
 
-var DraftStringKey = __webpack_require__(174);
-var UnicodeUtils = __webpack_require__(126);
+var DraftStringKey = __webpack_require__(94);
+var UnicodeUtils = __webpack_require__(19);
 
 var strlen = UnicodeUtils.strlen;
 
@@ -78029,7 +77951,7 @@ function encodeEntityRanges(block, storageMap) {
 module.exports = encodeEntityRanges;
 
 /***/ }),
-/* 257 */
+/* 254 */
 /***/ (function(module, exports, __webpack_require__) {
 
 "use strict";
@@ -78048,9 +77970,9 @@ module.exports = encodeEntityRanges;
 
 
 
-var UnicodeUtils = __webpack_require__(126);
+var UnicodeUtils = __webpack_require__(19);
 
-var findRangesImmutable = __webpack_require__(130);
+var findRangesImmutable = __webpack_require__(25);
 
 var areEqual = function areEqual(a, b) {
   return a === b;
@@ -78104,7 +78026,7 @@ function encodeInlineStyleRanges(block) {
 module.exports = encodeInlineStyleRanges;
 
 /***/ }),
-/* 258 */
+/* 255 */
 /***/ (function(module, exports, __webpack_require__) {
 
 "use strict";
@@ -78123,24 +78045,24 @@ module.exports = encodeInlineStyleRanges;
 
 
 
-var _assign = __webpack_require__(12);
+var _assign = __webpack_require__(5);
 
 var _extends = _assign || function (target) { for (var i = 1; i < arguments.length; i++) { var source = arguments[i]; for (var key in source) { if (Object.prototype.hasOwnProperty.call(source, key)) { target[key] = source[key]; } } } return target; };
 
-var ContentBlock = __webpack_require__(125);
-var ContentBlockNode = __webpack_require__(120);
-var ContentState = __webpack_require__(137);
-var DraftEntity = __webpack_require__(134);
-var DraftFeatureFlags = __webpack_require__(124);
-var DraftTreeAdapter = __webpack_require__(259);
-var Immutable = __webpack_require__(115);
-var SelectionState = __webpack_require__(127);
+var ContentBlock = __webpack_require__(18);
+var ContentBlockNode = __webpack_require__(10);
+var ContentState = __webpack_require__(44);
+var DraftEntity = __webpack_require__(32);
+var DraftFeatureFlags = __webpack_require__(16);
+var DraftTreeAdapter = __webpack_require__(256);
+var Immutable = __webpack_require__(1);
+var SelectionState = __webpack_require__(21);
 
-var createCharacterList = __webpack_require__(260);
-var decodeEntityRanges = __webpack_require__(261);
-var decodeInlineStyleRanges = __webpack_require__(262);
-var generateRandomKey = __webpack_require__(123);
-var invariant = __webpack_require__(116);
+var createCharacterList = __webpack_require__(257);
+var decodeEntityRanges = __webpack_require__(258);
+var decodeInlineStyleRanges = __webpack_require__(259);
+var generateRandomKey = __webpack_require__(14);
+var invariant = __webpack_require__(2);
 
 var experimentalTreeDataSupport = DraftFeatureFlags.draft_tree_data_support;
 
@@ -78338,13 +78260,13 @@ var convertFromRawToDraftState = function convertFromRawToDraftState(rawState) {
 module.exports = convertFromRawToDraftState;
 
 /***/ }),
-/* 259 */
+/* 256 */
 /***/ (function(module, exports, __webpack_require__) {
 
 "use strict";
 
 
-var _assign = __webpack_require__(12);
+var _assign = __webpack_require__(5);
 
 var _extends = _assign || function (target) { for (var i = 1; i < arguments.length; i++) { var source = arguments[i]; for (var key in source) { if (Object.prototype.hasOwnProperty.call(source, key)) { target[key] = source[key]; } } } return target; };
 
@@ -78364,7 +78286,7 @@ var _extends = _assign || function (target) { for (var i = 1; i < arguments.leng
  * production systems. This file may be update/removed without notice.
  */
 
-var invariant = __webpack_require__(116);
+var invariant = __webpack_require__(2);
 
 var traverseInDepthOrder = function traverseInDepthOrder(blocks, fn) {
   var stack = [].concat(blocks).reverse();
@@ -78487,7 +78409,7 @@ var DraftTreeAdapter = {
 module.exports = DraftTreeAdapter;
 
 /***/ }),
-/* 260 */
+/* 257 */
 /***/ (function(module, exports, __webpack_require__) {
 
 "use strict";
@@ -78506,8 +78428,8 @@ module.exports = DraftTreeAdapter;
 
 
 
-var CharacterMetadata = __webpack_require__(119);
-var Immutable = __webpack_require__(115);
+var CharacterMetadata = __webpack_require__(8);
+var Immutable = __webpack_require__(1);
 
 var List = Immutable.List;
 
@@ -78523,7 +78445,7 @@ function createCharacterList(inlineStyles, entities) {
 module.exports = createCharacterList;
 
 /***/ }),
-/* 261 */
+/* 258 */
 /***/ (function(module, exports, __webpack_require__) {
 
 "use strict";
@@ -78542,7 +78464,7 @@ module.exports = createCharacterList;
 
 
 
-var UnicodeUtils = __webpack_require__(126);
+var UnicodeUtils = __webpack_require__(19);
 
 var substr = UnicodeUtils.substr;
 
@@ -78569,7 +78491,7 @@ function decodeEntityRanges(text, ranges) {
 module.exports = decodeEntityRanges;
 
 /***/ }),
-/* 262 */
+/* 259 */
 /***/ (function(module, exports, __webpack_require__) {
 
 "use strict";
@@ -78588,10 +78510,10 @@ module.exports = decodeEntityRanges;
 
 
 
-var _require = __webpack_require__(115),
+var _require = __webpack_require__(1),
     OrderedSet = _require.OrderedSet;
 
-var UnicodeUtils = __webpack_require__(126);
+var UnicodeUtils = __webpack_require__(19);
 
 var substr = UnicodeUtils.substr;
 
@@ -78619,7 +78541,7 @@ function decodeInlineStyleRanges(text, ranges) {
 module.exports = decodeInlineStyleRanges;
 
 /***/ }),
-/* 263 */
+/* 260 */
 /***/ (function(module, exports, __webpack_require__) {
 
 "use strict";
@@ -78638,7 +78560,7 @@ module.exports = decodeInlineStyleRanges;
 
 
 
-var getRangeBoundingClientRect = __webpack_require__(264);
+var getRangeBoundingClientRect = __webpack_require__(261);
 
 /**
  * Return the bounding ClientRect for the visible DOM selection, if any.
@@ -78672,7 +78594,7 @@ function getVisibleSelectionRect(global) {
 module.exports = getVisibleSelectionRect;
 
 /***/ }),
-/* 264 */
+/* 261 */
 /***/ (function(module, exports, __webpack_require__) {
 
 "use strict";
@@ -78691,7 +78613,7 @@ module.exports = getVisibleSelectionRect;
 
 
 
-var getRangeClientRects = __webpack_require__(166);
+var getRangeClientRects = __webpack_require__(86);
 
 /**
  * Like range.getBoundingClientRect() but normalizes for browser bugs.
@@ -78749,13 +78671,13 @@ function getRangeBoundingClientRect(range) {
 module.exports = getRangeBoundingClientRect;
 
 /***/ }),
-/* 265 */
+/* 262 */
 /***/ (function(module, exports, __webpack_require__) {
 
 // style-loader: Adds some css to the DOM by adding a <style> tag
 
 // load the styles
-var content = __webpack_require__(266);
+var content = __webpack_require__(263);
 if(typeof content === 'string') content = [[module.i, content, '']];
 // Prepare cssTransformation
 var transform;
@@ -78763,7 +78685,7 @@ var transform;
 var options = {}
 options.transform = transform
 // add the styles to the DOM
-var update = __webpack_require__(33)(content, options);
+var update = __webpack_require__(42)(content, options);
 if(content.locals) module.exports = content.locals;
 // Hot Module Replacement
 if(false) {
@@ -78780,10 +78702,10 @@ if(false) {
 }
 
 /***/ }),
-/* 266 */
+/* 263 */
 /***/ (function(module, exports, __webpack_require__) {
 
-exports = module.exports = __webpack_require__(32)(false);
+exports = module.exports = __webpack_require__(41)(false);
 // imports
 
 
@@ -78792,6 +78714,83 @@ exports.push([module.i, "/**\n * Draft v0.10.5\n *\n * Copyright (c) 2013-presen
 
 // exports
 
+
+/***/ }),
+/* 264 */
+/***/ (function(module, __webpack_exports__, __webpack_require__) {
+
+"use strict";
+/* harmony export (binding) */ __webpack_require__.d(__webpack_exports__, "a", function() { return NotFound; });
+/* harmony import */ var __WEBPACK_IMPORTED_MODULE_0_react__ = __webpack_require__(0);
+/* harmony import */ var __WEBPACK_IMPORTED_MODULE_0_react___default = __webpack_require__.n(__WEBPACK_IMPORTED_MODULE_0_react__);
+function _typeof(obj) { if (typeof Symbol === "function" && typeof Symbol.iterator === "symbol") { _typeof = function _typeof(obj) { return typeof obj; }; } else { _typeof = function _typeof(obj) { return obj && typeof Symbol === "function" && obj.constructor === Symbol && obj !== Symbol.prototype ? "symbol" : typeof obj; }; } return _typeof(obj); }
+
+function _classCallCheck(instance, Constructor) { if (!(instance instanceof Constructor)) { throw new TypeError("Cannot call a class as a function"); } }
+
+function _defineProperties(target, props) { for (var i = 0; i < props.length; i++) { var descriptor = props[i]; descriptor.enumerable = descriptor.enumerable || false; descriptor.configurable = true; if ("value" in descriptor) descriptor.writable = true; Object.defineProperty(target, descriptor.key, descriptor); } }
+
+function _createClass(Constructor, protoProps, staticProps) { if (protoProps) _defineProperties(Constructor.prototype, protoProps); if (staticProps) _defineProperties(Constructor, staticProps); return Constructor; }
+
+function _possibleConstructorReturn(self, call) { if (call && (_typeof(call) === "object" || typeof call === "function")) { return call; } return _assertThisInitialized(self); }
+
+function _assertThisInitialized(self) { if (self === void 0) { throw new ReferenceError("this hasn't been initialised - super() hasn't been called"); } return self; }
+
+function _getPrototypeOf(o) { _getPrototypeOf = Object.setPrototypeOf ? Object.getPrototypeOf : function _getPrototypeOf(o) { return o.__proto__ || Object.getPrototypeOf(o); }; return _getPrototypeOf(o); }
+
+function _inherits(subClass, superClass) { if (typeof superClass !== "function" && superClass !== null) { throw new TypeError("Super expression must either be null or a function"); } subClass.prototype = Object.create(superClass && superClass.prototype, { constructor: { value: subClass, writable: true, configurable: true } }); if (superClass) _setPrototypeOf(subClass, superClass); }
+
+function _setPrototypeOf(o, p) { _setPrototypeOf = Object.setPrototypeOf || function _setPrototypeOf(o, p) { o.__proto__ = p; return o; }; return _setPrototypeOf(o, p); }
+
+
+
+var NotFound =
+/*#__PURE__*/
+function (_React$Component) {
+  _inherits(NotFound, _React$Component);
+
+  function NotFound() {
+    _classCallCheck(this, NotFound);
+
+    return _possibleConstructorReturn(this, _getPrototypeOf(NotFound).apply(this, arguments));
+  }
+
+  _createClass(NotFound, [{
+    key: "render",
+    value: function render() {
+      return __WEBPACK_IMPORTED_MODULE_0_react___default.a.createElement("div", {
+        className: "d-flex flex-grow-1"
+      }, __WEBPACK_IMPORTED_MODULE_0_react___default.a.createElement("div", {
+        className: "page-section w-100"
+      }, __WEBPACK_IMPORTED_MODULE_0_react___default.a.createElement("div", {
+        className: "container "
+      }, __WEBPACK_IMPORTED_MODULE_0_react___default.a.createElement("div", {
+        className: "row"
+      }, __WEBPACK_IMPORTED_MODULE_0_react___default.a.createElement("div", {
+        className: "col"
+      }, __WEBPACK_IMPORTED_MODULE_0_react___default.a.createElement("div", {
+        className: "alert alert-info",
+        role: "alert"
+      }, "\u0426\u044F \u0441\u0442\u043E\u0440\u0456\u043D\u043A\u0430 \u0432 \u0440\u043E\u0437\u0440\u043E\u0431\u0446\u0456."), __WEBPACK_IMPORTED_MODULE_0_react___default.a.createElement("p", null, "\u0410 \u043F\u043E\u043A\u0438, \u043E\u0437\u043D\u0430\u0439\u043E\u043C\u0442\u0435\u0441\u044C \u0437 \u043D\u0430\u0448\u0438\u043C YouTube \u043A\u0430\u043D\u0430\u043B\u043E\u043C."), __WEBPACK_IMPORTED_MODULE_0_react___default.a.createElement("div", null, __WEBPACK_IMPORTED_MODULE_0_react___default.a.createElement("iframe", {
+        width: "560",
+        height: "315",
+        src: "https://www.youtube.com/embed/BrLEOE-Mnkk",
+        frameborder: "0",
+        allow: "accelerometer; autoplay; encrypted-media; gyroscope; picture-in-picture",
+        allowfullscreen: true
+      })))))));
+    }
+  }]);
+
+  return NotFound;
+}(__WEBPACK_IMPORTED_MODULE_0_react___default.a.Component);
+
+
+
+/***/ }),
+/* 265 */
+/***/ (function(module, exports) {
+
+// removed by extract-text-webpack-plugin
 
 /***/ })
 /******/ ]);

@@ -5,7 +5,7 @@ export default class Admin extends React.Component {
     render () {
         return (
             <div className="d-flex flex-grow-1">
-                <div className="page-section w-100">
+                <div className="w-100">
                     <div className="container ">
                         <div className="row">
                             <div className="col">
